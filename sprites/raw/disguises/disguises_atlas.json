@@ -1,0 +1,154 @@
+{
+ "sheet": "downloads/metamong_assets/pixel/pixel_ditto_disguises_sheet.png",
+ "size": [
+  1448,
+  1086
+ ],
+ "pixel_scale": 2,
+ "native_size": [
+  724,
+  543
+ ],
+ "cell": [
+  391,
+  383
+ ],
+ "grid": [
+  3,
+  2
+ ],
+ "frames": [
+  {
+   "row": 1,
+   "col": 1,
+   "file": "disguises_r1c1.png",
+   "w": 323,
+   "h": 252,
+   "bbox": [
+    126,
+    214,
+    448,
+    465
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    34,
+    127,
+    323,
+    252
+   ]
+  },
+  {
+   "row": 1,
+   "col": 2,
+   "file": "disguises_r1c2.png",
+   "w": 265,
+   "h": 338,
+   "bbox": [
+    592,
+    145,
+    856,
+    482
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    454,
+    41,
+    265,
+    338
+   ]
+  },
+  {
+   "row": 1,
+   "col": 3,
+   "file": "disguises_r1c3.png",
+   "w": 283,
+   "h": 373,
+   "bbox": [
+    1008,
+    118,
+    1290,
+    490
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    836,
+    6,
+    283,
+    373
+   ]
+  },
+  {
+   "row": 2,
+   "col": 1,
+   "file": "disguises_r2c1.png",
+   "w": 383,
+   "h": 325,
+   "bbox": [
+    76,
+    608,
+    458,
+    932
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    4,
+    437,
+    383,
+    325
+   ]
+  },
+  {
+   "row": 2,
+   "col": 2,
+   "file": "disguises_r2c2.png",
+   "w": 314,
+   "h": 334,
+   "bbox": [
+    563,
+    599,
+    876,
+    932
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    429,
+    428,
+    314,
+    334
+   ]
+  },
+  {
+   "row": 2,
+   "col": 3,
+   "file": "disguises_r2c3.png",
+   "w": 299,
+   "h": 375,
+   "bbox": [
+    1011,
+    558,
+    1309,
+    932
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    828,
+    387,
+    299,
+    375
+   ]
+  }
+ ]
+}

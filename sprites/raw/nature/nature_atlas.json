@@ -1,0 +1,198 @@
+{
+ "sheet": "downloads/metamong_assets/pixel/pixel_nature_props_sheet.png",
+ "size": [
+  1402,
+  1122
+ ],
+ "pixel_scale": 2,
+ "native_size": [
+  701,
+  561
+ ],
+ "cell": [
+  411,
+  426
+ ],
+ "grid": [
+  4,
+  2
+ ],
+ "frames": [
+  {
+   "row": 1,
+   "col": 1,
+   "file": "nature_r1c1.png",
+   "w": 297,
+   "h": 380,
+   "bbox": [
+    37,
+    156,
+    333,
+    535
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    57,
+    42,
+    297,
+    380
+   ]
+  },
+  {
+   "row": 1,
+   "col": 2,
+   "file": "nature_r1c2.png",
+   "w": 403,
+   "h": 393,
+   "bbox": [
+    364,
+    144,
+    766,
+    536
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    415,
+    29,
+    403,
+    393
+   ]
+  },
+  {
+   "row": 1,
+   "col": 3,
+   "file": "nature_r1c3.png",
+   "w": 271,
+   "h": 336,
+   "bbox": [
+    805,
+    196,
+    1075,
+    531
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    892,
+    86,
+    271,
+    336
+   ]
+  },
+  {
+   "row": 1,
+   "col": 4,
+   "file": "nature_r1c4.png",
+   "w": 241,
+   "h": 418,
+   "bbox": [
+    1118,
+    114,
+    1358,
+    531
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    1318,
+    4,
+    241,
+    418
+   ]
+  },
+  {
+   "row": 2,
+   "col": 1,
+   "file": "nature_r2c1.png",
+   "w": 278,
+   "h": 196,
+   "bbox": [
+    47,
+    737,
+    324,
+    932
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    66,
+    652,
+    278,
+    196
+   ]
+  },
+  {
+   "row": 2,
+   "col": 2,
+   "file": "nature_r2c2.png",
+   "w": 239,
+   "h": 206,
+   "bbox": [
+    421,
+    728,
+    659,
+    933
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    497,
+    642,
+    239,
+    206
+   ]
+  },
+  {
+   "row": 2,
+   "col": 3,
+   "file": "nature_r2c3.png",
+   "w": 272,
+   "h": 244,
+   "bbox": [
+    788,
+    719,
+    1059,
+    962
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    891,
+    604,
+    272,
+    244
+   ]
+  },
+  {
+   "row": 2,
+   "col": 4,
+   "file": "nature_r2c4.png",
+   "w": 171,
+   "h": 319,
+   "bbox": [
+    1150,
+    652,
+    1320,
+    970
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    1353,
+    529,
+    171,
+    319
+   ]
+  }
+ ]
+}

@@ -1,0 +1,127 @@
+{
+ "set": "ditto_basic",
+ "cell": [
+  230,
+  236
+ ],
+ "grid": [
+  4,
+  4
+ ],
+ "sheet": "ditto_basic_sheet.png",
+ "frames": [
+  {
+   "name": "idle1",
+   "row": 1,
+   "col": 1,
+   "w": 184,
+   "h": 155
+  },
+  {
+   "name": "idle2",
+   "row": 1,
+   "col": 2,
+   "w": 181,
+   "h": 155
+  },
+  {
+   "name": "idle3",
+   "row": 1,
+   "col": 3,
+   "w": 176,
+   "h": 155
+  },
+  {
+   "name": "idle4",
+   "row": 1,
+   "col": 4,
+   "w": 177,
+   "h": 155
+  },
+  {
+   "name": "smile1",
+   "row": 2,
+   "col": 1,
+   "w": 195,
+   "h": 146
+  },
+  {
+   "name": "smile2",
+   "row": 2,
+   "col": 2,
+   "w": 155,
+   "h": 220
+  },
+  {
+   "name": "smile3",
+   "row": 2,
+   "col": 3,
+   "w": 182,
+   "h": 166
+  },
+  {
+   "name": "smile4",
+   "row": 2,
+   "col": 4,
+   "w": 195,
+   "h": 143
+  },
+  {
+   "name": "flat",
+   "row": 3,
+   "col": 1,
+   "w": 218,
+   "h": 92
+  },
+  {
+   "name": "melt",
+   "row": 3,
+   "col": 2,
+   "w": 208,
+   "h": 132
+  },
+  {
+   "name": "tall",
+   "row": 3,
+   "col": 3,
+   "w": 164,
+   "h": 232
+  },
+  {
+   "name": "surprise",
+   "row": 3,
+   "col": 4,
+   "w": 211,
+   "h": 167
+  },
+  {
+   "name": "joy1",
+   "row": 4,
+   "col": 1,
+   "w": 197,
+   "h": 180
+  },
+  {
+   "name": "joy2",
+   "row": 4,
+   "col": 2,
+   "w": 208,
+   "h": 180
+  },
+  {
+   "name": "joy3",
+   "row": 4,
+   "col": 3,
+   "w": 196,
+   "h": 201
+  },
+  {
+   "name": "joy4",
+   "row": 4,
+   "col": 4,
+   "w": 226,
+   "h": 180
+  }
+ ],
+ "notes": []
+}

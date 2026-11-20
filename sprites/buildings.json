@@ -1,0 +1,43 @@
+{
+ "set": "buildings",
+ "cell": [
+  641,
+  587
+ ],
+ "grid": [
+  2,
+  2
+ ],
+ "sheet": "buildings_sheet.png",
+ "frames": [
+  {
+   "name": "workshop",
+   "row": 1,
+   "col": 1,
+   "w": 637,
+   "h": 535
+  },
+  {
+   "name": "lighthouse",
+   "row": 1,
+   "col": 2,
+   "w": 357,
+   "h": 583
+  },
+  {
+   "name": "vending",
+   "row": 2,
+   "col": 1,
+   "w": 350,
+   "h": 515
+  },
+  {
+   "name": "dock",
+   "row": 2,
+   "col": 2,
+   "w": 550,
+   "h": 410
+  }
+ ],
+ "notes": []
+}

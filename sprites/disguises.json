@@ -1,0 +1,57 @@
+{
+ "set": "disguises",
+ "cell": [
+  387,
+  379
+ ],
+ "grid": [
+  3,
+  2
+ ],
+ "sheet": "disguises_sheet.png",
+ "frames": [
+  {
+   "name": "pebble",
+   "row": 1,
+   "col": 1,
+   "w": 323,
+   "h": 252
+  },
+  {
+   "name": "mailbox",
+   "row": 1,
+   "col": 2,
+   "w": 265,
+   "h": 338
+  },
+  {
+   "name": "flowerpot",
+   "row": 1,
+   "col": 3,
+   "w": 283,
+   "h": 373
+  },
+  {
+   "name": "bench",
+   "row": 2,
+   "col": 1,
+   "w": 383,
+   "h": 325
+  },
+  {
+   "name": "mushroom",
+   "row": 2,
+   "col": 2,
+   "w": 314,
+   "h": 334
+  },
+  {
+   "name": "signpost",
+   "row": 2,
+   "col": 3,
+   "w": 299,
+   "h": 375
+  }
+ ],
+ "notes": []
+}

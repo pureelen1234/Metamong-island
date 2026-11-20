@@ -1,0 +1,462 @@
+{
+ "sheet": "downloads/metamong_assets/pixel/pixel_cat_somi_sheet.png",
+ "size": [
+  1254,
+  1254
+ ],
+ "pixel_scale": 2,
+ "native_size": [
+  627,
+  627
+ ],
+ "cell": [
+  236,
+  235
+ ],
+ "grid": [
+  4,
+  5
+ ],
+ "frames": [
+  {
+   "row": 1,
+   "col": 1,
+   "file": "somi_r1c1.png",
+   "w": 164,
+   "h": 203,
+   "bbox": [
+    162,
+    32,
+    325,
+    234
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    36,
+    28,
+    164,
+    203
+   ]
+  },
+  {
+   "row": 1,
+   "col": 2,
+   "file": "somi_r1c2.png",
+   "w": 168,
+   "h": 206,
+   "bbox": [
+    402,
+    34,
+    569,
+    239
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    270,
+    25,
+    168,
+    206
+   ]
+  },
+  {
+   "row": 1,
+   "col": 3,
+   "file": "somi_r1c3.png",
+   "w": 164,
+   "h": 205,
+   "bbox": [
+    660,
+    34,
+    823,
+    238
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    508,
+    26,
+    164,
+    205
+   ]
+  },
+  {
+   "row": 1,
+   "col": 4,
+   "file": "somi_r1c4.png",
+   "w": 177,
+   "h": 205,
+   "bbox": [
+    901,
+    34,
+    1077,
+    238
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    737,
+    26,
+    177,
+    205
+   ]
+  },
+  {
+   "row": 2,
+   "col": 1,
+   "file": "somi_r2c1.png",
+   "w": 157,
+   "h": 202,
+   "bbox": [
+    161,
+    277,
+    317,
+    478
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    39,
+    264,
+    157,
+    202
+   ]
+  },
+  {
+   "row": 2,
+   "col": 2,
+   "file": "somi_r2c2.png",
+   "w": 154,
+   "h": 202,
+   "bbox": [
+    404,
+    278,
+    557,
+    479
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    277,
+    264,
+    154,
+    202
+   ]
+  },
+  {
+   "row": 2,
+   "col": 3,
+   "file": "somi_r2c3.png",
+   "w": 153,
+   "h": 199,
+   "bbox": [
+    656,
+    278,
+    808,
+    476
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    513,
+    267,
+    153,
+    199
+   ]
+  },
+  {
+   "row": 2,
+   "col": 4,
+   "file": "somi_r2c4.png",
+   "w": 156,
+   "h": 201,
+   "bbox": [
+    901,
+    278,
+    1056,
+    478
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    748,
+    265,
+    156,
+    201
+   ]
+  },
+  {
+   "row": 3,
+   "col": 1,
+   "file": "somi_r3c1.png",
+   "w": 192,
+   "h": 187,
+   "bbox": [
+    152,
+    517,
+    343,
+    703
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    22,
+    514,
+    192,
+    187
+   ]
+  },
+  {
+   "row": 3,
+   "col": 2,
+   "file": "somi_r3c2.png",
+   "w": 197,
+   "h": 186,
+   "bbox": [
+    390,
+    522,
+    586,
+    707
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    255,
+    515,
+    197,
+    186
+   ]
+  },
+  {
+   "row": 3,
+   "col": 3,
+   "file": "somi_r3c3.png",
+   "w": 196,
+   "h": 184,
+   "bbox": [
+    638,
+    525,
+    833,
+    708
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    492,
+    517,
+    196,
+    184
+   ]
+  },
+  {
+   "row": 3,
+   "col": 4,
+   "file": "somi_r3c4.png",
+   "w": 205,
+   "h": 184,
+   "bbox": [
+    888,
+    527,
+    1092,
+    710
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    723,
+    517,
+    205,
+    184
+   ]
+  },
+  {
+   "row": 4,
+   "col": 1,
+   "file": "somi_r4c1.png",
+   "w": 188,
+   "h": 189,
+   "bbox": [
+    132,
+    732,
+    319,
+    920
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    24,
+    747,
+    188,
+    189
+   ]
+  },
+  {
+   "row": 4,
+   "col": 2,
+   "file": "somi_r4c2.png",
+   "w": 193,
+   "h": 187,
+   "bbox": [
+    370,
+    738,
+    562,
+    924
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    257,
+    749,
+    193,
+    187
+   ]
+  },
+  {
+   "row": 4,
+   "col": 3,
+   "file": "somi_r4c3.png",
+   "w": 189,
+   "h": 186,
+   "bbox": [
+    619,
+    739,
+    807,
+    924
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    495,
+    750,
+    189,
+    186
+   ]
+  },
+  {
+   "row": 4,
+   "col": 4,
+   "file": "somi_r4c4.png",
+   "w": 194,
+   "h": 183,
+   "bbox": [
+    867,
+    743,
+    1060,
+    925
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    729,
+    753,
+    194,
+    183
+   ]
+  },
+  {
+   "row": 5,
+   "col": 1,
+   "file": "somi_r5c1.png",
+   "w": 176,
+   "h": 227,
+   "bbox": [
+    151,
+    974,
+    326,
+    1200
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    30,
+    944,
+    176,
+    227
+   ]
+  },
+  {
+   "row": 5,
+   "col": 2,
+   "file": "somi_r5c2.png",
+   "w": 178,
+   "h": 176,
+   "bbox": [
+    390,
+    1025,
+    567,
+    1200
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    265,
+    995,
+    178,
+    176
+   ]
+  },
+  {
+   "row": 5,
+   "col": 3,
+   "file": "somi_r5c3.png",
+   "w": 186,
+   "h": 215,
+   "bbox": [
+    632,
+    983,
+    817,
+    1197
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    497,
+    956,
+    186,
+    215
+   ]
+  },
+  {
+   "row": 5,
+   "col": 4,
+   "file": "somi_r5c4.png",
+   "w": 228,
+   "h": 220,
+   "bbox": [
+    864,
+    983,
+    1091,
+    1202
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    712,
+    951,
+    228,
+    220
+   ]
+  }
+ ]
+}

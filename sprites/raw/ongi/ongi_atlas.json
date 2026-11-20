@@ -1,0 +1,462 @@
+{
+ "sheet": "downloads/metamong_assets/pixel/pixel_cat_ongi_sheet.png",
+ "size": [
+  1254,
+  1254
+ ],
+ "pixel_scale": 2,
+ "native_size": [
+  627,
+  627
+ ],
+ "cell": [
+  181,
+  219
+ ],
+ "grid": [
+  4,
+  5
+ ],
+ "frames": [
+  {
+   "row": 1,
+   "col": 1,
+   "file": "ongi_r1c1.png",
+   "w": 138,
+   "h": 210,
+   "bbox": [
+    200,
+    37,
+    337,
+    246
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    21,
+    5,
+    138,
+    210
+   ]
+  },
+  {
+   "row": 1,
+   "col": 2,
+   "file": "ongi_r1c2.png",
+   "w": 141,
+   "h": 207,
+   "bbox": [
+    441,
+    37,
+    581,
+    243
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    201,
+    8,
+    141,
+    207
+   ]
+  },
+  {
+   "row": 1,
+   "col": 3,
+   "file": "ongi_r1c3.png",
+   "w": 133,
+   "h": 210,
+   "bbox": [
+    693,
+    37,
+    825,
+    246
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    386,
+    5,
+    133,
+    210
+   ]
+  },
+  {
+   "row": 1,
+   "col": 4,
+   "file": "ongi_r1c4.png",
+   "w": 135,
+   "h": 210,
+   "bbox": [
+    927,
+    37,
+    1061,
+    246
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    566,
+    5,
+    135,
+    210
+   ]
+  },
+  {
+   "row": 2,
+   "col": 1,
+   "file": "ongi_r2c1.png",
+   "w": 129,
+   "h": 206,
+   "bbox": [
+    207,
+    286,
+    335,
+    491
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    26,
+    228,
+    129,
+    206
+   ]
+  },
+  {
+   "row": 2,
+   "col": 2,
+   "file": "ongi_r2c2.png",
+   "w": 129,
+   "h": 204,
+   "bbox": [
+    444,
+    286,
+    572,
+    489
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    207,
+    230,
+    129,
+    204
+   ]
+  },
+  {
+   "row": 2,
+   "col": 3,
+   "file": "ongi_r2c3.png",
+   "w": 128,
+   "h": 205,
+   "bbox": [
+    691,
+    286,
+    818,
+    490
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    388,
+    229,
+    128,
+    205
+   ]
+  },
+  {
+   "row": 2,
+   "col": 4,
+   "file": "ongi_r2c4.png",
+   "w": 131,
+   "h": 207,
+   "bbox": [
+    924,
+    285,
+    1054,
+    491
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    568,
+    227,
+    131,
+    207
+   ]
+  },
+  {
+   "row": 3,
+   "col": 1,
+   "file": "ongi_r3c1.png",
+   "w": 168,
+   "h": 194,
+   "bbox": [
+    195,
+    527,
+    362,
+    720
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    6,
+    459,
+    168,
+    194
+   ]
+  },
+  {
+   "row": 3,
+   "col": 2,
+   "file": "ongi_r3c2.png",
+   "w": 170,
+   "h": 194,
+   "bbox": [
+    431,
+    527,
+    600,
+    720
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    186,
+    459,
+    170,
+    194
+   ]
+  },
+  {
+   "row": 3,
+   "col": 3,
+   "file": "ongi_r3c3.png",
+   "w": 170,
+   "h": 194,
+   "bbox": [
+    668,
+    527,
+    837,
+    720
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    367,
+    459,
+    170,
+    194
+   ]
+  },
+  {
+   "row": 3,
+   "col": 4,
+   "file": "ongi_r3c4.png",
+   "w": 170,
+   "h": 194,
+   "bbox": [
+    906,
+    527,
+    1075,
+    720
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    548,
+    459,
+    170,
+    194
+   ]
+  },
+  {
+   "row": 4,
+   "col": 1,
+   "file": "ongi_r4c1.png",
+   "w": 169,
+   "h": 192,
+   "bbox": [
+    174,
+    755,
+    342,
+    946
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    6,
+    680,
+    169,
+    192
+   ]
+  },
+  {
+   "row": 4,
+   "col": 2,
+   "file": "ongi_r4c2.png",
+   "w": 170,
+   "h": 192,
+   "bbox": [
+    416,
+    755,
+    585,
+    946
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    186,
+    680,
+    170,
+    192
+   ]
+  },
+  {
+   "row": 4,
+   "col": 3,
+   "file": "ongi_r4c3.png",
+   "w": 168,
+   "h": 192,
+   "bbox": [
+    658,
+    755,
+    825,
+    946
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    368,
+    680,
+    168,
+    192
+   ]
+  },
+  {
+   "row": 4,
+   "col": 4,
+   "file": "ongi_r4c4.png",
+   "w": 171,
+   "h": 192,
+   "bbox": [
+    892,
+    755,
+    1062,
+    946
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    548,
+    680,
+    171,
+    192
+   ]
+  },
+  {
+   "row": 5,
+   "col": 1,
+   "file": "ongi_r5c1.png",
+   "w": 145,
+   "h": 206,
+   "bbox": [
+    194,
+    995,
+    338,
+    1200
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    18,
+    885,
+    145,
+    206
+   ]
+  },
+  {
+   "row": 5,
+   "col": 2,
+   "file": "ongi_r5c2.png",
+   "w": 173,
+   "h": 194,
+   "bbox": [
+    438,
+    1006,
+    610,
+    1199
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    185,
+    897,
+    173,
+    194
+   ]
+  },
+  {
+   "row": 5,
+   "col": 3,
+   "file": "ongi_r5c3.png",
+   "w": 165,
+   "h": 207,
+   "bbox": [
+    677,
+    995,
+    841,
+    1201
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    370,
+    884,
+    165,
+    207
+   ]
+  },
+  {
+   "row": 5,
+   "col": 4,
+   "file": "ongi_r5c4.png",
+   "w": 172,
+   "h": 211,
+   "bbox": [
+    902,
+    991,
+    1073,
+    1201
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    547,
+    880,
+    172,
+    211
+   ]
+  }
+ ]
+}

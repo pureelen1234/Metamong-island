@@ -1,0 +1,130 @@
+{
+ "set": "protagonist",
+ "cell": [
+  172,
+  296
+ ],
+ "grid": [
+  4,
+  4
+ ],
+ "sheet": "protagonist_sheet.png",
+ "frames": [
+  {
+   "name": "front1",
+   "row": 1,
+   "col": 1,
+   "w": 151,
+   "h": 276
+  },
+  {
+   "name": "front2",
+   "row": 1,
+   "col": 2,
+   "w": 146,
+   "h": 276
+  },
+  {
+   "name": "front3",
+   "row": 1,
+   "col": 3,
+   "w": 146,
+   "h": 276
+  },
+  {
+   "name": "front4",
+   "row": 1,
+   "col": 4,
+   "w": 145,
+   "h": 275
+  },
+  {
+   "name": "back1",
+   "row": 2,
+   "col": 1,
+   "w": 143,
+   "h": 269
+  },
+  {
+   "name": "back2",
+   "row": 2,
+   "col": 2,
+   "w": 142,
+   "h": 268
+  },
+  {
+   "name": "back3",
+   "row": 2,
+   "col": 3,
+   "w": 141,
+   "h": 268
+  },
+  {
+   "name": "back4",
+   "row": 2,
+   "col": 4,
+   "w": 143,
+   "h": 267
+  },
+  {
+   "name": "side1",
+   "row": 3,
+   "col": 1,
+   "w": 143,
+   "h": 258
+  },
+  {
+   "name": "side2",
+   "row": 3,
+   "col": 2,
+   "w": 144,
+   "h": 259
+  },
+  {
+   "name": "side3",
+   "row": 3,
+   "col": 3,
+   "w": 140,
+   "h": 259
+  },
+  {
+   "name": "side4",
+   "row": 3,
+   "col": 4,
+   "w": 141,
+   "h": 258
+  },
+  {
+   "name": "idle",
+   "row": 4,
+   "col": 1,
+   "w": 146,
+   "h": 292
+  },
+  {
+   "name": "wave",
+   "row": 4,
+   "col": 2,
+   "w": 168,
+   "h": 292
+  },
+  {
+   "name": "wave_alt",
+   "row": 4,
+   "col": 3,
+   "w": 168,
+   "h": 292
+  },
+  {
+   "name": "cheer",
+   "row": 4,
+   "col": 4,
+   "w": 168,
+   "h": 292
+  }
+ ],
+ "notes": [
+  "그림자 제거 16/16 프레임",
+  "r4c3 복원 → frames_fixed/protagonist_r4c3_fixed.png"
+ ]
+}
