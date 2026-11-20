@@ -125,6 +125,8 @@
  ],
  "notes": [
   "그림자 제거 16/16 프레임",
-  "r4c3 복원 → frames_fixed/protagonist_r4c3_fixed.png"
+  "r4c3 복원 → frames_fixed/protagonist_r4c3_fixed.png",
+  "행 매핑: 1행 정면 / 2행 뒷면 / 3행 옆모습(왼쪽을 봄) / 4행 대기·손흔들기",
+  "3행은 왼쪽을 보는 그림이므로 오른쪽(+x) 이동일 때만 flipX=true 로 좌우 반전한다"
  ]
 }
