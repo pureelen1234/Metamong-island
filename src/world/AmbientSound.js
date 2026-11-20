@@ -4,7 +4,7 @@
  * 예전의 낮게 깔리던 코드 드론을 걷어 내고, 밝은 장조(C·G·F)의 오르골/마림바풍
  * 힐링 멜로디를 8분음표 스텝 시퀀서로 연주한다.
  *  · 음색: 사인 기음 + 2·3배음(아주 약하게) → 오르골처럼 톡톡 튀는 감쇠
- *  · 낮은 볼륨(마스터 0.5) + 짧은 저역 차단 + 잔잔한 딜레이 한 줄
+ *  · 낮은 볼륨(마스터 0.55 · 음 하나 0.12) + 부드러운 컴프레서 + 잔잔한 딜레이 한 줄
  *  · 첫 제스처 이후에만 시작하고, 음소거/탭 숨김에서 안전하게 멈춘다
  */
 
@@ -54,7 +54,7 @@ export class AmbientSound {
     this.started = false;
     this.muted = false;
     this.phase = 'morning';
-    this.volume = 0.5;
+    this.volume = 0.55;
     this.step = 0;
     this.nextTime = 0;
     this.timer = null;
@@ -154,11 +154,11 @@ export class AmbientSound {
     if (note !== null && note !== undefined) {
       // 마디 첫 음을 조금 더 또렷하게, 나머지는 살짝 여리게
       const accent = i % 4 === 0 ? 1 : 0.78;
-      this.#pluck(hz(note), when, 1.7, 0.085 * accent);
+      this.#pluck(hz(note), when, 1.7, 0.12 * accent);
     }
     if (i % 4 === 0 && pat.bass) {
       const bass = pat.bass[(i / 4) % pat.bass.length];
-      if (bass !== null && bass !== undefined) this.#pluck(hz(bass), when, 2.4, 0.05, true);
+      if (bass !== null && bass !== undefined) this.#pluck(hz(bass), when, 2.4, 0.07, true);
     }
   }
 
