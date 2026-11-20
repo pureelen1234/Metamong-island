@@ -13,9 +13,9 @@ import { Props } from '../props/Props.js';
 import { SKY_KEYS, DAY_SECONDS, WEATHERS, LANDMARKS, DITTOS, CATS, PROPS, SPAWN, HALF } from '../config.js';
 import { RNG } from '../terrain/Noise.js';
 
-const GRAY = new THREE.Color('#c3ccd8');
-const SHALLOW = new THREE.Color('#8fe3ee');
-const DEEP = new THREE.Color('#49b9d3');
+const GRAY = new THREE.Color('#dfe8ef');
+const SHALLOW = new THREE.Color('#8feadf');
+const DEEP = new THREE.Color('#31c6cd');
 const NIGHT_DIR = new THREE.Vector3(-0.22, 0.86, 0.34).normalize();
 
 // 키프레임 컬러 이름 → 팔레트 필드 이름
@@ -31,7 +31,7 @@ const COLOR_MAP = {
 export class World {
   constructor() {
     this.scene = new THREE.Scene();
-    this.scene.fog = new THREE.FogExp2('#f8efe4', 0.0085);
+    this.scene.fog = new THREE.FogExp2('#f2fcf5', 0.0062);
 
     this.terrain = new Terrain(HEIGHTS);
     this.scene.add(this.terrain.group);
@@ -42,15 +42,25 @@ export class World {
     this.sky = new Skybox();
     this.scene.add(this.sky.mesh);
 
-    // ── 조명
-    this.hemi = new THREE.HemisphereLight('#fff0dc', '#c6e2be', 1.0);
+    // ── 조명: 하늘빛 + 크림 반사광 + 부드러운 채움광 (그림자가 검게 죽지 않게)
+    this.hemi = new THREE.HemisphereLight('#fff4e2', '#dcf5c6', 1.5);
     this.scene.add(this.hemi);
 
-    this.sunLight = new THREE.DirectionalLight('#ffe0b4', 1.55);
+    this.ambient = new THREE.AmbientLight('#fff8ec', 0.5);
+    this.scene.add(this.ambient);
+
+    this.sunLight = new THREE.DirectionalLight('#ffe9c6', 1.1);
     this.sunLight.position.set(12, 30, -18);
     this.sunLight.target.position.set(0, 0, 0);
     this.scene.add(this.sunLight);
     this.scene.add(this.sunLight.target);
+
+    // 반대편에서 살짝 채우는 하늘색 빛 — 그늘진 면도 보랏빛으로 보송하게
+    this.fillLight = new THREE.DirectionalLight('#dcefff', 0.4);
+    this.fillLight.position.set(-22, 16, 26);
+    this.fillLight.target.position.set(0, 0, 0);
+    this.scene.add(this.fillLight);
+    this.scene.add(this.fillLight.target);
 
     // ── 정적 자연물/구조물 (배치 자리 비켜 주기)
     const blockers = [
@@ -153,7 +163,7 @@ export class World {
     // 물 색
     p.waterShallow.copy(SHALLOW).lerp(p.skyBottom, 0.22);
     p.waterDeep.copy(DEEP).lerp(p.skyTop, 0.18);
-    const darkK = 1 - p.night * 0.42;
+    const darkK = 1 - p.night * 0.28;
     p.waterShallow.multiplyScalar(darkK);
     p.waterDeep.multiplyScalar(darkK);
     return p;
@@ -197,6 +207,10 @@ export class World {
     this.hemi.intensity = p.hemiIntensity;
     this.sunLight.color.copy(p.sun);
     this.sunLight.intensity = p.sunIntensity;
+    this.ambient.color.copy(p.hemiSky);
+    this.ambient.intensity = 0.46 - p.night * 0.1;
+    this.fillLight.intensity = 0.42 - p.night * 0.16;
+    this.fillLight.color.copy(p.skyBottom).lerp(p.sun, 0.25);
 
     const dir = this.#discDirection(elapsed, this.tmpDir);
     this.discDir.copy(dir);
@@ -214,7 +228,7 @@ export class World {
     });
     if (camera) this.sky.update(camera.position);
     this.scene.fog.color.copy(p.fog);
-    this.scene.fog.density = 0.0072 + this.weatherBlend * 0.005;
+    this.scene.fog.density = 0.0055 + this.weatherBlend * 0.004;
 
     // 물
     this.water.update(this.time, p);

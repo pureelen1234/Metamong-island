@@ -101,7 +101,7 @@ export class Game {
     renderer.setSize(window.innerWidth, window.innerHeight, false);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.NeutralToneMapping;
-    renderer.toneMappingExposure = 1.04;
+    renderer.toneMappingExposure = 1.1;
     renderer.shadowMap.enabled = false;
     this.renderer = renderer;
 
@@ -137,6 +137,7 @@ export class Game {
     ];
     this.scene.add(this.player.group);
     this.scene.add(this.player.shadow);
+    this.scene.add(this.player.dust);
 
     this.cats = CATS.map((def) => new Cat(def, this.world.terrain));
     for (const cat of this.cats) {

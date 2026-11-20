@@ -1,6 +1,7 @@
 /**
- * Terrain.js — 파스텔 로우폴리 섬 지형 메시 (Terrain/Grid)
- * 48×48 그리드의 높이 데이터를 평면 셰이딩(면당 단일 색) 메시로 굽는다.
+ * Terrain.js — 파스텔 동화풍 섬 지형 메시 (Terrain/Grid)
+ * 48×48 그리드 높이 데이터를 부드러운 셰이딩 메시로 굽는다.
+ * 각진 면 대신 둥글둥글한 언덕 + 크림 모래 + 싱그러운 연두 잔디.
  */
 import * as THREE from 'three';
 import { GRID, TILE, HALF, WATER_LEVEL } from '../config.js';
@@ -8,31 +9,35 @@ import { sampleHeight, slopeAt, isWalkableAt } from './Heightmap.js';
 import { valueNoise } from './Noise.js';
 
 const C = {
-  deepSand: new THREE.Color('#d5c7a9'),
-  wetSand: new THREE.Color('#f0e4c4'),
-  sand: new THREE.Color('#fbf0d4'),
-  sandLight: new THREE.Color('#fff8e8'),
-  grassA: new THREE.Color('#a2dfa6'),
-  grassB: new THREE.Color('#b9ecb8'),
-  grassC: new THREE.Color('#92d69c'),
-  rock: new THREE.Color('#cdc6cf'),
-  rockHigh: new THREE.Color('#e0dae0'),
+  deepSand: new THREE.Color('#dcc79c'),
+  wetSand: new THREE.Color('#f2dfb4'),
+  sand: new THREE.Color('#ffe6b8'),
+  sandLight: new THREE.Color('#fff1d2'),
+  grassA: new THREE.Color('#98dd78'),
+  grassB: new THREE.Color('#b6ec96'),
+  grassC: new THREE.Color('#82d46c'),
+  grassMint: new THREE.Color('#abe4bd'),
+  stone: new THREE.Color('#e7ddc9'),
+  stoneHigh: new THREE.Color('#f2ead8'),
 };
 
 const tmpColor = new THREE.Color();
 
 /** 정점 높이 → 파스텔 지형색 */
 function colorForHeight(h, slope, x, z, out) {
-  const n = valueNoise(x * 0.35 + 7.1, z * 0.35 - 3.3, 41); // 0..1
-  if (h < -0.05) out.copy(C.deepSand).lerp(C.wetSand, 0.25 + n * 0.25);
-  else if (h < 0.3) out.copy(C.wetSand).lerp(C.sand, n * 0.6);
-  else if (h < 0.62) out.copy(C.sand).lerp(C.sandLight, n * 0.55);
-  else if (h < 1.05) out.copy(C.sand).lerp(C.grassA, 0.35 + n * 0.5);
-  else if (slope > 1.25 || h > 2.5) out.copy(C.rock).lerp(C.rockHigh, n * 0.5);
+  const n = valueNoise(x * 0.33 + 7.1, z * 0.33 - 3.3, 41); // 0..1
+  const n2 = valueNoise(x * 0.12 - 2.4, z * 0.12 + 5.6, 17);
+  if (h < -0.05) out.copy(C.deepSand).lerp(C.wetSand, 0.3 + n * 0.3);
+  else if (h < 0.2) out.copy(C.wetSand).lerp(C.sand, 0.35 + n * 0.5);
+  else if (h < 0.4) out.copy(C.sand).lerp(C.sandLight, n * 0.5);
+  else if (h < 0.58) out.copy(C.sand).lerp(C.grassA, 0.35 + n * 0.55);
+  else if (slope > 1.55) out.copy(C.stone).lerp(C.stoneHigh, n * 0.6);
   else {
     out.copy(C.grassA);
-    if (n > 0.62) out.lerp(C.grassB, (n - 0.62) * 2.2);
-    else if (n < 0.36) out.lerp(C.grassC, (0.36 - n) * 2.2);
+    if (n > 0.54) out.lerp(C.grassB, (n - 0.54) * 2.2);
+    else if (n < 0.44) out.lerp(C.grassC, (0.44 - n) * 2.2);
+    // 넓은 얼룩으로 민트 잔디 패치를 살짝 얹는다
+    if (n2 > 0.7) out.lerp(C.grassMint, (n2 - 0.7) * 0.8);
   }
   return out;
 }
@@ -139,7 +144,6 @@ export class Terrain {
     let flipped = 0;
     for (let t = 0; t < pos.count; t += 3) {
       if (nrm.getY(t) < 0) {
-        // 세 정점 swap (1 ↔ 2)
         for (let a = 0; a < 3; a++) {
           const v1 = pos.getComponent(t + 1, a);
           const v2 = pos.getComponent(t + 2, a);
@@ -160,22 +164,20 @@ export class Terrain {
       pos.needsUpdate = true;
     }
 
-    const mat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
+    // 부드러운 셰이딩 + 매트 점토 질감 → 각진 면이 사라지고 언덕이 몽글해진다
+    const mat = new THREE.MeshStandardMaterial({
+      vertexColors: true,
+      roughness: 0.96,
+      metalness: 0,
+      flatShading: false,
+    });
     const mesh = new THREE.Mesh(geo, mat);
     mesh.name = 'TerrainSurface';
     mesh.receiveShadow = false;
     mesh.frustumCulled = true;
 
-    // 면당 색을 조금씩 흔들어 파스텔 패치 느낌을 준다
+    // 정점 밝기는 일정하게 두어 큰 얼룩 없이 부드럽게 이어진다
     const colorAttr = geo.attributes.color;
-    for (let t = 0; t < colorAttr.count; t += 3) {
-      const k = 0.965 + valueNoise(t * 0.13, t * 0.07, 91) * 0.07;
-      for (let v = 0; v < 3; v++) {
-        tmpColor.setRGB(colorAttr.getX(t + v), colorAttr.getY(t + v), colorAttr.getZ(t + v));
-        tmpColor.multiplyScalar(k);
-        colorAttr.setXYZ(t + v, tmpColor.r, tmpColor.g, tmpColor.b);
-      }
-    }
     colorAttr.needsUpdate = true;
 
     return mesh;
@@ -184,7 +186,7 @@ export class Terrain {
   #buildSeabed() {
     const geo = new THREE.PlaneGeometry(HALF * 10, HALF * 10, 1, 1);
     geo.rotateX(-Math.PI / 2);
-    const mat = new THREE.MeshLambertMaterial({ color: '#bcd9e2' });
+    const mat = new THREE.MeshStandardMaterial({ color: '#dff3ec', roughness: 1, metalness: 0 });
     const mesh = new THREE.Mesh(geo, mat);
     mesh.position.y = -1.35;
     mesh.name = 'Seabed';
