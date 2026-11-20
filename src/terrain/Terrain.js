@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import { GRID, TILE, HALF, WATER_LEVEL } from '../config.js';
 import { sampleHeight, slopeAt, isWalkableAt } from './Heightmap.js';
 import { valueNoise } from './Noise.js';
+import { toonMaterial } from '../render/toon.js';
 
 const C = {
   deepSand: new THREE.Color('#dcc79c'),
@@ -164,16 +165,13 @@ export class Terrain {
       pos.needsUpdate = true;
     }
 
-    // 부드러운 셰이딩 + 매트 점토 질감 → 각진 면이 사라지고 언덕이 몽글해진다
-    const mat = new THREE.MeshStandardMaterial({
+    // ② 4단 툰 램프 + ① 그림자 받기
+    const mat = toonMaterial({
       vertexColors: true,
-      roughness: 0.96,
-      metalness: 0,
-      flatShading: false,
     });
     const mesh = new THREE.Mesh(geo, mat);
     mesh.name = 'TerrainSurface';
-    mesh.receiveShadow = false;
+    mesh.receiveShadow = true;
     mesh.frustumCulled = true;
 
     // 정점 밝기는 일정하게 두어 큰 얼룩 없이 부드럽게 이어진다
@@ -186,10 +184,11 @@ export class Terrain {
   #buildSeabed() {
     const geo = new THREE.PlaneGeometry(HALF * 10, HALF * 10, 1, 1);
     geo.rotateX(-Math.PI / 2);
-    const mat = new THREE.MeshStandardMaterial({ color: '#dff3ec', roughness: 1, metalness: 0 });
+    const mat = toonMaterial({ color: '#dff3ec' });
     const mesh = new THREE.Mesh(geo, mat);
     mesh.position.y = -1.35;
     mesh.name = 'Seabed';
+    mesh.receiveShadow = true;
     return mesh;
   }
 

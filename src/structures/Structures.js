@@ -6,6 +6,7 @@
 import * as THREE from 'three';
 import { LANDMARKS } from '../config.js';
 import { part, buildMesh, mergeParts, rbox, cyl, sphere } from '../props/parts.js';
+import { solid, toonMaterial } from '../render/toon.js';
 
 const WOOD = '#cf9459';
 const WOOD_DARK = '#b47b45';
@@ -21,10 +22,17 @@ const STONE = '#e9ddc6';
 const STONE_DARK = '#d9cbb0';
 const GLOW = '#ffe7a3';
 
-/** 발광(불 켜진 창) 파트를 하나의 메시로 */
+/** 발광(불 켜진 창) 파트를 하나의 메시로 — 블룸이 잡을 수 있게 밝기만 선형으로 올린다 */
 function glowMesh(parts) {
   const geo = mergeParts(parts);
-  const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false }));
+  const col = geo.attributes.color;
+  for (let i = 0; i < col.count; i++) {
+    col.setXYZ(i, col.getX(i) * 1.7, col.getY(i) * 1.7, col.getZ(i) * 1.7);
+  }
+  col.needsUpdate = true;
+  const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true }));
+  mesh.castShadow = false;
+  mesh.receiveShadow = false;
   return mesh;
 }
 
@@ -314,6 +322,7 @@ export class Structures {
       mesh.rotation.y = lm.rot;
       // 고양이 쉼터는 고양이·주인공 체급에 맞게 축소
       if (lm.id === 'shelter') mesh.scale.setScalar(0.78);
+      solid(mesh, lm.id === 'lighthouse' ? 0.024 : 0.018);
       this.group.add(mesh);
 
       const glowBuilder = GLOWS[lm.id];
@@ -336,9 +345,11 @@ export class Structures {
     ringGeo.rotateX(Math.PI / 2);
     ringGeo.translate(0, -0.2, 0);
     const coneGeo = mergeParts([drop, ringGeo]);
-    const coneMat = new THREE.MeshStandardMaterial({ roughness: 0.75, metalness: 0, emissive: '#ffffff', emissiveIntensity: 0.12 });
+    const coneMat = toonMaterial({ emissive: '#ffffff', emissiveIntensity: 0.12 });
     this.markers = new THREE.InstancedMesh(coneGeo, coneMat, this.sites.length);
     this.markers.name = 'StructureMarkers';
+    this.markers.castShadow = false;
+    this.markers.receiveShadow = false;
     this.markers.frustumCulled = false;
     this.sites.forEach((site, i) => {
       this.markers.setColorAt(i, new THREE.Color(MARKER_COLORS[site.id] || '#ffffff'));

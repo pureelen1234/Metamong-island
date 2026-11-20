@@ -6,6 +6,7 @@
 import * as THREE from 'three';
 import { PLAYER } from '../config.js';
 import { part, buildMesh, blobShadow, sphere, rbox, capsule, cyl } from '../props/parts.js';
+import { solid } from '../render/toon.js';
 
 const HIP = 0.40; // 엉덩이 높이 (다리 길이)
 
@@ -58,7 +59,7 @@ export class Player {
     this.armR = this.#buildArm(1);
     this.rig.add(this.armL, this.armR);
 
-    this.shadow = blobShadow(0.44, 0.2);
+    this.shadow = blobShadow(0.44, 0.05);
     this.group.position.copy(this.position);
 
     this.dust = this.#buildDust();
@@ -116,6 +117,7 @@ export class Player {
 
     const mesh = buildMesh(parts);
     mesh.name = 'PlayerBody';
+    solid(mesh, 0.0115);
     return mesh;
   }
 
@@ -132,7 +134,10 @@ export class Player {
       part(rbox(0.125, 0.11, 0.185, 0.05), BOOT, { position: [0, -0.285, 0.03] }),
       part(rbox(0.13, 0.035, 0.19, 0.016), BOOT_SOLE, { position: [0, -0.345, 0.03] }),
     ];
-    pivot.add(buildMesh(parts));
+    const legMesh = buildMesh(parts);
+    legMesh.name = side < 0 ? 'LegMeshL' : 'LegMeshR';
+    solid(legMesh, 0.0105);
+    pivot.add(legMesh);
     return pivot;
   }
 
@@ -149,7 +154,10 @@ export class Player {
       part(sphere(0.066, 12, 10), SWEATER_SHADE, { position: [0, -0.155, 0] }),
       part(sphere(0.055, 12, 10), SKIN, { position: [0, -0.205, 0], scale: [1, 0.95, 1] }),
     ];
-    pivot.add(buildMesh(parts));
+    const armMesh = buildMesh(parts);
+    armMesh.name = side < 0 ? 'ArmMeshL' : 'ArmMeshR';
+    solid(armMesh, 0.0105);
+    pivot.add(armMesh);
     return pivot;
   }
 

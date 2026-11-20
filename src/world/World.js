@@ -18,6 +18,10 @@ const SHALLOW = new THREE.Color('#8feadf');
 const DEEP = new THREE.Color('#31c6cd');
 const NIGHT_DIR = new THREE.Vector3(-0.22, 0.86, 0.34).normalize();
 
+// 툰 셰이딩은 빛을 "더한 양"으로 그대로 쓰기 때문에, 부드러운 셰이딩 때의 밝기를 그대로 두면
+// 계단이 하얗게 날아간다. 조명 세기만 낮추고 색은 팔레트 그대로 살린다(런타임 튜닝용)
+export const LIGHT_GAIN = { hemi: 0.52, ambient: 0.26, sun: 1.25, fill: 0.22 };
+
 // 키프레임 컬러 이름 → 팔레트 필드 이름
 const COLOR_MAP = {
   top: 'skyTop',
@@ -52,8 +56,26 @@ export class World {
     this.sunLight = new THREE.DirectionalLight('#ffe9c6', 1.1);
     this.sunLight.position.set(12, 30, -18);
     this.sunLight.target.position.set(0, 0, 0);
+
+    // ① 그림자 — 플레이어 주변 ±30m 바운드만 1024 섀도맵에 담는다(모바일 예산)
+    this.sunLight.castShadow = true;
+    const shadow = this.sunLight.shadow;
+    shadow.mapSize.set(1024, 1024);
+    shadow.camera.left = -30;
+    shadow.camera.right = 30;
+    shadow.camera.top = 30;
+    shadow.camera.bottom = -30;
+    shadow.camera.near = 1;
+    shadow.camera.far = 170;
+    shadow.bias = -0.0005;
+    shadow.normalBias = 0.02;
+    shadow.radius = 1.5; // PCF 탭을 살짝 넓혀 가장자리를 부드럽게
+    shadow.camera.updateProjectionMatrix();
+    shadow.needsUpdate = true;
+
     this.scene.add(this.sunLight);
     this.scene.add(this.sunLight.target);
+    this.shadowFocus = new THREE.Vector3(0, 0, 0);
 
     // 반대편에서 살짝 채우는 하늘색 빛 — 그늘진 면도 보랏빛으로 보송하게
     this.fillLight = new THREE.DirectionalLight('#dcefff', 0.4);
@@ -101,6 +123,7 @@ export class World {
 
     this.weather = WEATHERS.clear;
     this.weatherBlend = 0;
+    this.lightGain = { ...LIGHT_GAIN };
 
     this.rain = this.#buildRain();
     this.scene.add(this.rain.points);
@@ -204,18 +227,24 @@ export class World {
     // 조명
     this.hemi.color.copy(p.hemiSky);
     this.hemi.groundColor.copy(p.hemiGround);
-    this.hemi.intensity = p.hemiIntensity;
+    const gain = this.lightGain;
+    this.hemi.intensity = p.hemiIntensity * gain.hemi;
     this.sunLight.color.copy(p.sun);
-    this.sunLight.intensity = p.sunIntensity;
+    this.sunLight.intensity = p.sunIntensity * gain.sun;
     this.ambient.color.copy(p.hemiSky);
-    this.ambient.intensity = 0.46 - p.night * 0.1;
-    this.fillLight.intensity = 0.42 - p.night * 0.16;
-    this.fillLight.color.copy(p.skyBottom).lerp(p.sun, 0.25);
+    this.ambient.intensity = (0.46 - p.night * 0.1) * gain.ambient;
+    this.fillLight.intensity = (0.42 - p.night * 0.16) * gain.fill;
+    // 그늘진 면이 회색으로 죽지 않게, 채움광은 태양 색 쪽으로 따뜻하게
+    this.fillLight.color.copy(p.sun).lerp(p.skyBottom, 0.3);
 
     const dir = this.#discDirection(elapsed, this.tmpDir);
     this.discDir.copy(dir);
-    this.sunLight.position.copy(dir).multiplyScalar(60);
-    this.sunLight.target.position.set(0, 0, 0);
+
+    // 그림자 바운드를 플레이어 주변으로 따라가게 한다(섬 전체를 1024맵에 눌러 담지 않는다)
+    if (playerPos) this.shadowFocus.set(playerPos.x, 0, playerPos.z);
+    this.sunLight.position.copy(dir).multiplyScalar(70).add(this.shadowFocus);
+    this.sunLight.target.position.copy(this.shadowFocus);
+    this.sunLight.target.updateMatrixWorld();
 
     // 하늘 · 안개
     this.sky.setPalette({

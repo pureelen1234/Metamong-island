@@ -5,6 +5,7 @@
  */
 import * as THREE from 'three';
 import { part, buildMesh, blobShadow, sphere, capsule, rbox } from '../props/parts.js';
+import { solid } from '../render/toon.js';
 
 const CAT_STYLE = {
   white: {
@@ -75,7 +76,7 @@ export class Cat {
     this.tail.add(this.#buildTail(style));
     this.group.add(this.tail);
 
-    this.shadow = blobShadow(0.36, 0.18);
+    this.shadow = blobShadow(0.36, 0.05);
     this.shadow.position.set(this.base.x, this.base.y + 0.03, this.base.z);
 
     this.heart = new THREE.Sprite(
@@ -229,6 +230,7 @@ export class Cat {
 
     const mesh = buildMesh(parts);
     mesh.name = `CatBody_${this.id}`;
+    solid(mesh, 0.012);
     return mesh;
   }
 
@@ -245,7 +247,7 @@ export class Cat {
       parts.push(part(sphere(0.045, 10, 8), style.stripe, { position: [0.045, 0.27, -0.23], scale: [1.1, 0.32, 1.0] }));
       parts.push(part(sphere(0.04, 10, 8), style.stripe, { position: [0.075, 0.36, -0.25], scale: [1.1, 0.32, 1.0] }));
     }
-    return buildMesh(parts);
+    return solid(buildMesh(parts), 0.011);
   }
 
   distanceTo(pos) {

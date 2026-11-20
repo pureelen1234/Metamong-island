@@ -5,6 +5,7 @@
 import * as THREE from 'three';
 import { PROPS } from '../config.js';
 import { part, buildMesh, rbox, cyl, sphere } from './parts.js';
+import { solid } from '../render/toon.js';
 
 const WOOD = '#d8ab7b';
 const WOOD_DARK = '#c08f60';
@@ -84,6 +85,7 @@ export class Props {
     }
     const mesh = buildMesh(parts);
     mesh.name = 'PropsMerged';
+    solid(mesh, 0.012);
     this.group.add(mesh);
   }
 }

@@ -5,6 +5,7 @@
  */
 import * as THREE from 'three';
 import { part, buildMesh, blobShadow, sphere } from '../props/parts.js';
+import { solid } from '../render/toon.js';
 
 const VARIANTS = {
   pebble: {
@@ -55,7 +56,7 @@ export class Ditto {
     this.group.add(this.mesh);
     this.hitMesh = this.mesh;
 
-    this.shadow = blobShadow(v.size * 1.15, 0.17);
+    this.shadow = blobShadow(v.size * 1.15, 0.05);
     this.shadow.position.set(this.base.x, this.base.y + 0.03, this.base.z);
 
     // 다가가면 반짝이는 표식 링
@@ -131,6 +132,7 @@ export class Ditto {
 
     const mesh = buildMesh(parts);
     mesh.name = `DittoBody_${this.id}`;
+    solid(mesh, 0.012);
     return mesh;
   }
 

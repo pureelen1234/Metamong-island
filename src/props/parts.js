@@ -5,8 +5,9 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { toonMaterial } from '../render/toon.js';
 
-/** 점토/매트 질감 공통값 */
+/** 점토/매트 질감 공통값 (참고용 — 실제 재질은 4단 툰 램프) */
 export const CLAY = { roughness: 0.92, metalness: 0.0 };
 
 /**
@@ -71,9 +72,9 @@ export function mergeParts(parts) {
   return merged;
 }
 
-/** 버텍스 컬러 + 보송보송 점토 질감 머티리얼 */
+/** 버텍스 컬러 + 4단 툰 셰이딩 머티리얼 */
 export function pastelMaterial(extra = {}) {
-  return new THREE.MeshStandardMaterial({ vertexColors: true, ...CLAY, ...extra });
+  return toonMaterial({ vertexColors: true, ...extra });
 }
 
 /** 여러 파트를 하나의 메시로 */
@@ -103,8 +104,8 @@ function shadowTexture() {
   return shadowTex;
 }
 
-/** 가짜 그림자(블롭) — 모바일에서 섀도맵 없이 접지감을 준다 */
-export function blobShadow(radius = 0.36, opacity = 0.2) {
+/** 가짜 그림자(블롭) — 진짜 섀도맵 위에 옅게 깔아 접지감만 보강한다 */
+export function blobShadow(radius = 0.36, opacity = 0.06) {
   const geo = new THREE.CircleGeometry(radius, 24);
   geo.rotateX(-Math.PI / 2);
   const mat = new THREE.MeshBasicMaterial({

@@ -14,6 +14,7 @@ import { Modal } from '../ui/Modal.js';
 import { LandmarkLabels } from '../ui/Landmarks.js';
 import { h } from '../ui/dom.js';
 import { SaveStore } from '../storage/SaveStore.js';
+import { createPost } from '../render/post.js';
 import {
   CAMERA,
   CATS,
@@ -63,7 +64,7 @@ export class Game {
     this.frames = 0;
     this.fpsAcc = 0;
     this.fps = 0;
-    this.stats = { fps: 0, calls: 0, triangles: 0 };
+    this.stats = { fps: 0, calls: 0, triangles: 0, sceneCalls: 0, sceneTriangles: 0 };
 
     this.titleAngle = 0;
     this.lookAt = new THREE.Vector3();
@@ -80,6 +81,7 @@ export class Game {
   async start() {
     this.#setupRenderer();
     this.#setupWorld();
+    this.#setupPost();
     this.#setupUi();
     this.#setupInput();
     this.#bindLifecycle();
@@ -101,8 +103,12 @@ export class Game {
     renderer.setSize(window.innerWidth, window.innerHeight, false);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.NeutralToneMapping;
-    renderer.toneMappingExposure = 1.1;
-    renderer.shadowMap.enabled = false;
+    renderer.toneMappingExposure = 1.28;
+
+    // ① 그림자 — 모바일 발열/성능 균형: 1024 섀도맵 + PCF
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFShadowMap; // r187에서 PCFSoft는 제거됨
+    renderer.info.autoReset = false; // 후처리 패스 전체 합계를 직접 집계
     this.renderer = renderer;
 
     this.camera = new THREE.PerspectiveCamera(CAMERA.fov, window.innerWidth / window.innerHeight, 0.1, 900);
@@ -115,6 +121,7 @@ export class Game {
       this.camera.updateProjectionMatrix();
       this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
       this.renderer.setSize(w, hgt, false);
+      if (this.post) this.post.setSize(w, hgt);
     };
     window.addEventListener('resize', this.onResize);
     if (window.visualViewport) window.visualViewport.addEventListener('resize', this.onResize);
@@ -153,6 +160,10 @@ export class Game {
 
     this.world.setWeather(weatherForDay(this.state.day));
     this.lookAt.set(SPAWN.x, this.player.position.y + CAMERA.lookHeight, SPAWN.z);
+  }
+
+  #setupPost() {
+    this.post = createPost(this.renderer, this.scene, this.camera);
   }
 
   #setupUi() {
@@ -440,7 +451,10 @@ export class Game {
       }
     }
 
-    if (!this.contextLost) this.renderer.render(this.scene, this.camera);
+    if (!this.contextLost) {
+      this.renderer.info.reset();
+      this.post.render();
+    }
     this.#trackStats(dt);
   }
 
@@ -450,9 +464,12 @@ export class Game {
     if (this.fpsAcc >= 0.5) {
       this.fps = Math.round(this.frames / this.fpsAcc);
       const info = this.renderer.info.render;
+      const scene = this.post ? this.post.sceneStats : info;
       this.stats.fps = this.fps;
       this.stats.calls = info.calls;
       this.stats.triangles = info.triangles;
+      this.stats.sceneCalls = scene.calls;
+      this.stats.sceneTriangles = scene.triangles;
       this.frames = 0;
       this.fpsAcc = 0;
     }

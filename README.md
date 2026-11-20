@@ -3,6 +3,21 @@
 보경 님을 위한 몽글몽글 파스텔 힐링 아일랜드. 기획서 GDD v1.6의 **Phase 1**을 모바일 웹 3D(PWA)로 구현한 빌드입니다.
 
 > **2026-11-20 비주얼 리뉴얼** — 각지고 어두운 로우폴리 톤을 걷어내고, `downloads/metamong_*` 시안의 파스텔 색감으로 전면 교체했습니다. 구체를 겹친 솜사탕 수관, 크림 모래·연두 잔디·에메랄드 바다, 찹쌀떡 치비 주인공·고양이·메타몽, 따뜻한 우드+민트/코랄 오두막, 걷기 스윙·발밑 먼지 애니메이션, 솜사탕 구름 하늘이 들어갔습니다.
+>
+> **2026-11-20 P0 렌더링 업그레이드** — ① 방향광 그림자 ② 4단 툰 램프 ③ 잉크 헐 외곽선 ④ 후처리(블룸·그레이딩·비네트)를 켜서 "장난감 조립" 화면을 동화책 일러스트 톤으로 바꿨습니다. 상세는 아래 [렌더링 파이프라인](#렌더링-파이프라인-p0) 참고.
+
+## 렌더링 파이프라인 (P0)
+
+| 단계 | 파일 | 핵심 값 |
+| --- | --- | --- |
+| 그림자 | `world/Game.js`, `world/World.js` | `PCFShadowMap`(r187에서 PCFSoft 제거됨), `mapSize 1024²`, 플레이어 추적 ±30m, `bias -0.0005`, `normalBias 0.02` |
+| 툰 램프 | `render/toon.js` | 4단 `DataTexture [140,172,222,255]` + `NearestFilter` → 모든 불투명 재질 `MeshToonMaterial` |
+| 외곽선 | `render/toon.js` | `BackSide` 잉크 헐(뷰공간 노멀 오프셋, 두께 0.010~0.024) · 겹친 구 수관은 균등 스케일 헐 · 색 `#3b2d38` |
+| 후처리 | `render/post.js` | `RenderPass → UnrealBloom(threshold 0.86, strength 0.30, radius 0.40) → OutputPass → Grade(채도 1.07, S커브 0.20, 비네트 0.28)` |
+| 안티앨리어싱 | `render/post.js` | HalfFloat + MSAA 4x 렌더타깃(EffectComposer 기본 RT는 AA 없음), `pixelRatio` 상한 2 |
+| 조명 균형 | `world/World.js` | 툰은 빛을 그대로 더하므로 `LIGHT_GAIN`(hemi 0.52 / ambient 0.26 / sun 1.25 / fill 0.22)로 세기를 낮추고 색은 팔레트 유지 |
+
+액터·건물·나무기둥·수관·프롭에만 외곽선을 넣고, 풀·잎·꽃·조약돌·물·파티클·발광창은 제외했습니다. `blobShadow`는 진짜 그림자 위에 0.05 불투명도로만 남겨 접지감을 보강합니다.
 
 ## 실행
 
@@ -45,6 +60,7 @@ src/
   skybox/              Skybox (그라디언트·해/달·별)
   foliage/             Foliage (InstancedMesh 자연물)
   props/               Props(우체통·표지판·캠프파이어·밥그릇) · parts(색 구운 메시 병합 헬퍼)
+  render/              toon(4단 램프·잉크 헐) · post(EffectComposer 파이프라인)
   structures/          Structures (4단계 복구 부지)
   actors/              Player · Cat · Ditto
   ui/                  Hud · TitleScreen · Joystick · Modal · Toast · Landmarks · styles.css
@@ -54,9 +70,19 @@ src/
 
 ## 성능 예산 (실측)
 
-- Draw Call: **20 ~ 30** (GDD 목표 평상시 40~70 이하)
-- 삼각형: **약 99,700 ~ 120,800** (2026-11-20 몽글 비주얼 리뉴얼로 구체 분할이 늘어 하드캡 100,000에 근접 · 화면에 따라 최대 12만)
-- JS 로직 1프레임: **0.02ms** (씬 업데이트 전체)
+390×844 세로 · DPR 2(780×1688 드로잉버퍼) · 헤드리스 Chromium(SwiftShader) 기준 `window.__metamong.stats()` 실측.
+
+| 항목 | P0 이전 | P0 이후 |
+| --- | --- | --- |
+| 씬 draw call (그림자 패스 포함) | 20 | **29 ~ 61** |
+| 씬 삼각형 (그림자 패스 포함) | 99,676 | **238,770 ~ 312,062** |
+| 포스트 포함 전체 draw call | 20 | **44 ~ 76** |
+| 콘솔 에러·페이지 에러 | 0 | **0** |
+
+- 그림자를 끄고 재면 씬 29 call / 137,990 tri → **그림자 패스가 약 +32 call, +174k tri**를 더 씁니다(섬 전체 48×48m를 60×60m 섀도 카메라가 한 번 더 그리기 때문).
+- 삼각형 수는 늘었지만 실제 화면에 그려지는 양은 100k 내외 그대로이고, 추가분은 섀도맵 렌더입니다.
+- 30fps 절전 모드·시간 배속 60×·낮/노을/밤 전환 모두에서 에러 0건으로 동작합니다.
+- SwiftShader는 CPU 래스터라이저라 fps 수치(이전 340ms/프레임 → 이후 1,040ms/프레임)는 실기기 성능의 지표가 아닙니다. **실제 S26에서 30fps 절전 모드를 켜고 한 번 확인**하는 것을 권합니다.
 
 ## Phase 1에서 하지 않은 것 (Phase 2~ 이후)
 
@@ -69,6 +95,7 @@ src/
 
 로컬 `screenshots/` 폴더 — 390×844 실측 캡처입니다. 용량 때문에 저장소에는 포함하지 않았습니다(`.gitignore`).
 리뉴얼본은 `screenshots/mondeul/`(01_title · 02_play · 03_player_front · 04_cats · 05_ditto_pebble · 06_ditto_boulder · 07_workshop · 08_lighthouse · 09_dock · 10_walking · 12_sunset · 13_night · walk_cycle_0~3)에 있습니다.
+P0 전후 비교는 `screenshots/p0_before/`(01_title · 02_play · 03_player_front · 04_cats · 05_ditto_pebble · 06_workshop · 07_sunset · 08_night · 09_hero_closeup)와 `screenshots/p0_after/`(같은 이름 + 10_walking · 11_ditto_discovered · 12_codex · 13~15_phase · 16_settings_30fps · 17_after_fast_cycle)에 같은 구도로 남겼습니다.
 
 | 파일 | 내용 |
 | --- | --- |

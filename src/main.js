@@ -23,6 +23,8 @@ window.__metamong = {
       fps: g.stats.fps,
       drawCalls: g.stats.calls,
       triangles: g.stats.triangles,
+      sceneDrawCalls: g.stats.sceneCalls,
+      sceneTriangles: g.stats.sceneTriangles,
       discovered: [...g.state.discovered],
       saveMode: g.saveStore.mode,
       hasSave: g.hasSave,

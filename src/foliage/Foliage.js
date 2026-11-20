@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { HALF } from '../config.js';
 import { RNG } from '../terrain/Noise.js';
-import { CLAY } from '../props/parts.js';
+import { toonMaterial, addInstancedInk, addScaledInk } from '../render/toon.js';
 
 const COLORS = {
   trunk: '#c99b6e',
@@ -28,7 +28,7 @@ function merged(geos) {
 }
 
 function mat() {
-  return new THREE.MeshStandardMaterial({ ...CLAY, color: '#ffffff' });
+  return toonMaterial({ color: '#ffffff' });
 }
 
 export class Foliage {
@@ -174,7 +174,10 @@ export class Foliage {
     trunks.instanceMatrix.needsUpdate = true;
     if (trunks.instanceColor) trunks.instanceColor.needsUpdate = true;
     trunks.frustumCulled = false;
+    trunks.castShadow = true;
+    trunks.receiveShadow = true;
     this.group.add(trunks);
+    addInstancedInk(trunks, 0.017);
 
     // ── 솜사탕 구름 수관 (구체 4개 병합 · 1 Draw Call)
     const lobeA = new THREE.SphereGeometry(0.62, 9, 7);
@@ -199,7 +202,10 @@ export class Foliage {
     canopy.instanceMatrix.needsUpdate = true;
     if (canopy.instanceColor) canopy.instanceColor.needsUpdate = true;
     canopy.frustumCulled = false;
+    canopy.castShadow = true;
+    canopy.receiveShadow = true;
     this.group.add(canopy);
+    addScaledInk(canopy, 1.02); // 겹친 구 수관은 균등 스케일 헐 (실루엣 안쪽 잉크 방지)
 
     // ── 둥글둥글 솔잎 나무 (3단 구체)
     const pineA = new THREE.SphereGeometry(0.56, 9, 6);
@@ -225,7 +231,10 @@ export class Foliage {
     pine.instanceMatrix.needsUpdate = true;
     if (pine.instanceColor) pine.instanceColor.needsUpdate = true;
     pine.frustumCulled = false;
+    pine.castShadow = true;
+    pine.receiveShadow = true;
     this.group.add(pine);
+    addScaledInk(pine, 1.022);
 
     // ── 덤불 (구체 3개)
     const bushA = new THREE.SphereGeometry(0.36, 8, 5);
@@ -248,6 +257,8 @@ export class Foliage {
     bush.instanceMatrix.needsUpdate = true;
     if (bush.instanceColor) bush.instanceColor.needsUpdate = true;
     bush.frustumCulled = false;
+    bush.castShadow = true;
+    bush.receiveShadow = true;
     this.group.add(bush);
   }
 
@@ -332,6 +343,8 @@ export class Foliage {
     mesh.instanceMatrix.needsUpdate = true;
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
     mesh.frustumCulled = false;
+    mesh.castShadow = false; // 얇은 풀잎은 섀도맵에서 지글거림만 만든다
+    mesh.receiveShadow = true;
     this.group.add(mesh);
   }
 
@@ -365,6 +378,7 @@ export class Foliage {
     mesh.instanceMatrix.needsUpdate = true;
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
     mesh.frustumCulled = false;
+    mesh.receiveShadow = true;
     this.group.add(mesh);
   }
 }
