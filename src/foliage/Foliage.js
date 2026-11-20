@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { HALF } from '../config.js';
 import { RNG } from '../terrain/Noise.js';
-import { toonMaterial, addInstancedInk, addScaledInk } from '../render/toon.js';
+import { toonMaterial, addInstancedInk } from '../render/toon.js';
 
 const COLORS = {
   trunk: '#c99b6e',
@@ -205,7 +205,9 @@ export class Foliage {
     canopy.castShadow = true;
     canopy.receiveShadow = true;
     this.group.add(canopy);
-    addScaledInk(canopy, 1.02); // 겹친 구 수관은 균등 스케일 헐 (실루엣 안쪽 잉크 방지)
+    // 수관은 외곽선을 두르지 않는다 — 겹친 구 지오메트리에 BackSide 헐을 씌우면
+    // 실루엣 안쪽으로 잉크가 새어 나와 화면에 검은 덩어리로 보인다.
+    // 나무 실루엣은 4단 툰 밴드와 바닥 그림자가 대신 잡아준다.
 
     // ── 둥글둥글 솔잎 나무 (3단 구체)
     const pineA = new THREE.SphereGeometry(0.56, 9, 6);
@@ -234,7 +236,7 @@ export class Foliage {
     pine.castShadow = true;
     pine.receiveShadow = true;
     this.group.add(pine);
-    addScaledInk(pine, 1.022);
+
 
     // ── 덤불 (구체 3개)
     const bushA = new THREE.SphereGeometry(0.36, 8, 5);

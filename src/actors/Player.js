@@ -50,6 +50,9 @@ export class Player {
     this.bodyMesh = this.#buildBody();
     this.rig.add(this.bodyMesh);
     this.mesh = this.bodyMesh;
+    // 얼굴은 몸통의 자식 → 숨쉬기/스쿼시 스케일을 그대로 따라간다
+    this.faceMesh = this.#buildFace();
+    this.bodyMesh.add(this.faceMesh);
 
     this.legL = this.#buildLeg(-1);
     this.legR = this.#buildLeg(1);
@@ -100,24 +103,36 @@ export class Player {
     parts.push(part(sphere(0.115, 16, 12), HAIR, { position: [-0.225, 0.74, 0.01], scale: [0.85, 1.2, 0.95] }));
     parts.push(part(sphere(0.115, 16, 12), HAIR, { position: [0.225, 0.74, 0.01], scale: [0.85, 1.2, 0.95] }));
 
-    // 큰 눈 + 반짝이 + 볼터치 + 입
-    parts.push(part(sphere(0.046, 14, 12), EYE, { position: [-0.088, 0.825, 0.243] }));
-    parts.push(part(sphere(0.046, 14, 12), EYE, { position: [0.088, 0.825, 0.243] }));
-    parts.push(part(sphere(0.016, 8, 8), '#ffffff', { position: [-0.075, 0.843, 0.276] }));
-    parts.push(part(sphere(0.016, 8, 8), '#ffffff', { position: [0.101, 0.843, 0.276] }));
-    parts.push(part(sphere(0.045, 10, 8), BLUSH, { position: [-0.155, 0.77, 0.198], scale: [1, 0.6, 0.32] }));
-    parts.push(part(sphere(0.045, 10, 8), BLUSH, { position: [0.155, 0.77, 0.198], scale: [1, 0.6, 0.32] }));
-    parts.push(
-      part(new THREE.TorusGeometry(0.026, 0.007, 6, 12, Math.PI), '#c9806f', {
-        position: [0, 0.745, 0.247],
-        rotation: [0, 0, Math.PI],
-      })
-    );
-    parts.push(part(sphere(0.014, 8, 6), '#f6c3a4', { position: [0, 0.782, 0.256] }));
-
     const mesh = buildMesh(parts);
     mesh.name = 'PlayerBody';
     solid(mesh, 0.0115);
+    return mesh;
+  }
+
+  /**
+   * 얼굴 디테일(눈·하이라이트·볼터치·입·코) — 몸통과 따로 분리한다.
+   * 잉크 외곽선이 붙으면 눈알이 튀어나와 보이므로 이 메시에는 헐을 씌우지 않는다.
+   * 눈은 얼굴 표면에 살짝 묻히도록 Z를 안쪽으로 넣고 납작하게 눌러 붙인다.
+   */
+  #buildFace() {
+    const parts = [];
+    for (const side of [-1, 1]) {
+      parts.push(part(sphere(0.046, 14, 12), EYE, { position: [side * 0.088, 0.825, 0.246], scale: [1, 1, 0.5] }));
+      parts.push(part(sphere(0.013, 8, 8), '#ffffff', { position: [side * 0.088 + (side < 0 ? 0.012 : -0.012), 0.838, 0.266] }));
+      parts.push(part(sphere(0.045, 10, 8), BLUSH, { position: [side * 0.155, 0.77, 0.19], scale: [1, 0.6, 0.3] }));
+    }
+    parts.push(
+      part(new THREE.TorusGeometry(0.026, 0.007, 6, 12, Math.PI), '#c9806f', {
+        position: [0, 0.745, 0.236],
+        rotation: [0, 0, Math.PI],
+      })
+    );
+    parts.push(part(sphere(0.014, 8, 6), '#f6c3a4', { position: [0, 0.782, 0.246] }));
+
+    const mesh = buildMesh(parts);
+    mesh.name = 'PlayerFace';
+    mesh.castShadow = false;
+    mesh.receiveShadow = false;
     return mesh;
   }
 

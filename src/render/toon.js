@@ -29,7 +29,14 @@ export function toonMaterial(params = {}) {
 const inkCache = new Map();
 
 /** 외곽선만 그리는 단순 헐 재질 (균등 스케일 헐용) */
-export const INK_HULL = new THREE.MeshBasicMaterial({ color: INK_COLOR, side: THREE.BackSide, fog: true });
+export const INK_HULL = new THREE.MeshBasicMaterial({
+  color: INK_COLOR,
+  side: THREE.BackSide,
+  fog: true,
+  polygonOffset: true, // 표면과 거의 같은 깊이에서 생기는 얼룩을 막는다
+  polygonOffsetFactor: 1,
+  polygonOffsetUnits: 1,
+});
 
 /**
  * BackSide 헐 재질. 뷰공간 노멀 방향으로 밀어내므로 메시 스케일과 무관하게 선 두께가 일정하고,
@@ -45,6 +52,9 @@ export function inkMaterial(thick) {
     color: INK_COLOR,
     side: THREE.BackSide,
     fog: true,
+    polygonOffset: true,
+    polygonOffsetFactor: 1,
+    polygonOffsetUnits: 1,
   });
   mat.onBeforeCompile = (sh) => {
     sh.uniforms.thick = { value: thick };
@@ -99,14 +109,20 @@ export function addScaledInk(mesh, k = 1.02) {
   if (!geo.boundingSphere) geo.computeBoundingSphere();
   const c = geo.boundingSphere.center;
 
+  // 스케일은 반드시 지오메트리에 구워야 한다. 오브젝트 스케일로 주면
+  // 인스턴스의 이동값까지 같이 늘어나 섬 반대편에 검은 덩어리가 생긴다.
+  const hull = geo.clone();
+  const bake = new THREE.Matrix4()
+    .makeTranslation(c.x, c.y, c.z)
+    .multiply(new THREE.Matrix4().makeScale(k, k, k))
+    .multiply(new THREE.Matrix4().makeTranslation(-c.x, -c.y, -c.z));
+  hull.applyMatrix4(bake);
+
   const ink = mesh.isInstancedMesh
-    ? new THREE.InstancedMesh(geo, INK_HULL, mesh.count)
-    : new THREE.Mesh(geo, INK_HULL);
+    ? new THREE.InstancedMesh(hull, INK_HULL, mesh.count)
+    : new THREE.Mesh(hull, INK_HULL);
   if (mesh.isInstancedMesh) ink.instanceMatrix = mesh.instanceMatrix;
   ink.name = `${mesh.name || 'mesh'}_Ink`;
-  ink.scale.setScalar(k);
-  // 지오메트리 중심을 기준으로 커지는 것과 같은 효과
-  ink.position.set(c.x * (1 - k), c.y * (1 - k), c.z * (1 - k));
   ink.castShadow = false;
   ink.receiveShadow = false;
   ink.frustumCulled = mesh.frustumCulled !== false;

@@ -54,6 +54,8 @@ export class Ditto {
     this.mesh.userData.actor = this;
     this.group.userData.actor = this;
     this.group.add(this.mesh);
+    this.face = this.#buildFace(v);
+    this.mesh.add(this.face);
     this.hitMesh = this.mesh;
 
     this.shadow = blobShadow(v.size * 1.15, 0.05);
@@ -93,7 +95,6 @@ export class Ditto {
 
     // 동글동글 모찌 몸통 (바닥이 땅에 닿도록 중심을 띄운다)
     parts.push(part(sphere(r, 22, 16), v.rock, { position: [0, r * 0.82, 0], scale: [1.22, 0.86, 1.04] }));
-    // 밑동 그늘
     parts.push(part(sphere(r * 0.76, 16, 10), v.rockShade, { position: [0, r * 0.2, 0.04], scale: [1.12, 0.42, 0.98] }));
     // 배 부분 크림 하이라이트
     parts.push(part(sphere(r * 0.52, 14, 10), v.belly, { position: [0, r * 0.55, r * 0.62], scale: [1.05, 0.72, 0.42] }));
@@ -108,31 +109,46 @@ export class Ditto {
       parts.push(part(sphere(r * 0.12, 10, 8), v.spot, { position: [r * 0.78, r * 0.75, r * 0.35], scale: [0.9, 0.8, 0.4] }));
     }
 
-    // 점 눈 `· ‿ ·` + 반짝 하이라이트 + 볼터치
+    // 점 눈 `· ‿ ·`는 얼굴 메시(#buildFace)로 분리 — 잉크 외곽선이 붙으면 눈이 튀어나와 보인다
+
+    const mesh = buildMesh(parts);
+    mesh.name = `DittoBody_${this.id}`;
+    solid(mesh, 0.012);
+    return mesh;
+  }
+
+  /** 얼굴 디테일 — 외곽선 없음, 표면에 살짝 묻힌 납작한 눈 */
+  #buildFace(v) {
+    const parts = [];
+    const r = v.size;
     for (const side of [-1, 1]) {
-      parts.push(part(sphere(v.eyeR, 12, 10), '#3b3a46', { position: [side * v.eyeSpacing, v.eyeY, r * 1.02] }));
+      parts.push(part(sphere(v.eyeR, 12, 10), '#3b3a46', {
+        position: [side * v.eyeSpacing, v.eyeY, r * 0.99],
+        scale: [1, 1, 0.62],
+      }));
       parts.push(
         part(sphere(v.eyeR * 0.36, 8, 6), '#ffffff', {
-          position: [side * v.eyeSpacing + v.eyeR * 0.35, v.eyeY + v.eyeR * 0.38, r * 1.09],
+          position: [side * v.eyeSpacing + v.eyeR * 0.35, v.eyeY + v.eyeR * 0.38, r * 1.02],
         })
       );
       parts.push(
         part(sphere(r * 0.11, 10, 8), '#ffc9db', {
-          position: [side * r * 0.56, v.eyeY - r * 0.14, r * 0.98],
+          position: [side * r * 0.56, v.eyeY - r * 0.14, r * 0.965],
           scale: [1, 0.6, 0.32],
         })
       );
     }
     parts.push(
       part(new THREE.TorusGeometry(v.eyeR * 0.9, v.eyeR * 0.17, 6, 12, Math.PI), '#3b3a46', {
-        position: [0, v.eyeY - r * 0.2, r * 1.06],
+        position: [0, v.eyeY - r * 0.2, r * 1.0],
         rotation: [0, 0, Math.PI],
       })
     );
 
     const mesh = buildMesh(parts);
-    mesh.name = `DittoBody_${this.id}`;
-    solid(mesh, 0.012);
+    mesh.name = `DittoFace_${this.id}`;
+    mesh.castShadow = false;
+    mesh.receiveShadow = false;
     return mesh;
   }
 

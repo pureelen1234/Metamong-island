@@ -70,6 +70,9 @@ export class Cat {
     this.body.userData.actor = this;
     this.group.userData.actor = this;
     this.group.add(this.body);
+    // 얼굴은 몸통의 자식 → 숨쉬기 스케일을 따라간다(잉크 없음)
+    this.face = this.#buildFace(style);
+    this.body.add(this.face);
 
     this.tail = new THREE.Group();
     this.tail.position.set(0, 0.34, -0.24);
@@ -130,34 +133,8 @@ export class Cat {
       );
     }
 
-    // 주둥이 · 코 · 작은 입
+    // 주둥이 (얼굴 디테일은 #buildFace로 분리)
     parts.push(part(sphere(0.135, 16, 12), style.belly, { position: [0, 0.53, 0.235], scale: [1.15, 0.86, 0.58] }));
-    parts.push(part(sphere(0.028, 10, 8), style.nose, { position: [0, 0.578, 0.3], scale: [1.2, 0.9, 0.8] }));
-    for (const side of [-1, 1]) {
-      parts.push(
-        part(new THREE.TorusGeometry(0.03, 0.0065, 6, 12, Math.PI), style.stripe ? '#8a5330' : '#b98a6a', {
-          position: [side * 0.031, 0.545, 0.293],
-          rotation: [0, 0, Math.PI],
-        })
-      );
-    }
-
-    // 큰 눈 + 반짝 하이라이트
-    for (const side of [-1, 1]) {
-      parts.push(part(sphere(0.062, 16, 14), style.eye, { position: [side * 0.105, 0.635, 0.255] }));
-      parts.push(part(sphere(0.022, 10, 8), '#ffffff', { position: [side * 0.105 + 0.018, 0.655, 0.305] }));
-      parts.push(part(sphere(0.011, 8, 6), '#ffffff', { position: [side * 0.105 - 0.016, 0.618, 0.308] }));
-    }
-
-    // 볼터치
-    for (const side of [-1, 1]) {
-      parts.push(
-        part(sphere(0.055, 12, 8), '#ffd0d8', {
-          position: [side * 0.19, 0.585, 0.205],
-          scale: [1, 0.6, 0.35],
-        })
-      );
-    }
 
     // 옹이 줄무늬 (이마 세 줄 · 등)
     if (style.stripe) {
@@ -231,6 +208,39 @@ export class Cat {
     const mesh = buildMesh(parts);
     mesh.name = `CatBody_${this.id}`;
     solid(mesh, 0.012);
+    return mesh;
+  }
+
+  /**
+   * 얼굴 디테일(코·입·눈·하이라이트·볼터치) — 잉크 헐 제외.
+   * 눈은 얼굴 표면에 얹힌 납작한 반구로 두어 튀어나와 보이지 않게 한다.
+   */
+  #buildFace(style) {
+    const parts = [];
+    parts.push(part(sphere(0.028, 10, 8), style.nose, { position: [0, 0.578, 0.3], scale: [1.2, 0.9, 0.8] }));
+    for (const side of [-1, 1]) {
+      parts.push(
+        part(new THREE.TorusGeometry(0.03, 0.0065, 6, 12, Math.PI), style.stripe ? '#8a5330' : '#b98a6a', {
+          position: [side * 0.031, 0.545, 0.293],
+          rotation: [0, 0, Math.PI],
+        })
+      );
+    }
+    for (const side of [-1, 1]) {
+      parts.push(part(sphere(0.062, 16, 14), style.eye, { position: [side * 0.105, 0.635, 0.272], scale: [1, 1, 0.62] }));
+      parts.push(part(sphere(0.022, 10, 8), '#ffffff', { position: [side * 0.105 + 0.018, 0.655, 0.298] }));
+      parts.push(part(sphere(0.011, 8, 6), '#ffffff', { position: [side * 0.105 - 0.016, 0.618, 0.3] }));
+      parts.push(
+        part(sphere(0.055, 12, 8), '#ffd0d8', {
+          position: [side * 0.19, 0.585, 0.205],
+          scale: [1, 0.6, 0.35],
+        })
+      );
+    }
+    const mesh = buildMesh(parts);
+    mesh.name = `CatFace_${this.id}`;
+    mesh.castShadow = false;
+    mesh.receiveShadow = false;
     return mesh;
   }
 
