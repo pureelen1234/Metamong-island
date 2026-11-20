@@ -91,7 +91,7 @@ def run():
             stats = page.evaluate('window.__metamong.stats()')
             print('  stats:', json.dumps({k: stats[k] for k in ('mode', 'fps', 'sceneTriangles', 'sceneDrawCalls')}, ensure_ascii=False))
 
-            page.locator('.title-actions button').last.click()
+            page.locator('.title-actions button').last.click(no_wait_after=True)
             page.wait_for_timeout(2200)
             snap(page, '02_play_spawn.png')
 
@@ -142,10 +142,10 @@ def run():
                     if (v > peak) peak = v;
                     sum += v * v; n++;
                   }
-                  if (performance.now() - t0 > 4200) res();
-                  else requestAnimationFrame(step);
+                  if (performance.now() - t0 > 3200) res();
+                  else setTimeout(step, 30);   // rAF 는 소프트웨어 GL 에서 멈출 수 있다
                 };
-                requestAnimationFrame(step);
+                step();
               });
               return {
                 started: true, state: ctx.state, phase: a.phase, muted: a.muted,
@@ -252,10 +252,10 @@ def run():
             print('  final player:', json.dumps(final['player'], ensure_ascii=False))
 
             # ── 5. 도감
-            page.locator('.quickbar button', has_text='도감').click()
+            page.locator('.quickbar button', has_text='도감').click(no_wait_after=True)
             page.wait_for_timeout(800)
             snap(page, '11_codex.png')
-            page.locator('button.btn.primary', has_text='닫기').first.click()
+            page.locator('button.btn.primary', has_text='닫기').first.click(no_wait_after=True)
             page.wait_for_timeout(400)
 
             # ── 6. 음소거 토글
