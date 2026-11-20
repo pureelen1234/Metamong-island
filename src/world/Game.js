@@ -373,8 +373,7 @@ export class Game {
     this.state.settings = { ...DEFAULT_SETTINGS };
     for (const ditto of this.dittos) ditto.discovered = false;
     this.player.teleport(SPAWN.x, SPAWN.z);
-    this.player.yaw = Math.PI;
-    this.player.targetYaw = Math.PI;
+    this.player.setYaw(Math.PI);
   }
 
   #applySave(data) {
@@ -403,10 +402,7 @@ export class Game {
       this.player.teleport(SPAWN.x, SPAWN.z);
     }
     const yaw = Number(data.player && data.player.yaw);
-    if (Number.isFinite(yaw)) {
-      this.player.yaw = yaw;
-      this.player.targetYaw = yaw;
-    }
+    if (Number.isFinite(yaw)) this.player.setYaw(yaw);
     for (const ditto of this.dittos) ditto.discovered = this.state.discovered.includes(ditto.id);
   }
 

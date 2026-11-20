@@ -10,6 +10,9 @@ const game = new Game(canvas, uiRoot);
 // QA·디버그용 읽기 전용 상태 (개발자 도구에서 확인)
 window.__metamong = {
   game,
+  get audio() {
+    return game.audio;
+  },
   stats() {
     const g = game;
     return {
@@ -30,7 +33,15 @@ window.__metamong = {
       hasSave: g.hasSave,
       settings: { ...g.state.settings },
       player: g.player
-        ? { x: +g.player.position.x.toFixed(2), y: +g.player.position.y.toFixed(2), z: +g.player.position.z.toFixed(2) }
+        ? {
+            x: +g.player.position.x.toFixed(2),
+            y: +g.player.position.y.toFixed(2),
+            z: +g.player.position.z.toFixed(2),
+            yaw: +g.player.yaw.toFixed(3),
+            facing: g.player.facing,
+            flipX: !!g.player.flip,
+            frame: g.player.frameName,
+          }
         : null,
     };
   },

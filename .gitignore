@@ -17,3 +17,6 @@ npm-debug.log*
 !.env.example
 .vscode/
 .idea/
+
+# 파이썬 개발 도구 캐시
+__pycache__/

@@ -7,7 +7,9 @@ import { LANDMARKS, NATURE } from '../config.js';
 import { Billboard, blobShadow } from '../sprites/Billboard.js';
 
 const BUILDING_FRAME = { workshop: 'workshop', lighthouse: 'lighthouse', vending: 'vending', dock: 'dock' };
-const BUILDING_COLLIDER = { workshop: 1.9, lighthouse: 1.15, vending: 0.75, dock: 1.5 };
+// 충돌 반경은 스프라이트 발밑 폭에 맞춘다 — 그림 폭(높이×종횡비)의 절반보다 조금 작게
+// workshop 2.8×1.19→폭 3.3 / lighthouse 4.4×0.61→2.7 / vending 1.8×0.68→1.2 / dock 1.7×1.34→2.3
+const BUILDING_COLLIDER = { workshop: 1.2, lighthouse: 0.82, vending: 0.55, dock: 0.9 };
 
 export class Scenery {
   constructor(terrain, atlases) {

@@ -158,21 +158,23 @@ export const PLAYER = {
   spriteHeight: 1.5, // 도트 스프라이트가 차지하는 월드 높이
 };
 export const CAMERA = {
-  fov: 58,
-  offset: { x: 0, y: 7.4, z: 9.0 },
+  // 광각(58°)을 걷어 낸 37° — 화면 가장자리에서 건물이 눕거나 어안처럼 휘지 않는다.
+  // 좁아진 화각만큼 카메라를 뒤로 물려 예전과 비슷한 시야를 유지한다.
+  fov: 37,
+  offset: { x: 0, y: 11.0, z: 13.4 },
   lookHeight: 0.7,
   lerp: 6.5,
 };
 
 // ── 섬 배치 ───────────────────────────────────────────────────────
-export const SPAWN = { x: 0.6, z: 13.0 };
+export const SPAWN = { x: 0.4, z: 11.8 };
 
 /** 복구 부지 · 도트 건물 4종 (공방·등대·자판기·부두) */
 export const LANDMARKS = [
-  { id: 'dock', name: '부두', icon: '⚓', day: 5, x: 0, z: 20.4, markerY: 2.2, height: 1.7, water: true },
-  { id: 'workshop', name: '공방', icon: '🔨', day: 10, x: -6.5, z: 3.0, markerY: 3.4, height: 2.8 },
-  { id: 'vending', name: '메타몽 자판기', icon: '🥤', day: 17, x: 7.0, z: 2.0, markerY: 2.4, height: 1.8 },
-  { id: 'lighthouse', name: '등대', icon: '🗼', day: 24, x: 8.0, z: -8.0, markerY: 5.6, height: 4.4 },
+  { id: 'dock', name: '부두', icon: '⚓', day: 5, x: 0, z: 17.0, markerY: 2.2, height: 1.7, water: true },
+  { id: 'workshop', name: '공방', icon: '🔨', day: 10, x: -5.6, z: 5.6, markerY: 3.4, height: 2.8 },
+  { id: 'vending', name: '메타몽 자판기', icon: '🥤', day: 17, x: 5.6, z: 5.2, markerY: 2.4, height: 1.8 },
+  { id: 'lighthouse', name: '등대', icon: '🗼', day: 24, x: 6.8, z: -3.6, markerY: 5.6, height: 4.4 },
 ];
 
 /**
@@ -183,8 +185,8 @@ export const DITTOS = [
   {
     id: 'ditto_basic_01',
     name: '동글 메타몽',
-    x: -7.0,
-    z: 10.0,
+    x: -5.2,
+    z: 11.4,
     variant: 'basic',
     height: 0.86,
     thumb: { set: 'ditto_basic', row: 1, col: 1 },
@@ -193,8 +195,8 @@ export const DITTOS = [
   {
     id: 'ditto_pebble_02',
     name: '조약돌 메타몽',
-    x: -4.0,
-    z: 12.6,
+    x: -2.8,
+    z: 12.4,
     variant: 'pebble',
     height: 0.52,
     thumb: { set: 'disguises', row: 1, col: 1 },
@@ -203,8 +205,8 @@ export const DITTOS = [
   {
     id: 'ditto_mailbox_03',
     name: '우체통 메타몽',
-    x: 2.8,
-    z: 16.4,
+    x: 2.6,
+    z: 11.6,
     variant: 'mailbox',
     height: 1.1,
     thumb: { set: 'disguises', row: 1, col: 2 },
@@ -213,8 +215,8 @@ export const DITTOS = [
   {
     id: 'ditto_flowerpot_04',
     name: '화분 메타몽',
-    x: -2.5,
-    z: 8.0,
+    x: -1.2,
+    z: 6.2,
     variant: 'flowerpot',
     height: 0.85,
     thumb: { set: 'disguises', row: 1, col: 3 },
@@ -223,8 +225,8 @@ export const DITTOS = [
   {
     id: 'ditto_bench_05',
     name: '벤치 메타몽',
-    x: 5.5,
-    z: 8.5,
+    x: 3.6,
+    z: 9.6,
     variant: 'bench',
     height: 0.9,
     thumb: { set: 'disguises', row: 2, col: 1 },
@@ -233,8 +235,8 @@ export const DITTOS = [
   {
     id: 'ditto_mushroom_06',
     name: '버섯 메타몽',
-    x: 3.5,
-    z: 14.0,
+    x: 0.8,
+    z: 6.0,
     variant: 'mushroom',
     height: 0.78,
     thumb: { set: 'disguises', row: 2, col: 2 },
@@ -243,8 +245,8 @@ export const DITTOS = [
   {
     id: 'ditto_signpost_07',
     name: '이정표 메타몽',
-    x: -1.5,
-    z: 16.0,
+    x: -3.6,
+    z: 9.2,
     variant: 'signpost',
     height: 1.15,
     thumb: { set: 'disguises', row: 2, col: 3 },
@@ -254,8 +256,8 @@ export const DITTOS = [
 
 /** 솜이 · 옹이 */
 export const CATS = [
-  { id: 'somi', name: '솜이', x: 5.5, z: 3.4, set: 'somi', height: 0.74 },
-  { id: 'ongi', name: '옹이', x: 8.6, z: 1.1, set: 'ongi', height: 0.7 },
+  { id: 'somi', name: '솜이', x: 3.2, z: 3.4, set: 'somi', height: 0.74 },
+  { id: 'ongi', name: '옹이', x: 5.2, z: 2.2, set: 'ongi', height: 0.7 },
 ];
 
 /**
@@ -263,49 +265,54 @@ export const CATS = [
  * height = 스프라이트가 차지하는 월드 높이, collide = 플레이어 충돌 반경
  */
 export const NATURE = [
-  { frame: 'cherry1', x: -10.5, z: 6.5, height: 3.0, collide: 0.45 },
-  { frame: 'cherry2', x: -11.6, z: 12.4, height: 3.4, collide: 0.5 },
-  { frame: 'cherry1', x: 10.6, z: -1.6, height: 3.2, collide: 0.45 },
-  { frame: 'tree_round', x: 9.6, z: 5.6, height: 2.7, collide: 0.42 },
-  { frame: 'tree_round', x: -5.4, z: -2.4, height: 2.5, collide: 0.4 },
-  { frame: 'tree_tall', x: -4.6, z: 17.6, height: 3.1, collide: 0.4 },
-  { frame: 'tree_tall', x: 12.4, z: 8.8, height: 3.3, collide: 0.4 },
-  { frame: 'tree_round', x: -13.2, z: -1.2, height: 2.9, collide: 0.42 },
-  { frame: 'tree_tall', x: 2.6, z: -6.8, height: 2.9, collide: 0.4 },
-  { frame: 'flowerbush', x: 6.6, z: 12.2, height: 0.72, collide: 0.3 },
-  { frame: 'flowerbush', x: -8.2, z: 2.6, height: 0.66, collide: 0.3 },
-  { frame: 'flowerbush', x: -3.2, z: 4.6, height: 0.6, collide: 0.28 },
-  { frame: 'flowerbush', x: 4.2, z: 17.8, height: 0.62, collide: 0.28 },
-  { frame: 'rock', x: 10.2, z: 9.4, height: 0.62, collide: 0.45 },
-  { frame: 'rock', x: -9.4, z: 15.2, height: 0.55, collide: 0.42 },
-  { frame: 'rock', x: 1.4, z: 7.6, height: 0.46, collide: 0.35 },
-  { frame: 'fence', x: 3.4, z: 11.0, height: 0.66, collide: 0.35 },
-  { frame: 'fence', x: 3.4, z: 12.6, height: 0.66, collide: 0.35 },
-  { frame: 'fence', x: -1.0, z: 13.0, height: 0.66, collide: 0.35 },
-  { frame: 'lamp', x: 1.6, z: 15.2, height: 2.0, collide: 0.25 },
-  { frame: 'lamp', x: -3.4, z: 10.4, height: 2.0, collide: 0.25 },
-  { frame: 'lamp', x: 4.6, z: 6.0, height: 2.0, collide: 0.25 },
-  { frame: 'flowerbush', x: -2.2, z: 13.4, height: 0.58, collide: 0.26 },
-  { frame: 'flowerbush', x: 1.9, z: 12.1, height: 0.62, collide: 0.28 },
-  { frame: 'rock', x: 4.9, z: 13.9, height: 0.5, collide: 0.38 },
-  { frame: 'cherry1', x: -6.4, z: 13.0, height: 2.9, collide: 0.42 },
-  { frame: 'tree_tall', x: 6.8, z: 15.6, height: 3.0, collide: 0.4 },
-  { frame: 'tree_round', x: 9.2, z: 12.6, height: 2.6, collide: 0.4 },
-  { frame: 'flowerbush', x: 7.4, z: 9.2, height: 0.6, collide: 0.28 },
-  { frame: 'fence', x: -1.8, z: 18.4, height: 0.66, collide: 0.35 },
-  { frame: 'cherry2', x: -4.8, z: 9.4, height: 3.2, collide: 0.46 },
-  { frame: 'tree_round', x: 5.2, z: 11.6, height: 2.5, collide: 0.4 },
-  { frame: 'flowerbush', x: 0.2, z: 7.4, height: 0.58, collide: 0.26 },
-  { frame: 'flowerbush', x: 3.6, z: 6.6, height: 0.54, collide: 0.26 },
-  { frame: 'rock', x: -1.8, z: 6.6, height: 0.44, collide: 0.32 },
-  { frame: 'lamp', x: 3.8, z: 14.8, height: 2.0, collide: 0.25 },
-  { frame: 'cherry1', x: -3.4, z: 15.8, height: 3.0, collide: 0.45 },
-  { frame: 'tree_round', x: 4.6, z: 16.4, height: 2.6, collide: 0.42 },
-  { frame: 'flowerbush', x: 1.2, z: 15.4, height: 0.56, collide: 0.24 },
-  { frame: 'flowerbush', x: -2.4, z: 11.0, height: 0.6, collide: 0.26 },
-  { frame: 'rock', x: 5.6, z: 11.4, height: 0.5, collide: 0.35 },
-  { frame: 'cherry1', x: -3.2, z: 11.8, height: 3.1, collide: 0.45 },
-  { frame: 'tree_round', x: 3.4, z: 9.9, height: 2.5, collide: 0.4 },
+  // ── 광장 둘레 — 가로등·울타리·꽃덤불·조약돌
+  { frame: 'lamp', x: -1.7, z: 10.1, height: 2.0, collide: 0.22 },
+  { frame: 'lamp', x: 1.9, z: 10.2, height: 2.0, collide: 0.22 },
+  { frame: 'lamp', x: -3.9, z: 4.3, height: 2.0, collide: 0.22 },
+  { frame: 'lamp', x: 7.8, z: 5.8, height: 2.0, collide: 0.22 },
+  { frame: 'fence', x: -2.8, z: 5.6, height: 0.66, collide: 0.28 },
+  { frame: 'fence', x: 2.0, z: 4.6, height: 0.66, collide: 0.28 },
+  { frame: 'flowerbush', x: 1.2, z: 6.8, height: 0.6, collide: 0.24 },
+  { frame: 'flowerbush', x: -4.0, z: 11.6, height: 0.56, collide: 0.24 },
+  { frame: 'rock', x: 4.7, z: 10.4, height: 0.5, collide: 0.26 },
+  { frame: 'rock', x: -6.2, z: 8.6, height: 0.46, collide: 0.24 },
+  { frame: 'cherry2', x: -9.6, z: 6.4, height: 3.4, collide: 0.42 },
+  // ── 서쪽 — 공방 둘레
+  { frame: 'tree_tall', x: -7.6, z: 2.6, height: 3.2, collide: 0.36 },
+  { frame: 'tree_round', x: -10.4, z: 9.4, height: 2.6, collide: 0.34 },
+  { frame: 'cherry1', x: -6.8, z: 12.2, height: 3.0, collide: 0.38 },
+  { frame: 'flowerbush', x: -7.8, z: 7.8, height: 0.62, collide: 0.25 },
+  { frame: 'rock', x: -4.2, z: 3.2, height: 0.5, collide: 0.26 },
+  { frame: 'tree_round', x: -2.8, z: 13.4, height: 2.6, collide: 0.34 },
+  // ── 북쪽 — 부두로 가는 길 양옆
+  { frame: 'cherry1', x: 3.2, z: 13.6, height: 3.0, collide: 0.38 },
+  { frame: 'tree_tall', x: 5.4, z: 13.0, height: 3.0, collide: 0.36 },
+  { frame: 'fence', x: -5.4, z: 13.8, height: 0.66, collide: 0.28 },
+  { frame: 'rock', x: 1.6, z: 13.9, height: 0.52, collide: 0.26 },
+  { frame: 'cherry2', x: 8.6, z: 7.2, height: 3.4, collide: 0.42 },
+  // ── 동쪽 — 자판기·등대 길
+  { frame: 'tree_tall', x: 9.4, z: 3.2, height: 3.2, collide: 0.36 },
+  { frame: 'tree_round', x: 8.0, z: 11.0, height: 2.6, collide: 0.34 },
+  { frame: 'flowerbush', x: 5.6, z: 8.8, height: 0.58, collide: 0.24 },
+  { frame: 'flowerbush', x: 9.8, z: 9.4, height: 0.6, collide: 0.24 },
+  { frame: 'rock', x: 6.6, z: 9.6, height: 0.5, collide: 0.26 },
+  { frame: 'tree_tall', x: -1.0, z: -5.2, height: 2.9, collide: 0.36 },
+  // ── 뒤쪽 — 등대 너머
+  { frame: 'tree_round', x: 2.6, z: -4.0, height: 2.6, collide: 0.34 },
+  { frame: 'cherry2', x: -4.8, z: -2.0, height: 3.4, collide: 0.42 },
+  { frame: 'tree_tall', x: 5.0, z: -6.0, height: 3.0, collide: 0.36 },
+  { frame: 'tree_round', x: -7.4, z: -1.6, height: 2.6, collide: 0.34 },
+  { frame: 'flowerbush', x: 0.4, z: -2.2, height: 0.56, collide: 0.24 },
+  { frame: 'rock', x: -2.0, z: 1.4, height: 0.48, collide: 0.26 },
+  { frame: 'flowerbush', x: 3.6, z: 0.8, height: 0.54, collide: 0.24 },
+  { frame: 'rock', x: 9.2, z: -0.6, height: 0.54, collide: 0.28 },
+  // ── 해안가 — 바닷바람 부는 가장자리
+  { frame: 'tree_round', x: -3.8, z: 15.0, height: 2.6, collide: 0.34 },
+  { frame: 'cherry1', x: 3.4, z: 15.0, height: 3.0, collide: 0.38 },
+  { frame: 'flowerbush', x: -1.6, z: 13.6, height: 0.56, collide: 0.24 },
+  { frame: 'rock', x: 5.0, z: 11.6, height: 0.48, collide: 0.26 },
+  { frame: 'cherry2', x: -8.8, z: 12.2, height: 3.4, collide: 0.42 },
+  { frame: 'flowerbush', x: 8.2, z: 12.2, height: 0.58, collide: 0.24 },
 ];
 
 export const INTERACT = {

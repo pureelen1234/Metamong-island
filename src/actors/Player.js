@@ -3,6 +3,12 @@
  *
  * 아틀라스 4×4: 1행 정면 걷기 / 2행 뒷면 걷기 / 3행 옆모습 걷기 / 4행 대기·손흔들기·점프
  * 이동 방향에 따라 행을 고르고 4프레임을 번갈아 재생한다. 이동·충돌·지형 추종은 기존 코어 그대로.
+ *
+ * ── 문워크 방지 규칙 (2026-11-20 수정)
+ * 3행 옆모습은 '왼쪽을 보는' 그림이다. 그래서 오른쪽(+x)으로 갈 때만 좌우 반전(flip)한다.
+ * 이 판정은 반드시 -π~π로 감싼 yaw로 해야 한다. yaw를 감싸지 않으면 뒷면(π)에서
+ * 왼쪽으로 걸을 때 yaw가 3π/2까지 흘러가 부호가 뒤집혀, 왼쪽으로 가는데 오른쪽을 보는
+ * 문워크가 됐다. 아래 wrapAngle()이 그 누적을 막는다.
  */
 import * as THREE from 'three';
 import { PLAYER } from '../config.js';
@@ -10,6 +16,15 @@ import { Billboard, blobShadow } from '../sprites/Billboard.js';
 
 const WALK_FPS = 9.5;
 const DUST_COUNT = 14;
+const TWO_PI = Math.PI * 2;
+
+/** 각도를 (-π, π] 로 감싼다 — yaw 누적으로 인한 방향 반전을 막는다 */
+export function wrapAngle(a) {
+  let r = a % TWO_PI;
+  if (r <= -Math.PI) r += TWO_PI;
+  else if (r > Math.PI) r -= TWO_PI;
+  return r;
+}
 
 export class Player {
   constructor(spawn, terrain, atlases) {
@@ -21,6 +36,7 @@ export class Player {
     this.idleT = 0;
     this.walkT = 0;
     this.flip = false;
+    this.facing = 'back'; // 'front' | 'back' | 'left' | 'right' (QA·디버그용)
     this.emoteT = 0;
     this.frameName = 'idle';
     /** @type {{x:number,z:number,r:number}[]} */
@@ -155,11 +171,9 @@ export class Player {
     // 지면 높이 추종
     this.position.y += (t.groundY(this.position.x, this.position.z) - this.position.y) * Math.min(1, dt * 14);
 
-    // 부드러운 방향 전환
-    let diff = this.targetYaw - this.yaw;
-    while (diff > Math.PI) diff -= Math.PI * 2;
-    while (diff < -Math.PI) diff += Math.PI * 2;
-    this.yaw += diff * Math.min(1, dt * PLAYER.turnLerp);
+    // 부드러운 방향 전환 — 가장 짧은 호로 돌고, 결과를 (-π, π]로 감싼다
+    const diff = wrapAngle(this.targetYaw - this.yaw);
+    this.yaw = wrapAngle(this.yaw + diff * Math.min(1, dt * PLAYER.turnLerp));
 
     this.#animate(mag);
     this.#faceAndPlace(camera);
@@ -175,22 +189,29 @@ export class Player {
 
     if (mag > 0.06) {
       const idx = Math.floor(this.walkT * WALK_FPS) % 4;
-      const ax = Math.abs(Math.sin(this.yaw));
-      const az = Math.abs(Math.cos(this.yaw));
+      // 감싼 yaw의 x성분 = 바라보는 좌우, z성분 = 앞뒤
+      const sx = Math.sin(this.yaw); // +1 오른쪽, -1 왼쪽
+      const cz = Math.cos(this.yaw); // +1 정면(카메라 쪽), -1 뒷면
       let name;
       let flip = false;
-      if (ax > az * 1.02) {
-        // 좌우 이동 — 3행 옆모습(왼쪽을 봄)을 오른쪽 이동 시 반전
+      if (Math.abs(sx) > Math.abs(cz) * 1.02) {
+        // 좌우 이동 — 3행은 왼쪽을 보는 그림이라 오른쪽(+x)일 때만 반전한다
         name = `side${idx + 1}`;
-        flip = this.yaw > 0;
+        flip = sx > 0;
+        this.facing = flip ? 'right' : 'left';
       } else {
-        name = this.yaw > Math.PI / 2 || this.yaw < -Math.PI / 2 ? `back${idx + 1}` : `front${idx + 1}`;
+        const back = cz < 0;
+        name = `${back ? 'back' : 'front'}${idx + 1}`;
+        this.facing = back ? 'back' : 'front';
       }
       this.frameName = name;
+      this.flip = flip;
       this.billboard.setFrame(name, flip);
     } else {
       if (this.frameName !== 'idle') {
         this.frameName = 'idle';
+        this.flip = false;
+        this.facing = 'front';
         this.billboard.setFrame('idle', false);
       }
     }
@@ -219,5 +240,11 @@ export class Player {
     this.position.set(x, t.groundY(x, z), z);
     this.group.position.copy(this.position);
     this.shadow.position.set(x, this.position.y + 0.02, z);
+  }
+
+  /** 저장값 등 외부에서 방향을 넣을 때도 감싼 값을 쓴다 */
+  setYaw(yaw) {
+    this.yaw = wrapAngle(yaw);
+    this.targetYaw = this.yaw;
   }
 }

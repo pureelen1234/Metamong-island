@@ -1,41 +1,32 @@
 /**
  * Heightmap.js — 48×48 섬 지형 높이 데이터 (순수 데이터 · three 의존 없음)
- * 파스텔 로우폴리 섬: 중앙 잔디 고원 + 완만한 모래사장 링 + 두 개의 언덕 + 바다로 떨어지는 경사
+ *
+ * 플랫 랜드: 육지 전체를 하나의 평평한 높이(LAND_HEIGHT)로 고정하고,
+ * 해안선에서만 부드럽게 바다로 내려간다. 가운데 솟은 둔덕·언덕은 없다.
+ * (광각 왜곡·경사로 인한 빌보드 눕기를 없애려고 평지로 바꿨다)
  */
 import { GRID, TILE, HALF, WATER_LEVEL, WALK_MIN_HEIGHT } from '../config.js';
 import { fbm, smoothstep, clamp } from './Noise.js';
 
 const N = GRID + 1; // 49×49 정점
 
-/** 가우시안 언덕 */
-function hill(x, z, cx, cz, amp, sigma) {
-  const dx = x - cx;
-  const dz = z - cz;
-  return amp * Math.exp(-(dx * dx + dz * dz) / (2 * sigma * sigma));
-}
+/** 육지 평지 높이 — 모든 배치물·플레이어가 이 높이에 선다 */
+export const LAND_HEIGHT = 0.7;
+/** 해안선에서 바다로 내려가는 깊이 */
+export const SEA_DEPTH = 1.0;
+/** 평지가 끝나고 해안 경사가 시작되는 정규화 반경 */
+const EDGE_START = 0.565;
+/** 완전히 바다가 되는 정규화 반경 */
+const EDGE_END = 0.80;
 
 /** 월드 좌표 (x,z)의 지형 높이 — 순수 함수 */
 export function islandHeight(x, z) {
   const d = Math.hypot(x, z * 0.97) / HALF; // 0(중심) ~ 1.0(외곽)
-  const warp = fbm(x * 0.06 + 13.7, z * 0.06 - 8.2, 3, 7) * 0.1;
-  const edge = smoothstep(0.5, 0.94, d + warp); // 0 = 육지, 1 = 바다
-  const land = 1 - edge;
-
-  const base =
-    0.55 +
-    1.05 * (fbm(x * 0.09, z * 0.09, 4, 3) * 0.5 + 0.5) +
-    0.15 * fbm(x * 0.25, z * 0.25, 2, 11);
-
-  let h = land * base - edge * 0.62;
-
-  // 등대 언덕 · 북서쪽 완만한 둔덕
-  h += land * hill(x, z, 6.0, -7.0, 1.55, 4.6);
-  h += land * hill(x, z, -10.0, 7.0, 0.95, 4.0);
-
-  // 아주 완만한 요철로 파스텔 로우폴리 면 분할을 살린다
-  h += land * fbm(x * 0.42, z * 0.42, 2, 23) * 0.09;
-
-  return clamp(h, -1.2, 4.6);
+  // 해안선을 살짝 흔들어 원형보다 유기적인 섬 모양을 만든다
+  const warp = fbm(x * 0.06 + 13.7, z * 0.06 - 8.2, 3, 7) * 0.045;
+  const edge = smoothstep(EDGE_START, EDGE_END, d + warp); // 0 = 평지, 1 = 바다
+  const h = LAND_HEIGHT - (LAND_HEIGHT + SEA_DEPTH) * edge;
+  return clamp(h, -SEA_DEPTH, LAND_HEIGHT);
 }
 
 /** 49×49 높이 배열 생성 (모듈 로드 시 1회) */
