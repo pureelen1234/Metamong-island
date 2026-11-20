@@ -1,7 +1,7 @@
 /* 어설픈 메타몽 섬 — 오프라인 캐시 서비스 워커
    · 화면(index.html)은 네트워크 우선 → 새 빌드가 바로 반영된다
    · 해시가 붙은 정적 자산은 캐시 우선 */
-const CACHE = 'metamong-island-hd2d-v4';
+const CACHE = 'metamong-island-phase1-v1';
 const CORE = ['./', './manifest.json', './icons/icon.svg'];
 
 self.addEventListener('install', (event) => {
