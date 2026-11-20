@@ -12,12 +12,12 @@
 | --- | --- | --- |
 | 그림자 | `world/Game.js`, `world/World.js` | `PCFShadowMap`(r187에서 PCFSoft 제거됨), `mapSize 1024²`, 플레이어 추적 ±30m, `bias -0.0005`, `normalBias 0.02` |
 | 툰 램프 | `render/toon.js` | 4단 `DataTexture [140,172,222,255]` + `NearestFilter` → 모든 불투명 재질 `MeshToonMaterial` |
-| 외곽선 | `render/toon.js` | `BackSide` 잉크 헐(뷰공간 노멀 오프셋, 두께 0.010~0.024) · 겹친 구 수관은 균등 스케일 헐 · 색 `#3b2d38` |
+| 외곽선 | `render/toon.js` | `BackSide` 잉크 헐(뷰공간 노멀 오프셋, 두께 0.010~0.024) · 색 `#3b2d38` |
 | 후처리 | `render/post.js` | `RenderPass → UnrealBloom(threshold 0.86, strength 0.30, radius 0.40) → OutputPass → Grade(채도 1.07, S커브 0.20, 비네트 0.28)` |
 | 안티앨리어싱 | `render/post.js` | HalfFloat + MSAA 4x 렌더타깃(EffectComposer 기본 RT는 AA 없음), `pixelRatio` 상한 2 |
 | 조명 균형 | `world/World.js` | 툰은 빛을 그대로 더하므로 `LIGHT_GAIN`(hemi 0.52 / ambient 0.26 / sun 1.25 / fill 0.22)로 세기를 낮추고 색은 팔레트 유지 |
 
-액터·건물·나무기둥·수관·프롭에만 외곽선을 넣고, 풀·잎·꽃·조약돌·물·파티클·발광창은 제외했습니다. `blobShadow`는 진짜 그림자 위에 0.05 불투명도로만 남겨 접지감을 보강합니다.
+액터·건물·나무기둥·프롭에만 외곽선을 넣고, 풀·잎·꽃·조약돌·물·파티클·발광창·**수관**은 제외했습니다. 수관처럼 구를 여러 개 겹친 지오메트리는 헐 실루엣 안쪽으로 잉크가 새어 검은 덩어리로 보이기 때문입니다. 액터 얼굴(눈·볼터치·입·코)도 별도 메시로 분리해 외곽선을 두르지 않습니다. `blobShadow`는 진짜 그림자 위에 0.05 불투명도로만 남겨 접지감을 보강합니다.
 
 ## 실행
 
