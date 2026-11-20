@@ -12,12 +12,19 @@ export const INK_COLOR = '#3b2d38';
  * 4단 램프 (140 / 172 / 222 / 255) — 그늘 단을 너무 어둡게 두면 파스텔 톤이 회색으로 죽는다
  * NearestFilter라 계단이 그대로 살아남고, mipmap이 없어 밴드가 뭉개지지 않는다.
  */
-const rampData = new Uint8Array([140, 140, 140, 255, 172, 172, 172, 255, 222, 222, 222, 255, 255, 255, 255, 255]);
-export const RAMP = new THREE.DataTexture(rampData, 4, 1, THREE.RGBAFormat);
-RAMP.minFilter = THREE.NearestFilter;
-RAMP.magFilter = THREE.NearestFilter;
-RAMP.generateMipmaps = false;
-RAMP.needsUpdate = true;
+const RAMP_DATA = [140, 140, 140, 255, 172, 172, 172, 255, 222, 222, 222, 255, 255, 255, 255, 255];
+
+/** 4단 램프 텍스처를 새로 만든다(WebGL 컨텍스트 복구 시 재업로드용) */
+export function makeRamp() {
+  const tex = new THREE.DataTexture(new Uint8Array(RAMP_DATA), 4, 1, THREE.RGBAFormat);
+  tex.minFilter = THREE.NearestFilter;
+  tex.magFilter = THREE.NearestFilter;
+  tex.generateMipmaps = false;
+  tex.needsUpdate = true;
+  return tex;
+}
+
+export const RAMP = makeRamp();
 
 /** 프로젝트 공통 툰 재질 */
 export function toonMaterial(params = {}) {

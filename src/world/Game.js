@@ -15,6 +15,8 @@ import { LandmarkLabels } from '../ui/Landmarks.js';
 import { h } from '../ui/dom.js';
 import { SaveStore } from '../storage/SaveStore.js';
 import { createPost } from '../render/post.js';
+import { makeRamp } from '../render/toon.js';
+import { loadAtlases } from '../sprites/atlas.js';
 import {
   CAMERA,
   CATS,
@@ -22,7 +24,6 @@ import {
   DITTOS,
   INTERACT,
   LANDMARKS,
-  PROPS,
   SAVE,
   SPAWN,
   clockLabel,
@@ -79,6 +80,8 @@ export class Game {
   }
 
   async start() {
+    // ① 도트 아틀라스 로드 (NearestFilter 텍스처 + JSON 매니페스트)
+    this.atlases = await loadAtlases();
     this.#setupRenderer();
     this.#setupWorld();
     this.#setupPost();
@@ -128,35 +131,38 @@ export class Game {
   }
 
   #setupWorld() {
-    this.world = new World();
+    this.world = new World(this.atlases);
     this.scene = this.world.scene;
 
-    this.player = new Player(SPAWN, this.world.terrain);
+    this.player = new Player(SPAWN, this.world.terrain, this.atlases);
     this.player.colliders = [
-      ...LANDMARKS.map((l) => ({
-        x: l.x,
-        z: l.z,
-        r: l.id === 'dock' ? 1.4 : l.id === 'workshop' ? 2.2 : l.id === 'shelter' ? 1.0 : 1.2,
-      })),
-      ...PROPS.map((prop) => ({ x: prop.x, z: prop.z, r: prop.kind === 'campfire' ? 0.6 : 0.3 })),
-      ...DITTOS.map((d) => ({ x: d.x, z: d.z, r: 0.42 })),
-      ...CATS.map((c) => ({ x: c.x, z: c.z, r: 0.36 })),
+      ...this.world.scenery.colliders,
+      ...DITTOS.map((d) => ({ x: d.x, z: d.z, r: Math.max(0.34, d.height * 0.42) })),
+      ...CATS.map((c) => ({ x: c.x, z: c.z, r: 0.3 })),
     ];
     this.scene.add(this.player.group);
     this.scene.add(this.player.shadow);
     this.scene.add(this.player.dust);
 
-    this.cats = CATS.map((def) => new Cat(def, this.world.terrain));
+    this.cats = CATS.map((def) => new Cat(def, this.world.terrain, this.atlases));
     for (const cat of this.cats) {
       this.scene.add(cat.group);
       this.scene.add(cat.shadow);
     }
 
-    this.dittos = DITTOS.map((def) => new Ditto(def, this.world.terrain));
+    this.dittos = DITTOS.map((def) => new Ditto(def, this.world.terrain, this.atlases));
     for (const ditto of this.dittos) {
       this.scene.add(ditto.group);
       this.scene.add(ditto.shadow);
     }
+
+    // 시간대 틴트를 받을 스프라이트 머티리얼 목록
+    this.spriteMaterials = [
+      ...this.player.sprites,
+      ...this.cats.flatMap((c) => c.sprites),
+      ...this.dittos.flatMap((d) => d.sprites),
+      ...this.world.scenery.billboards.map((b) => b.material),
+    ];
 
     this.world.setWeather(weatherForDay(this.state.day));
     this.lookAt.set(SPAWN.x, this.player.position.y + CAMERA.lookHeight, SPAWN.z);
@@ -175,7 +181,7 @@ export class Game {
     });
     this.hud.hide();
     this.modal = new Modal(this.uiRoot);
-    this.landmarkLabels = new LandmarkLabels(this.uiRoot, this.world.structures.sites);
+    this.landmarkLabels = new LandmarkLabels(this.uiRoot, this.world.scenery.sites);
   }
 
   #setupInput() {
@@ -229,6 +235,41 @@ export class Game {
       () => {
         this.contextLost = false;
         this.hud.setContextLost(false);
+        // 후처리 렌더타깃은 컨텍스트를 잃을 때 함께 사라진다 → 새로 만든다(검은 화면 방지)
+        try {
+          if (this.post) this.post.dispose();
+        } catch (err) {
+          /* 이미 정리된 경우 무시 */
+        }
+        this.post = createPost(this.renderer, this.scene, this.camera);
+        this.post.setSize(window.innerWidth, window.innerHeight);
+        // 툰 램프(DataTexture)를 새로 만들어 갈아 끼운다 — 이게 빠지면 지형이 검게 죽는다
+        const freshRamp = makeRamp();
+        this.scene.traverse((o) => {
+          const mats = o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : [];
+          for (const m of mats) {
+            if (m && m.isMeshToonMaterial) {
+              m.gradientMap = freshRamp;
+              m.needsUpdate = true;
+            }
+          }
+        });
+        // 섀도맵도 새 컨텍스트에 다시 굽는다
+        const shadow = this.world.sunLight.shadow;
+        if (shadow.map) shadow.map.dispose();
+        shadow.map = null;
+        this.renderer.shadowMap.needsUpdate = true;
+        // 텍스처·셰이더를 새 컨텍스트에 다시 올린다(검은 지면·밋밋한 스프라이트 방지)
+        this.scene.traverse((o) => {
+          const mats = o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : [];
+          for (const m of mats) {
+            if (!m) continue;
+            m.needsUpdate = true;
+            for (const key of ['map', 'alphaMap', 'gradientMap']) {
+              if (m[key]) m[key].needsUpdate = true;
+            }
+          }
+        });
         this.last = performance.now();
       },
       false
@@ -423,9 +464,12 @@ export class Game {
     }
 
     const move = this.#inputVector(playing);
-    this.player.update(dt, move, this.world.terrain);
-    for (const cat of this.cats) cat.update(dt);
-    for (const ditto of this.dittos) ditto.update(dt, this.player.position);
+    this.player.update(dt, move, this.world.terrain, this.camera);
+    for (const cat of this.cats) cat.update(dt, this.camera);
+    for (const ditto of this.dittos) ditto.update(dt, this.player.position, this.camera);
+
+    // 시간대 색을 스프라이트에 그대로 곱한다(밤에는 보랏빛으로 가라앉힘)
+    for (const mat of this.spriteMaterials) mat.color.copy(this.world.spriteLight);
 
     if (this.mode === 'title') this.#titleCamera(dt);
     else this.#followCamera(dt);
@@ -746,6 +790,17 @@ export class Game {
     });
   }
 
+  /** 도감 카드 썸네일 — 아틀라스 시트에서 해당 셀만 잘라 보여 준다 */
+  #paintThumb(el, thumb) {
+    const atlas = this.atlases.get(thumb.set);
+    if (!atlas) return;
+    const cols = atlas.cols;
+    const rows = atlas.rows;
+    el.style.backgroundImage = `url("${new URL(`sprites/${thumb.set}_sheet.png`, document.baseURI).href}")`;
+    el.style.backgroundSize = `${cols * 100}% ${rows * 100}%`;
+    el.style.backgroundPosition = `${((thumb.col - 1) / Math.max(1, cols - 1)) * 100}% ${((thumb.row - 1) / Math.max(1, rows - 1)) * 100}%`;
+  }
+
   openQuick(id) {
     if (this.mode !== 'play' || this.modal.isOpen) return;
 
@@ -754,11 +809,13 @@ export class Game {
       const grid = h('div', { class: 'codex-grid' });
       for (const def of DITTOS) {
         const known = found.includes(def.id);
+        const thumb = h('div', { class: `codex-thumb ${known ? '' : 'locked'}` }, known ? '' : '· ? ·');
+        if (known && def.thumb) this.#paintThumb(thumb, def.thumb);
         grid.append(
           h(
             'div',
             { class: `codex-card ${known ? '' : 'unknown'}` },
-            h('div', { class: 'face' }, known ? '· ‿ ·' : '· ? ·'),
+            thumb,
             h('div', { class: 'name' }, known ? def.name : '아직 못 찾음'),
             h('div', { class: 'meta' }, known ? def.flavor : '섬 어딘가에서 돌멩이인 척하고 있어요')
           )
@@ -769,11 +826,11 @@ export class Game {
         'div',
         {},
         h('div', { class: 'progress-line' }, h('i', { style: { width: `${pct}%` } })),
-        h('div', { class: 'hint' }, `발견 ${found.length} / ${DITTOS.length} · 이번 섬에는 돌멩이 두 마리가 숨어 있어요`),
+        h('div', { class: 'hint' }, `발견 ${found.length} / ${DITTOS.length} · 이번 섬에는 어설픈 메타몽 일곱 마리가 숨어 있어요`),
         h('div', { class: 'section-label' }, '이번 섬의 도감'),
         grid,
         h('div', { class: 'section-label' }, '다음 단계'),
-        h('div', { class: 'hint' }, '시즌 1 도감 40종 전체와 3D 프리뷰는 Phase 3에서 열려요.')
+        h('div', { class: 'hint' }, '시즌 1 도감 40종 전체와 도트 프리뷰는 Phase 3에서 열려요.')
       );
       this.#openModal({
         title: '메타몽 도감',

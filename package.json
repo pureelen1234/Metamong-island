@@ -3,11 +3,12 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "보경이의 어설픈 메타몽 섬 - Phase 1 모바일 웹 3D MVP",
+  "description": "보경이의 어설픈 메타몽 섬 - Phase 1 모바일 웹 HD-2D 도트 MVP",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "sprites": "python3 tools/build_sprites.py"
   },
   "dependencies": {
     "three": "^0.187.0"

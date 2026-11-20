@@ -1,0 +1,374 @@
+{
+ "sheet": "downloads/metamong_assets/pixel/pixel_sample_01_protagonist_sheet.png",
+ "size": [
+  1254,
+  1254
+ ],
+ "pixel_scale": 2,
+ "native_size": [
+  627,
+  627
+ ],
+ "cell": [
+  176,
+  300
+ ],
+ "grid": [
+  4,
+  4
+ ],
+ "frames": [
+  {
+   "row": 1,
+   "col": 1,
+   "file": "protagonist_r1c1.png",
+   "w": 151,
+   "h": 276,
+   "bbox": [
+    213,
+    27,
+    363,
+    302
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    12,
+    20,
+    151,
+    276
+   ]
+  },
+  {
+   "row": 1,
+   "col": 2,
+   "file": "protagonist_r1c2.png",
+   "w": 146,
+   "h": 276,
+   "bbox": [
+    445,
+    27,
+    590,
+    302
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    191,
+    20,
+    146,
+    276
+   ]
+  },
+  {
+   "row": 1,
+   "col": 3,
+   "file": "protagonist_r1c3.png",
+   "w": 146,
+   "h": 276,
+   "bbox": [
+    668,
+    27,
+    813,
+    302
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    367,
+    20,
+    146,
+    276
+   ]
+  },
+  {
+   "row": 1,
+   "col": 4,
+   "file": "protagonist_r1c4.png",
+   "w": 145,
+   "h": 275,
+   "bbox": [
+    891,
+    27,
+    1035,
+    301
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    543,
+    21,
+    145,
+    275
+   ]
+  },
+  {
+   "row": 2,
+   "col": 1,
+   "file": "protagonist_r2c1.png",
+   "w": 143,
+   "h": 269,
+   "bbox": [
+    213,
+    329,
+    355,
+    597
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    16,
+    327,
+    143,
+    269
+   ]
+  },
+  {
+   "row": 2,
+   "col": 2,
+   "file": "protagonist_r2c2.png",
+   "w": 142,
+   "h": 268,
+   "bbox": [
+    448,
+    330,
+    589,
+    597
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    193,
+    328,
+    142,
+    268
+   ]
+  },
+  {
+   "row": 2,
+   "col": 3,
+   "file": "protagonist_r2c3.png",
+   "w": 141,
+   "h": 268,
+   "bbox": [
+    671,
+    330,
+    811,
+    597
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    369,
+    328,
+    141,
+    268
+   ]
+  },
+  {
+   "row": 2,
+   "col": 4,
+   "file": "protagonist_r2c4.png",
+   "w": 143,
+   "h": 267,
+   "bbox": [
+    892,
+    330,
+    1034,
+    596
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    544,
+    329,
+    143,
+    267
+   ]
+  },
+  {
+   "row": 3,
+   "col": 1,
+   "file": "protagonist_r3c1.png",
+   "w": 143,
+   "h": 258,
+   "bbox": [
+    216,
+    628,
+    358,
+    885
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    16,
+    638,
+    143,
+    258
+   ]
+  },
+  {
+   "row": 3,
+   "col": 2,
+   "file": "protagonist_r3c2.png",
+   "w": 144,
+   "h": 259,
+   "bbox": [
+    447,
+    627,
+    590,
+    885
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    192,
+    637,
+    144,
+    259
+   ]
+  },
+  {
+   "row": 3,
+   "col": 3,
+   "file": "protagonist_r3c3.png",
+   "w": 140,
+   "h": 259,
+   "bbox": [
+    672,
+    627,
+    811,
+    885
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    370,
+    637,
+    140,
+    259
+   ]
+  },
+  {
+   "row": 3,
+   "col": 4,
+   "file": "protagonist_r3c4.png",
+   "w": 141,
+   "h": 258,
+   "bbox": [
+    893,
+    628,
+    1033,
+    885
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    545,
+    638,
+    141,
+    258
+   ]
+  },
+  {
+   "row": 4,
+   "col": 1,
+   "file": "protagonist_r4c1.png",
+   "w": 146,
+   "h": 292,
+   "bbox": [
+    292,
+    920,
+    437,
+    1211
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    15,
+    904,
+    146,
+    292
+   ]
+  },
+  {
+   "row": 4,
+   "col": 2,
+   "file": "protagonist_r4c2.png",
+   "w": 168,
+   "h": 292,
+   "bbox": [
+    505,
+    920,
+    672,
+    1211
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    180,
+    904,
+    168,
+    292
+   ]
+  },
+  {
+   "row": 4,
+   "col": 3,
+   "file": "protagonist_r4c3.png",
+   "w": 37,
+   "h": 65,
+   "bbox": [
+    758,
+    975,
+    794,
+    1039
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    421,
+    1131,
+    37,
+    65
+   ]
+  },
+  {
+   "row": 4,
+   "col": 4,
+   "file": "protagonist_r4c4.png",
+   "w": 168,
+   "h": 292,
+   "bbox": [
+    795,
+    920,
+    962,
+    1211
+   ],
+   "blobs": 2,
+   "main_share": 0.938,
+   "edge": [],
+   "atlas_rect": [
+    532,
+    904,
+    168,
+    292
+   ]
+  }
+ ]
+}

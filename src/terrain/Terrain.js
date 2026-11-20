@@ -24,6 +24,36 @@ const C = {
 
 const tmpColor = new THREE.Color();
 
+/**
+ * 잔디 디테일 텍스처 — 밝기만 살짝 흔드는 회색조 픽셀 패턴.
+ * 정점 색(파스텔 팔레트)에 곲해지므로 색은 그대로고, 먼 들판이 밋밋하지 않게 된다.
+ */
+let grassTex = null;
+function grassTexture() {
+  if (grassTex) return grassTex;
+  const size = 64;
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, size, size);
+  const shades = ['#f4f7f0', '#fbfdf8', '#eef4ea', '#ffffff', '#f7faf3'];
+  for (let i = 0; i < 220; i++) {
+    const x = Math.floor(Math.random() * size);
+    const y = Math.floor(Math.random() * size);
+    ctx.fillStyle = shades[Math.floor(Math.random() * shades.length)];
+    ctx.fillRect(x, y, Math.random() < 0.25 ? 2 : 1, Math.random() < 0.25 ? 2 : 1);
+  }
+  grassTex = new THREE.CanvasTexture(c);
+  grassTex.colorSpace = THREE.SRGBColorSpace;
+  grassTex.wrapS = grassTex.wrapT = THREE.RepeatWrapping;
+  grassTex.magFilter = THREE.NearestFilter;
+  grassTex.minFilter = THREE.LinearMipmapLinearFilter;
+  grassTex.generateMipmaps = true;
+  grassTex.anisotropy = 4;
+  return grassTex;
+}
+
 /** 정점 높이 → 파스텔 지형색 */
 function colorForHeight(h, slope, x, z, out) {
   const n = valueNoise(x * 0.33 + 7.1, z * 0.33 - 3.3, 41); // 0..1
@@ -79,6 +109,8 @@ export class Terrain {
     const cellCount = GRID * GRID;
     const positions = new Float32Array(cellCount * 6 * 3);
     const colors = new Float32Array(cellCount * 6 * 3);
+    const uvs = new Float32Array(cellCount * 6 * 2);
+    const UV_SCALE = 1 / 2.6;
 
     // 정점별 색을 미리 계산
     const vColor = new Float32Array(N * N * 3);
@@ -98,6 +130,7 @@ export class Terrain {
 
     let p = 0;
     let col = 0;
+    let uvI = 0;
     const pushVert = (x, z, h, ci) => {
       positions[p++] = x;
       positions[p++] = h;
@@ -105,6 +138,8 @@ export class Terrain {
       colors[col++] = vColor[ci];
       colors[col++] = vColor[ci + 1];
       colors[col++] = vColor[ci + 2];
+      uvs[uvI++] = x * UV_SCALE;
+      uvs[uvI++] = z * UV_SCALE;
     };
 
     for (let j = 0; j < GRID; j++) {
@@ -136,6 +171,7 @@ export class Terrain {
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
     geo.computeVertexNormals();
     geo.computeBoundingSphere();
 
@@ -165,9 +201,10 @@ export class Terrain {
       pos.needsUpdate = true;
     }
 
-    // ② 4단 툰 램프 + ① 그림자 받기
+    // ② 4단 툰 램프 + ① 그림자 받기 (+ 잔디 디테일 텍스처)
     const mat = toonMaterial({
       vertexColors: true,
+      map: grassTexture(),
     });
     const mesh = new THREE.Mesh(geo, mat);
     mesh.name = 'TerrainSurface';

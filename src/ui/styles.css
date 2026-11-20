@@ -766,6 +766,27 @@ canvas#scene {
   margin-bottom: 4px;
 }
 
+.codex-thumb {
+  width: 100%;
+  height: 74px;
+  margin-bottom: 6px;
+  border-radius: 12px;
+  background-color: rgba(246, 241, 249, 0.85);
+  background-repeat: no-repeat;
+  background-position: center;
+  image-rendering: pixelated;
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  color: #cdc3d8;
+}
+
+.codex-thumb.locked {
+  background-image: none;
+}
+
 .codex-card.unknown .face {
   color: #cdc3d8;
 }

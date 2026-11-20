@@ -155,57 +155,157 @@ export const PLAYER = {
   speed: 4.3,
   turnLerp: 12,
   radius: 0.36,
+  spriteHeight: 1.5, // 도트 스프라이트가 차지하는 월드 높이
 };
 export const CAMERA = {
-  fov: 46,
-  offset: { x: 0, y: 5.0, z: 6.2 },
-  lookHeight: 0.75,
+  fov: 58,
+  offset: { x: 0, y: 7.4, z: 9.0 },
+  lookHeight: 0.7,
   lerp: 6.5,
 };
 
 // ── 섬 배치 ───────────────────────────────────────────────────────
-export const SPAWN = { x: 1.0, z: 10.0 };
+export const SPAWN = { x: 0.6, z: 13.0 };
 
-/** 4단계 복구 예정 부지 (부두·공방·고양이 쉼터·등대) */
+/** 복구 부지 · 도트 건물 4종 (공방·등대·자판기·부두) */
 export const LANDMARKS = [
-  { id: 'dock', name: '부두', icon: '⚓', day: 5, x: 0, z: 20.4, rot: 0, markerY: 3.0 },
-  { id: 'workshop', name: '공방', icon: '🔨', day: 10, x: -6.5, z: 3.0, rot: 0.35, markerY: 3.0 },
-  { id: 'shelter', name: '고양이 쉼터', icon: '🐾', day: 17, x: 7.0, z: 2.0, rot: -0.4, markerY: 2.6 },
-  { id: 'lighthouse', name: '등대', icon: '🗼', day: 24, x: 8.0, z: -8.0, rot: 0, markerY: 5.4 },
+  { id: 'dock', name: '부두', icon: '⚓', day: 5, x: 0, z: 20.4, markerY: 2.2, height: 1.7, water: true },
+  { id: 'workshop', name: '공방', icon: '🔨', day: 10, x: -6.5, z: 3.0, markerY: 3.4, height: 2.8 },
+  { id: 'vending', name: '메타몽 자판기', icon: '🥤', day: 17, x: 7.0, z: 2.0, markerY: 2.4, height: 1.8 },
+  { id: 'lighthouse', name: '등대', icon: '🗼', day: 24, x: 8.0, z: -8.0, markerY: 5.6, height: 4.4 },
 ];
 
-/** 어설픈 위장 메타몽 2마리 (부록 A #01 · #02) */
+/**
+ * 어설픈 메타몽 7마리 — 기본 1 + 위장 6종(조약돌·우체통·화분·벤치·버섯·이정표)
+ * thumb: 도감 카드에서 잘라 보여 줄 아틀라스 셀
+ */
 export const DITTOS = [
   {
-    id: 'ditto_pebble_01',
+    id: 'ditto_basic_01',
+    name: '동글 메타몽',
+    x: -7.0,
+    z: 10.0,
+    variant: 'basic',
+    height: 0.86,
+    thumb: { set: 'ditto_basic', row: 1, col: 1 },
+    flavor: '변신을 포기한 동글 메타몽. 점 눈만 남았다.',
+  },
+  {
+    id: 'ditto_pebble_02',
     name: '조약돌 메타몽',
     x: -4.0,
     z: 12.6,
     variant: 'pebble',
+    height: 0.52,
+    thumb: { set: 'disguises', row: 1, col: 1 },
     flavor: '조약돌인 척하지만 가끔 숨을 쉰다.',
   },
   {
-    id: 'ditto_boulder_02',
-    name: '바위 메타몽',
-    x: 11.5,
-    z: -2.5,
-    variant: 'boulder',
-    flavor: '이끼 낀 바위인 척. 눈은 못 숨긴다.',
+    id: 'ditto_mailbox_03',
+    name: '우체통 메타몽',
+    x: 2.8,
+    z: 16.4,
+    variant: 'mailbox',
+    height: 1.1,
+    thumb: { set: 'disguises', row: 1, col: 2 },
+    flavor: '편지가 없어도 우체통인 척. 손잡이가 살짝 흔들린다.',
+  },
+  {
+    id: 'ditto_flowerpot_04',
+    name: '화분 메타몽',
+    x: -2.5,
+    z: 8.0,
+    variant: 'flowerpot',
+    height: 0.85,
+    thumb: { set: 'disguises', row: 1, col: 3 },
+    flavor: '물을 안 줘도 잎이 파랗다. 그게 수상하다.',
+  },
+  {
+    id: 'ditto_bench_05',
+    name: '벤치 메타몽',
+    x: 5.5,
+    z: 8.5,
+    variant: 'bench',
+    height: 0.9,
+    thumb: { set: 'disguises', row: 2, col: 1 },
+    flavor: '앉으라고 만든 벤치인데, 앉으면 도망간다.',
+  },
+  {
+    id: 'ditto_mushroom_06',
+    name: '버섯 메타몽',
+    x: 3.5,
+    z: 14.0,
+    variant: 'mushroom',
+    height: 0.78,
+    thumb: { set: 'disguises', row: 2, col: 2 },
+    flavor: '빨간 갓에 흰 점. 먹으면 안 될 것 같다.',
+  },
+  {
+    id: 'ditto_signpost_07',
+    name: '이정표 메타몽',
+    x: -1.5,
+    z: 16.0,
+    variant: 'signpost',
+    height: 1.15,
+    thumb: { set: 'disguises', row: 2, col: 3 },
+    flavor: '어디로 가라는 건지 본인도 모른다.',
   },
 ];
 
 /** 솜이 · 옹이 */
 export const CATS = [
-  { id: 'somi', name: '솜이', x: 5.5, z: 3.4, variant: 'white' },
-  { id: 'ongi', name: '옹이', x: 8.6, z: 1.1, variant: 'ginger' },
+  { id: 'somi', name: '솜이', x: 5.5, z: 3.4, set: 'somi', height: 0.74 },
+  { id: 'ongi', name: '옹이', x: 8.6, z: 1.1, set: 'ongi', height: 0.7 },
 ];
 
-/** 프롭: 우체통·표지판·캠프파이어·밥그릇 */
-export const PROPS = [
-  { id: 'mailbox', kind: 'mailbox', x: 2.8, z: 16.4, rot: -0.4 },
-  { id: 'sign', kind: 'sign', x: 0.6, z: 13.4, rot: 0.18 },
-  { id: 'campfire', kind: 'campfire', x: 4.6, z: 7.2, rot: 0 },
-  { id: 'bowl', kind: 'bowl', x: 6.0, z: 3.4, rot: 0 },
+/**
+ * 도트 자연물 배치 (아틀라스 프레임 이름 그대로)
+ * height = 스프라이트가 차지하는 월드 높이, collide = 플레이어 충돌 반경
+ */
+export const NATURE = [
+  { frame: 'cherry1', x: -10.5, z: 6.5, height: 3.0, collide: 0.45 },
+  { frame: 'cherry2', x: -11.6, z: 12.4, height: 3.4, collide: 0.5 },
+  { frame: 'cherry1', x: 10.6, z: -1.6, height: 3.2, collide: 0.45 },
+  { frame: 'tree_round', x: 9.6, z: 5.6, height: 2.7, collide: 0.42 },
+  { frame: 'tree_round', x: -5.4, z: -2.4, height: 2.5, collide: 0.4 },
+  { frame: 'tree_tall', x: -4.6, z: 17.6, height: 3.1, collide: 0.4 },
+  { frame: 'tree_tall', x: 12.4, z: 8.8, height: 3.3, collide: 0.4 },
+  { frame: 'tree_round', x: -13.2, z: -1.2, height: 2.9, collide: 0.42 },
+  { frame: 'tree_tall', x: 2.6, z: -6.8, height: 2.9, collide: 0.4 },
+  { frame: 'flowerbush', x: 6.6, z: 12.2, height: 0.72, collide: 0.3 },
+  { frame: 'flowerbush', x: -8.2, z: 2.6, height: 0.66, collide: 0.3 },
+  { frame: 'flowerbush', x: -3.2, z: 4.6, height: 0.6, collide: 0.28 },
+  { frame: 'flowerbush', x: 4.2, z: 17.8, height: 0.62, collide: 0.28 },
+  { frame: 'rock', x: 10.2, z: 9.4, height: 0.62, collide: 0.45 },
+  { frame: 'rock', x: -9.4, z: 15.2, height: 0.55, collide: 0.42 },
+  { frame: 'rock', x: 1.4, z: 7.6, height: 0.46, collide: 0.35 },
+  { frame: 'fence', x: 3.4, z: 11.0, height: 0.66, collide: 0.35 },
+  { frame: 'fence', x: 3.4, z: 12.6, height: 0.66, collide: 0.35 },
+  { frame: 'fence', x: -1.0, z: 13.0, height: 0.66, collide: 0.35 },
+  { frame: 'lamp', x: 1.6, z: 15.2, height: 2.0, collide: 0.25 },
+  { frame: 'lamp', x: -3.4, z: 10.4, height: 2.0, collide: 0.25 },
+  { frame: 'lamp', x: 4.6, z: 6.0, height: 2.0, collide: 0.25 },
+  { frame: 'flowerbush', x: -2.2, z: 13.4, height: 0.58, collide: 0.26 },
+  { frame: 'flowerbush', x: 1.9, z: 12.1, height: 0.62, collide: 0.28 },
+  { frame: 'rock', x: 4.9, z: 13.9, height: 0.5, collide: 0.38 },
+  { frame: 'cherry1', x: -6.4, z: 13.0, height: 2.9, collide: 0.42 },
+  { frame: 'tree_tall', x: 6.8, z: 15.6, height: 3.0, collide: 0.4 },
+  { frame: 'tree_round', x: 9.2, z: 12.6, height: 2.6, collide: 0.4 },
+  { frame: 'flowerbush', x: 7.4, z: 9.2, height: 0.6, collide: 0.28 },
+  { frame: 'fence', x: -1.8, z: 18.4, height: 0.66, collide: 0.35 },
+  { frame: 'cherry2', x: -4.8, z: 9.4, height: 3.2, collide: 0.46 },
+  { frame: 'tree_round', x: 5.2, z: 11.6, height: 2.5, collide: 0.4 },
+  { frame: 'flowerbush', x: 0.2, z: 7.4, height: 0.58, collide: 0.26 },
+  { frame: 'flowerbush', x: 3.6, z: 6.6, height: 0.54, collide: 0.26 },
+  { frame: 'rock', x: -1.8, z: 6.6, height: 0.44, collide: 0.32 },
+  { frame: 'lamp', x: 3.8, z: 14.8, height: 2.0, collide: 0.25 },
+  { frame: 'cherry1', x: -3.4, z: 15.8, height: 3.0, collide: 0.45 },
+  { frame: 'tree_round', x: 4.6, z: 16.4, height: 2.6, collide: 0.42 },
+  { frame: 'flowerbush', x: 1.2, z: 15.4, height: 0.56, collide: 0.24 },
+  { frame: 'flowerbush', x: -2.4, z: 11.0, height: 0.6, collide: 0.26 },
+  { frame: 'rock', x: 5.6, z: 11.4, height: 0.5, collide: 0.35 },
+  { frame: 'cherry1', x: -3.2, z: 11.8, height: 3.1, collide: 0.45 },
+  { frame: 'tree_round', x: 3.4, z: 9.9, height: 2.5, collide: 0.4 },
 ];
 
 export const INTERACT = {

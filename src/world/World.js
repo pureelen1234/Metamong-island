@@ -7,10 +7,9 @@ import { HEIGHTS, WATER_LEVEL } from '../terrain/Heightmap.js';
 import { Terrain } from '../terrain/Terrain.js';
 import { Water } from '../terrain/Water.js';
 import { Skybox } from '../skybox/Skybox.js';
-import { Foliage } from '../foliage/Foliage.js';
-import { Structures } from '../structures/Structures.js';
-import { Props } from '../props/Props.js';
-import { SKY_KEYS, DAY_SECONDS, WEATHERS, LANDMARKS, DITTOS, CATS, PROPS, SPAWN, HALF } from '../config.js';
+import { Scenery } from './Scenery.js';
+import { Path } from './Path.js';
+import { SKY_KEYS, DAY_SECONDS, WEATHERS, HALF } from '../config.js';
 import { RNG } from '../terrain/Noise.js';
 
 const GRAY = new THREE.Color('#dfe8ef');
@@ -33,7 +32,7 @@ const COLOR_MAP = {
 };
 
 export class World {
-  constructor() {
+  constructor(atlases) {
     this.scene = new THREE.Scene();
     this.scene.fog = new THREE.FogExp2('#f2fcf5', 0.0062);
 
@@ -84,22 +83,13 @@ export class World {
     this.scene.add(this.fillLight);
     this.scene.add(this.fillLight.target);
 
-    // ── 정적 자연물/구조물 (배치 자리 비켜 주기)
-    const blockers = [
-      ...LANDMARKS.map((l) => ({ x: l.x, z: l.z, r: l.id === 'dock' ? 3.4 : 3.0 })),
-      ...DITTOS.map((d) => ({ x: d.x, z: d.z, r: 1.6 })),
-      ...CATS.map((c) => ({ x: c.x, z: c.z, r: 1.5 })),
-      ...PROPS.map((p) => ({ x: p.x, z: p.z, r: 1.4 })),
-      { x: SPAWN.x, z: SPAWN.z, r: 2.2 },
-    ];
-    this.foliage = new Foliage(this.terrain, blockers);
-    this.scene.add(this.foliage.group);
+    // ── HD-2D 배경 소품 — 도트 건물·나무·바위·울타리·가로등 (모두 빌보드)
+    this.scenery = new Scenery(this.terrain, atlases);
+    this.scene.add(this.scenery.group);
 
-    this.structures = new Structures(this.terrain);
-    this.scene.add(this.structures.group);
-
-    this.props = new Props(this.terrain);
-    this.scene.add(this.props.group);
+    // 잔디 위 오솔길 (부두 → 광장 → 공방·자판기·등대)
+    this.path = new Path(this.terrain);
+    this.scene.add(this.path.group);
 
     // ── 팔레트(재사용 객체)
     this.keyColors = SKY_KEYS.map((k) => {
@@ -124,6 +114,8 @@ export class World {
     this.weather = WEATHERS.clear;
     this.weatherBlend = 0;
     this.lightGain = { ...LIGHT_GAIN };
+    // 스프라이트는 조명을 받지 않는 MeshBasicMaterial → 시간대 색을 직접 곱해 준다
+    this.spriteLight = new THREE.Color('#ffffff');
 
     this.rain = this.#buildRain();
     this.scene.add(this.rain.points);
@@ -237,6 +229,10 @@ export class World {
     // 그늘진 면이 회색으로 죽지 않게, 채움광은 태양 색 쪽으로 따뜻하게
     this.fillLight.color.copy(p.sun).lerp(p.skyBottom, 0.3);
 
+    // 스프라이트 틴트: 낮에는 원색, 노을은 따뜻하게, 밤에는 보랏빛으로 가라앉힌다
+    const dayK = 1 - p.night * 0.46;
+    this.spriteLight.copy(p.sun).lerp(p.hemiSky, 0.42).lerp(GRAY, this.weatherBlend * 0.32).multiplyScalar(dayK);
+
     const dir = this.#discDirection(elapsed, this.tmpDir);
     this.discDir.copy(dir);
 
@@ -262,8 +258,8 @@ export class World {
     // 물
     this.water.update(this.time, p);
 
-    // 구조물 마커 · 비
-    this.structures.update(dt);
+    // 도트 소품 빌보드 · 비
+    this.scenery.update(dt, camera);
     this.#updateRain(dt, playerPos);
   }
 

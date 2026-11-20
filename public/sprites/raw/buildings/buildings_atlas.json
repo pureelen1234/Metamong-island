@@ -1,0 +1,110 @@
+{
+ "sheet": "downloads/metamong_assets/pixel/pixel_buildings_sheet.png",
+ "size": [
+  1254,
+  1254
+ ],
+ "pixel_scale": 2,
+ "native_size": [
+  627,
+  627
+ ],
+ "cell": [
+  645,
+  591
+ ],
+ "grid": [
+  2,
+  2
+ ],
+ "frames": [
+  {
+   "row": 1,
+   "col": 1,
+   "file": "buildings_r1c1.png",
+   "w": 637,
+   "h": 535,
+   "bbox": [
+    48,
+    65,
+    684,
+    599
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    4,
+    52,
+    637,
+    535
+   ]
+  },
+  {
+   "row": 1,
+   "col": 2,
+   "file": "buildings_r1c2.png",
+   "w": 357,
+   "h": 583,
+   "bbox": [
+    800,
+    23,
+    1156,
+    605
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    789,
+    4,
+    357,
+    583
+   ]
+  },
+  {
+   "row": 2,
+   "col": 1,
+   "file": "buildings_r2c1.png",
+   "w": 350,
+   "h": 515,
+   "bbox": [
+    140,
+    642,
+    489,
+    1156
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    147,
+    663,
+    350,
+    515
+   ]
+  },
+  {
+   "row": 2,
+   "col": 2,
+   "file": "buildings_r2c2.png",
+   "w": 550,
+   "h": 410,
+   "bbox": [
+    630,
+    749,
+    1179,
+    1158
+   ],
+   "blobs": 1,
+   "main_share": 1.0,
+   "edge": [],
+   "atlas_rect": [
+    692,
+    768,
+    550,
+    410
+   ]
+  }
+ ]
+}

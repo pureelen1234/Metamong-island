@@ -52,6 +52,7 @@ export class Modal {
 
     this.backdrop.classList.add('open');
     this.isOpen = true;
+    this.card.scrollTop = 0;
   }
 
   close() {

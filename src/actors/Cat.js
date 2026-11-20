@@ -1,305 +1,170 @@
 /**
- * Cat.js — 솜이 · 옹이 (찹쌀떡 치비 고양이)
- * 큰 머리 · 동글 눈 + 반짝 하이라이트 · 볼터치 · 작은 미소.
- * 평화로운 대기 모션(꼬리 흔들기·숨쉬기)과 쓰다듬기 반응(폴짝 + 하트)을 담당.
+ * Cat.js — 솜이 · 옹이 (도트 스프라이트 · HD-2D)
+ *
+ * 아틀라스 4×5: 1행 정면 / 2행 뒷면 / 3행 왼쪽 / 4행 오른쪽 걷기 · 5행 앉기·식빵·그루밍·신남
+ * 섬을 자유롭게 거닐다가 쉬는 자리에서 포즈를 바꾸고, 쓰다듬으면 폴짝 뛰며 하트를 띄운다.
  */
 import * as THREE from 'three';
-import { part, buildMesh, blobShadow, sphere, capsule, rbox } from '../props/parts.js';
-import { solid } from '../render/toon.js';
+import { Billboard, blobShadow, heartSprite } from '../sprites/Billboard.js';
 
-const CAT_STYLE = {
-  white: {
-    fur: '#fdf6e8',
-    furShade: '#f0e4d1',
-    belly: '#fffdf6',
-    ear: '#ffc3cd',
-    nose: '#ff9fb0',
-    eye: '#3f6086',
-    stripe: null,
-    bandana: null,
-  },
-  ginger: {
-    fur: '#f8ab52',
-    furShade: '#ef9a3f',
-    belly: '#fff0d8',
-    ear: '#ffb3bd',
-    nose: '#d97a68',
-    eye: '#5b3a24',
-    stripe: '#dd8730',
-    bandana: '#8fd6bd',
-  },
-};
-
-function heartTexture() {
-  const c = document.createElement('canvas');
-  c.width = 128;
-  c.height = 128;
-  const ctx = c.getContext('2d');
-  ctx.clearRect(0, 0, 128, 128);
-  ctx.font = '92px "Noto Sans CJK KR", system-ui, sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.lineWidth = 10;
-  ctx.strokeStyle = 'rgba(255,255,255,0.9)';
-  ctx.strokeText('♥', 64, 66);
-  ctx.fillStyle = '#ff8fae';
-  ctx.fillText('♥', 64, 66);
-  const tex = new THREE.CanvasTexture(c);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-}
+const WALK_FPS = 7;
+const WALK_SPEED = 0.85;
 
 export class Cat {
-  constructor(def, terrain) {
+  constructor(def, terrain, atlases) {
     this.kind = 'cat';
     this.id = def.id;
     this.name = def.name;
-    this.variant = def.variant;
     this.terrain = terrain;
-    this.base = new THREE.Vector3(def.x, terrain.groundY(def.x, def.z), def.z);
+    this.home = new THREE.Vector2(def.x, def.z);
+    this.position = new THREE.Vector3(def.x, terrain.groundY(def.x, def.z), def.z);
+    this.height = def.height || 0.9;
 
+    this.atlas = atlases.get(def.set || def.id);
     this.group = new THREE.Group();
     this.group.name = `Cat_${def.id}`;
-    this.group.position.copy(this.base);
-    this.group.scale.setScalar(1.16);
+    this.group.position.copy(this.position);
 
-    const style = CAT_STYLE[def.variant] || CAT_STYLE.white;
-    this.style = style;
-
-    this.body = this.#buildBody(style);
+    this.billboard = new Billboard(this.atlas, 'sit', { height: this.height });
+    this.group.add(this.billboard.mesh);
+    this.body = this.billboard.mesh;
     this.body.userData.actor = this;
     this.group.userData.actor = this;
-    this.group.add(this.body);
-    // 얼굴은 몸통의 자식 → 숨쉬기 스케일을 따라간다(잉크 없음)
-    this.face = this.#buildFace(style);
-    this.body.add(this.face);
 
-    this.tail = new THREE.Group();
-    this.tail.position.set(0, 0.34, -0.24);
-    this.tail.add(this.#buildTail(style));
-    this.group.add(this.tail);
+    this.shadow = blobShadow(0.24, 0.3);
+    this.shadow.position.set(def.x, this.position.y + 0.02, def.z);
 
-    this.shadow = blobShadow(0.36, 0.05);
-    this.shadow.position.set(this.base.x, this.base.y + 0.03, this.base.z);
-
-    this.heart = new THREE.Sprite(
-      new THREE.SpriteMaterial({ map: heartTexture(), transparent: true, depthWrite: false, depthTest: false, toneMapped: false })
-    );
-    this.heart.scale.set(0.42, 0.42, 1);
-    this.heart.visible = false;
+    this.heart = heartSprite(0.26);
+    this.heart.position.set(0, this.height * 1.1, 0);
     this.group.add(this.heart);
-    this.heart.position.set(0, 0.95, 0);
 
-    this.t = Math.random() * 10;
+    this.state = 'idle';
+    this.stateT = 1 + Math.random() * 2;
+    this.target = null;
+    this.walkT = Math.random() * 2;
     this.hop = 0;
     this.heartT = 0;
     this.pets = 0;
-  }
-
-  #buildBody(style) {
-    const parts = [];
-    // 몸통 (동글동글)
-    parts.push(part(sphere(0.255, 20, 16), style.fur, { position: [0, 0.3, 0], scale: [1.0, 0.99, 0.95] }));
-    // 배 · 가슴
-    parts.push(part(sphere(0.15, 16, 12), style.belly, { position: [0, 0.29, 0.145], scale: [1, 0.95, 0.52] }));
-
-    // 짧고 통통한 네 다리
-    for (const [x, z] of [
-      [-0.12, 0.1],
-      [0.12, 0.1],
-      [-0.12, -0.12],
-      [0.12, -0.12],
-    ]) {
-      parts.push(part(capsule(0.058, 0.03, 10), style.furShade, { position: [x, 0.1, z] }));
-      parts.push(part(sphere(0.061, 10, 8), style.belly, { position: [x, 0.03, z + 0.02], scale: [1, 0.68, 1.1] }));
-    }
-
-    // 머리 (몸통보다 큰 찹쌀떡 머리)
-    parts.push(part(sphere(0.275, 22, 18), style.fur, { position: [0, 0.62, 0.02] }));
-
-    // 귀 (둥근 삼각형) + 분홍 속귀
-    for (const side of [-1, 1]) {
-      parts.push(
-        part(new THREE.ConeGeometry(0.105, 0.24, 16), style.fur, {
-          position: [side * 0.155, 0.845, 0.015],
-          rotation: [0, 0, side * -0.2],
-        })
-      );
-      parts.push(
-        part(new THREE.ConeGeometry(0.058, 0.15, 14), style.ear, {
-          position: [side * 0.152, 0.835, 0.055],
-          rotation: [0, 0, side * -0.2],
-        })
-      );
-    }
-
-    // 주둥이 (얼굴 디테일은 #buildFace로 분리)
-    parts.push(part(sphere(0.135, 16, 12), style.belly, { position: [0, 0.53, 0.235], scale: [1.15, 0.86, 0.58] }));
-
-    // 옹이 줄무늬 (이마 세 줄 · 등)
-    if (style.stripe) {
-      for (const [x, y, z, s] of [
-        [-0.085, 0.815, 0.145, 1.0],
-        [0, 0.83, 0.155, 1.15],
-        [0.085, 0.815, 0.145, 1.0],
-      ]) {
-        parts.push(
-          part(sphere(0.05, 10, 8), style.stripe, {
-            position: [x, y, z],
-            scale: [0.34 * s, 0.9 * s, 0.26],
-          })
-        );
-      }
-      for (const side of [-1, 1]) {
-        parts.push(
-          part(sphere(0.05, 10, 8), style.stripe, {
-            position: [side * 0.235, 0.42, -0.02],
-            scale: [0.35, 1.0, 0.85],
-          })
-        );
-        parts.push(
-          part(sphere(0.045, 10, 8), style.stripe, {
-            position: [side * 0.215, 0.28, 0.04],
-            scale: [0.3, 0.9, 0.75],
-          })
-        );
-      }
-      // 앞다리 줄무늬
-      for (const side of [-1, 1]) {
-        parts.push(
-          part(sphere(0.05, 10, 8), style.stripe, {
-            position: [side * 0.12, 0.13, 0.03],
-            scale: [0.9, 0.34, 0.7],
-          })
-        );
-      }
-    }
-
-    // 옹이의 청록 반다나
-    if (style.bandana) {
-      parts.push(
-        part(new THREE.TorusGeometry(0.165, 0.04, 8, 22), style.bandana, {
-          position: [0, 0.44, 0.05],
-          rotation: [Math.PI / 2 - 0.18, 0, 0],
-          scale: [1, 1, 0.8],
-        })
-      );
-      parts.push(
-        part(new THREE.ConeGeometry(0.135, 0.23, 3), style.bandana, {
-          position: [0, 0.36, 0.235],
-          rotation: [Math.PI - 0.25, 0, 0],
-          scale: [1, 1, 0.55],
-        })
-      );
-    }
-
-    // 솜이의 보송 볼 털
-    if (!style.stripe) {
-      for (const side of [-1, 1]) {
-        parts.push(
-          part(sphere(0.075, 12, 8), style.fur, {
-            position: [side * 0.245, 0.585, 0.11],
-            scale: [0.8, 1.0, 0.9],
-          })
-        );
-      }
-    }
-
-    const mesh = buildMesh(parts);
-    mesh.name = `CatBody_${this.id}`;
-    solid(mesh, 0.012);
-    return mesh;
-  }
-
-  /**
-   * 얼굴 디테일(코·입·눈·하이라이트·볼터치) — 잉크 헐 제외.
-   * 눈은 얼굴 표면에 얹힌 납작한 반구로 두어 튀어나와 보이지 않게 한다.
-   */
-  #buildFace(style) {
-    const parts = [];
-    parts.push(part(sphere(0.028, 10, 8), style.nose, { position: [0, 0.578, 0.3], scale: [1.2, 0.9, 0.8] }));
-    for (const side of [-1, 1]) {
-      parts.push(
-        part(new THREE.TorusGeometry(0.03, 0.0065, 6, 12, Math.PI), style.stripe ? '#8a5330' : '#b98a6a', {
-          position: [side * 0.031, 0.545, 0.293],
-          rotation: [0, 0, Math.PI],
-        })
-      );
-    }
-    for (const side of [-1, 1]) {
-      parts.push(part(sphere(0.062, 16, 14), style.eye, { position: [side * 0.105, 0.635, 0.272], scale: [1, 1, 0.62] }));
-      parts.push(part(sphere(0.022, 10, 8), '#ffffff', { position: [side * 0.105 + 0.018, 0.655, 0.298] }));
-      parts.push(part(sphere(0.011, 8, 6), '#ffffff', { position: [side * 0.105 - 0.016, 0.618, 0.3] }));
-      parts.push(
-        part(sphere(0.055, 12, 8), '#ffd0d8', {
-          position: [side * 0.19, 0.585, 0.205],
-          scale: [1, 0.6, 0.35],
-        })
-      );
-    }
-    const mesh = buildMesh(parts);
-    mesh.name = `CatFace_${this.id}`;
-    mesh.castShadow = false;
-    mesh.receiveShadow = false;
-    return mesh;
-  }
-
-  #buildTail(style) {
-    const parts = [
-      part(sphere(0.075, 12, 8), style.fur, { position: [0, 0, -0.04] }),
-      part(sphere(0.068, 12, 8), style.fur, { position: [0, 0.1, -0.13] }),
-      part(sphere(0.061, 12, 8), style.fur, { position: [0.02, 0.2, -0.2] }),
-      part(sphere(0.054, 12, 8), style.fur, { position: [0.05, 0.3, -0.24] }),
-      part(sphere(0.047, 12, 8), style.furShade, { position: [0.08, 0.39, -0.255] }),
-    ];
-    if (style.stripe) {
-      parts.push(part(sphere(0.05, 10, 8), style.stripe, { position: [0.01, 0.15, -0.17], scale: [1.1, 0.32, 1.0] }));
-      parts.push(part(sphere(0.045, 10, 8), style.stripe, { position: [0.045, 0.27, -0.23], scale: [1.1, 0.32, 1.0] }));
-      parts.push(part(sphere(0.04, 10, 8), style.stripe, { position: [0.075, 0.36, -0.25], scale: [1.1, 0.32, 1.0] }));
-    }
-    return solid(buildMesh(parts), 0.011);
+    this.yaw = Math.random() * Math.PI * 2;
+    this.frameName = 'sit';
+    this.restPose = 'sit';
+    this.sprites = [this.billboard.material];
   }
 
   distanceTo(pos) {
-    const dx = this.base.x - pos.x;
-    const dz = this.base.z - pos.z;
+    const dx = this.position.x - pos.x;
+    const dz = this.position.z - pos.z;
     return Math.hypot(dx, dz);
   }
 
   pet() {
     this.hop = 1;
-    this.heartT = 1.5;
+    this.heartT = 1.4;
     this.pets += 1;
+    this.state = 'happy';
+    this.stateT = 1.2;
+    this.billboard.setFrame('happy');
+    this.frameName = 'happy';
   }
 
-  update(dt) {
-    this.t += dt;
-    const breathe = Math.sin(this.t * 1.9) * 0.014;
-    this.body.scale.set(1 + breathe * 0.7, 1 + breathe, 1 + breathe * 0.7);
+  #pickTarget() {
+    for (let i = 0; i < 12; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const r = 1.2 + Math.random() * 3.4;
+      const x = this.home.x + Math.cos(a) * r;
+      const z = this.home.y + Math.sin(a) * r;
+      if (this.terrain.isWalkable(x, z)) {
+        this.target = new THREE.Vector2(x, z);
+        this.state = 'walk';
+        return;
+      }
+    }
+    this.state = 'idle';
+    this.stateT = 1.5;
+  }
 
-    // 꼬리 흔들기
-    this.tail.rotation.y = Math.sin(this.t * 1.8) * 0.42;
-    this.tail.rotation.x = -0.22 + Math.sin(this.t * 1.1) * 0.18;
+  #rest() {
+    const poses = ['sit', 'loaf', 'groom', 'sit', 'loaf'];
+    this.restPose = poses[Math.floor(Math.random() * poses.length)];
+    this.state = 'rest';
+    this.stateT = 2.6 + Math.random() * 3.4;
+    this.billboard.setFrame(this.restPose);
+    this.frameName = this.restPose;
+  }
+
+  update(dt, camera) {
+    this.stateT -= dt;
+
+    if (this.state === 'walk' && this.target) {
+      const dx = this.target.x - this.position.x;
+      const dz = this.target.y - this.position.z;
+      const dist = Math.hypot(dx, dz);
+      if (dist < 0.12) {
+        this.target = null;
+        this.#rest();
+      } else {
+        const nx = dx / dist;
+        const nz = dz / dist;
+        const step = Math.min(dist, WALK_SPEED * dt);
+        const px = this.position.x + nx * step;
+        const pz = this.position.z + nz * step;
+        if (this.terrain.isWalkable(px, pz)) {
+          this.position.x = px;
+          this.position.z = pz;
+        } else {
+          this.target = null;
+          this.#rest();
+        }
+        this.yaw = Math.atan2(nx, nz);
+        this.walkT += dt;
+        const idx = Math.floor(this.walkT * WALK_FPS) % 4;
+        const ax = Math.abs(nx);
+        const az = Math.abs(nz);
+        let name;
+        if (ax > az * 1.05) name = `${nx < 0 ? 'left' : 'right'}${idx + 1}`;
+        else name = `${nz > 0 ? 'front' : 'back'}${idx + 1}`;
+        if (name !== this.frameName) {
+          this.frameName = name;
+          this.billboard.setFrame(name);
+        }
+      }
+    } else if (this.stateT <= 0) {
+      if (Math.random() < 0.62) this.#pickTarget();
+      else this.#rest();
+    }
+
+    if (this.state === 'happy' && this.stateT <= 0) {
+      this.state = 'rest';
+      this.stateT = 1.8;
+      this.billboard.setFrame(this.restPose);
+      this.frameName = this.restPose;
+    }
+
+    // 지면 추종
+    const groundY = this.terrain.groundY(this.position.x, this.position.z);
+    this.position.y += (groundY - this.position.y) * Math.min(1, dt * 12);
 
     // 폴짝
+    let lift = 0;
     if (this.hop > 0) {
-      this.hop = Math.max(0, this.hop - dt * 1.6);
-      const lift = Math.sin((1 - this.hop) * Math.PI) * 0.32;
-      this.group.position.y = this.base.y + lift;
-      this.body.rotation.z = Math.sin((1 - this.hop) * Math.PI * 2) * 0.08;
-    } else {
-      this.group.position.y = this.base.y;
-      this.body.rotation.z *= 0.9;
+      this.hop = Math.max(0, this.hop - dt * 1.5);
+      lift = Math.sin((1 - this.hop) * Math.PI) * 0.22;
     }
+
+    this.group.position.set(this.position.x, this.position.y + lift, this.position.z);
+    if (camera) this.billboard.faceCamera(camera);
+    this.shadow.position.set(this.position.x, this.position.y + 0.02, this.position.z);
+    const k = 1 - lift * 0.8;
+    this.shadow.scale.set(k, 1, k);
 
     // 하트
     if (this.heartT > 0) {
       this.heartT = Math.max(0, this.heartT - dt);
-      const p = 1 - this.heartT / 1.5;
+      const p = 1 - this.heartT / 1.4;
       this.heart.visible = true;
-      this.heart.position.set(0, 0.95 + p * 0.8, 0);
-      this.heart.material.opacity = Math.min(1, this.heartT * 1.6);
-      const s = 0.32 + p * 0.25;
+      this.heart.position.set(0, this.height * 1.05 + p * 0.55, 0);
+      this.heart.material.opacity = Math.min(1, this.heartT * 1.8);
+      const s = this.height * 0.3 + p * this.height * 0.18;
       this.heart.scale.set(s, s, 1);
     } else if (this.heart.visible) {
       this.heart.visible = false;

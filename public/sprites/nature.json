@@ -1,0 +1,71 @@
+{
+ "set": "nature",
+ "cell": [
+  407,
+  422
+ ],
+ "grid": [
+  4,
+  2
+ ],
+ "sheet": "nature_sheet.png",
+ "frames": [
+  {
+   "name": "cherry1",
+   "row": 1,
+   "col": 1,
+   "w": 297,
+   "h": 380
+  },
+  {
+   "name": "cherry2",
+   "row": 1,
+   "col": 2,
+   "w": 403,
+   "h": 393
+  },
+  {
+   "name": "tree_round",
+   "row": 1,
+   "col": 3,
+   "w": 271,
+   "h": 336
+  },
+  {
+   "name": "tree_tall",
+   "row": 1,
+   "col": 4,
+   "w": 241,
+   "h": 418
+  },
+  {
+   "name": "flowerbush",
+   "row": 2,
+   "col": 1,
+   "w": 278,
+   "h": 196
+  },
+  {
+   "name": "rock",
+   "row": 2,
+   "col": 2,
+   "w": 239,
+   "h": 206
+  },
+  {
+   "name": "fence",
+   "row": 2,
+   "col": 3,
+   "w": 272,
+   "h": 244
+  },
+  {
+   "name": "lamp",
+   "row": 2,
+   "col": 4,
+   "w": 171,
+   "h": 319
+  }
+ ],
+ "notes": []
+}
