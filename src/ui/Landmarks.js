@@ -1,6 +1,7 @@
 /**
  * Landmarks.js — 랜드마크 이름표를 DOM 오버레이로 그린다.
  * 3D 스프라이트는 가까이 가면 화면을 덮어버리므로, 화면 좌표로 투영해 항상 같은 크기로 유지한다.
+ * 복구가 끝난 건물은 이름표가 ✨ 복구 완료 로 바뀐다.
  */
 import * as THREE from 'three';
 import { h } from './dom.js';
@@ -10,17 +11,21 @@ export class LandmarkLabels {
     this.container = h('div', { class: 'landmark-layer' });
     root.append(this.container);
     this.items = sites.map((site) => {
-      const el = h(
-        'div',
-        { class: 'landmark-pill' },
-        h('span', { class: 'lm-ico' }, site.icon),
-        h('span', { class: 'lm-name' }, site.name),
-        h('span', { class: 'lm-day' }, `${site.day}일차 복구`)
-      );
+      const dayEl = h('span', { class: 'lm-day' }, `${site.day}일차 복구`);
+      const el = h('div', { class: 'landmark-pill' }, h('span', { class: 'lm-ico' }, site.icon), h('span', { class: 'lm-name' }, site.name), dayEl);
       this.container.append(el);
-      return { site, el, x: site.x, y: site.y + site.markerY + 0.55, z: site.z, opacity: -1 };
+      return { site, el, dayEl, x: site.x, y: site.y + site.markerY + 0.55, z: site.z, opacity: -1, done: false };
     });
     this.v = new THREE.Vector3();
+  }
+
+  /** 복구 완료 표시(✨) — 여러 번 불러도 안전하다 */
+  setDone(id, done = true) {
+    const item = this.items.find((it) => it.site.id === id);
+    if (!item) return;
+    item.done = !!done;
+    item.el.classList.toggle('done', !!done);
+    item.dayEl.textContent = done ? '✨ 복구 완료' : `${item.site.day}일차 복구`;
   }
 
   setVisible(v) {

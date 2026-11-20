@@ -6,6 +6,28 @@
 >
 > 이전 3D 버전은 `projects/metamong-island-3d-backup/`(폴더 통째 백업)과 git 브랜치 **`backup-3d-p0`**(= `9cfd25a`, 원격 푸시됨)으로 남겨 두었습니다.
 
+## 1단계 생활·건설 시스템 (2026-11-21)
+
+GDD의 1단계(생활 기반)를 구현했습니다. 도트 비주얼·카메라·문워크 수정·장조 BGM은 그대로입니다.
+
+| 시스템 | 내용 | 파일 |
+| --- | --- | --- |
+| 채집·리젠 | 나무 18그루(2~3타) · 바위 8개(2~3타) · 꽃덤불 9곳(1타). 타격 시 흔들림+색 파티클+타격음, 완료 시 **밑동 그루터기+새싹**으로 바뀌고 충돌 반경이 풀린 뒤 60~90초에 다시 자람 | `world/Gathering.js`, `world/Scenery.js` |
+| 열매 드롭 | 온전한 나무마다 45~75초에 한 번, 나무당 최대 1개 반짝이는 열매가 떨어짐. 가까이 가면 자동 획득 | `world/Drops.js` |
+| 기력 | 100에서 시작. 나무 6 · 바위 7 · 꽃덤불 3 소모, 부족하면 토스트로 안내. 열매를 먹으면 +30, 서 있으면 아주 천천히(10분에 가득) 회복 | `systems/Progress.js` |
+| 가방 | 8칸 · 칸당 20개. HUD 배지에 사용 칸 표시, 모달에서 열매 먹기/재료 확인 | `systems/Inventory.js`, `ui/Panels.js` |
+| 공방 창고 | 공방 복구 후 사용 가능. 가방↔창고 이동(1개/전체). 넘치면 바닥에 내려놓고 안내 | `ui/Panels.js` |
+| 4대 건물 복구 | 부두(통나무6·돌2) · 공방(통나무8·돌6) · 자판기(돌4·꽃잎5·별조각2) · 등대(통나무12·돌10·별조각5). `[재료 투입]` → `[복구 완료!]`, 이름표가 ✨로 바뀌고 등대는 밤에 불이 켜짐 | `ui/Panels.js`, `world/Scenery.js` |
+| 우체통 | 공지·웰컴(열매3+별조각1 동봉)·복구 가이드 3통. 안 읽은 편지/미수령 선물을 HUD 빨간 배지로 표시 | `systems/letters.js`, `ui/Panels.js` |
+
+조작: 모바일은 화면 터치 또는 근접 시 뜨는 액션 버튼, PC는 클릭·`Space`·`E`.
+저장은 IndexedDB(`slot1`)에 `stamina · bag · storage · buildings · mailbox · nodes`까지 들어가고, 1단계 이전 세이브는 `storage/saveSchema.js`의 `migrateSave()`가 기본값을 병합해 그대로 이어집니다.
+
+```bash
+npm run build                       # dist/
+python3 tools/qa_phase1.py          # 390×844 실측 QA (서버: vite preview 또는 dist 정적 서버)
+```
+
 ## HD-2D 렌더링 구조
 
 | 요소 | 구현 |
@@ -113,14 +135,26 @@ SwiftShader는 CPU 래스터라이저라 fps 수치는 실기기 성능의 지�
 
 ## Phase 1에서 하지 않은 것 (Phase 2~ 이후)
 
-- 채집·요리·생활 랭크, 첫 3분 온보딩 (Phase 2)
+- 요리·생활 랭크, 첫 3분 온보딩 (Phase 2) — 채집·가방·창고·복구·우체통은 1단계에서 구현됨
 - 도감 40종 전체·도트 프리뷰·건축(BFS 경로 검사)·월간 침공 디펜스 (Phase 3)
 - Draco `.glb` 교체·백업 API·`island_config.json` 원격 연동 (Phase 4)
 - `secret_dittos`·`mailbox_letters` 라이브 패치, 섬 관리자(기능 미정) (Phase 5)
 
 ## 검증 스크린샷
 
-390×844 실측 캡처는 `screenshots/hd2d/`에 있습니다. 용량 때문에 저장소에는 포함하지 않았습니다(`.gitignore`).
+390×844 실측 캡처는 `screenshots/hd2d/`(비주얼)와 `screenshots/phase1_life/`(1단계 생활 시스템)에 있습니다. 용량 때문에 저장소에는 포함하지 않았습니다(`.gitignore`).
+
+| 파일 | 내용 |
+| --- | --- |
+| `phase1_life/02_play_hud.png` | 기력 게이지 + 우체통 배지가 붙은 HUD |
+| `phase1_life/03_tree_target.png` / `04_after_chop.png` | 나무 앞 액션 라벨 · 타격 연출 |
+| `phase1_life/04b_stump_closeup.png` | 채집 후 밑동 그루터기와 새싹 |
+| `phase1_life/05_bag.png` | 가방 8칸 |
+| `phase1_life/06_mailbox.png` / `07_letter.png` | 우체통 목록 · 웰컴 편지와 동봉 선물 |
+| `phase1_life/11_build_before.png` / `13_build_done.png` | 복구 재료 투입 · 복구 완료 |
+| `phase1_life/14_storage.png` | 공방 창고(가방↔창고 이동) |
+| `phase1_life/17_lighthouse_night.png` | 복구한 등대의 밤 불빛 |
+| `phase1_life/19b_berry_on_ground.png` | 나무 밑에 떨어진 열매 |
 
 | 파일 | 내용 |
 | --- | --- |

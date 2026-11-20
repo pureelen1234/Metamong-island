@@ -58,6 +58,7 @@ export class AmbientSound {
     this.step = 0;
     this.nextTime = 0;
     this.timer = null;
+    this.noiseBuf = null;
   }
 
   start() {
@@ -200,6 +201,133 @@ export class AmbientSound {
     const now = this.ctx.currentTime;
     this.master.gain.cancelScheduledValues(now);
     this.master.gain.setTargetAtTime(value, now, 0.35);
+  }
+
+  /* ── 효과음 (채집 · 복구) ─────────────────────────────
+     BGM 과 같은 noteBus 를 지나므로 음소거·저역 정리·딜레이가 그대로 적용된다.
+     화면이 잠들었거나 오디오가 아직 열리지 않았으면 조용히 넘어간다. */
+
+  get sfxReady() {
+    return !!(this.started && this.ctx && this.ctx.state === 'running' && !this.muted);
+  }
+
+  #ensureNoise() {
+    if (this.noiseBuf || !this.ctx) return this.noiseBuf;
+    const ctx = this.ctx;
+    const len = Math.floor(ctx.sampleRate * 0.4);
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / len);
+    this.noiseBuf = buf;
+    return buf;
+  }
+
+  /** 짧은 잡음 — 나무/바위를 두드리는 "톡" */
+  #noise(when, dur, { type = 'bandpass', freq = 1200, q = 1, level = 0.2 } = {}) {
+    const ctx = this.ctx;
+    const buf = this.#ensureNoise();
+    if (!buf) return;
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const filter = ctx.createBiquadFilter();
+    filter.type = type;
+    filter.frequency.value = freq;
+    filter.Q.value = q;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, when);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.001, level), when + 0.006);
+    g.gain.exponentialRampToValueAtTime(0.0001, when + dur);
+    src.connect(filter);
+    filter.connect(g);
+    g.connect(this.noteBus);
+    src.start(when);
+    src.stop(when + dur + 0.03);
+  }
+
+  /** 짧은 음 한 개 — 필요하면 주파수를 미끄러뜨린다 */
+  #tone(when, freq, dur, level, type = 'sine', glideTo = null) {
+    const ctx = this.ctx;
+    const osc = ctx.createOscillator();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, when);
+    if (glideTo) osc.frequency.exponentialRampToValueAtTime(glideTo, when + dur * 0.9);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, when);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.001, level), when + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, when + dur);
+    osc.connect(g);
+    g.connect(this.noteBus);
+    osc.start(when);
+    osc.stop(when + dur + 0.04);
+  }
+
+  /** 나무(둔탁) · 바위(딱) · 꽃덤불(사각) */
+  sfxHit(kind) {
+    if (!this.sfxReady) return;
+    const t = this.ctx.currentTime + 0.005;
+    if (kind === 'rock') {
+      this.#noise(t, 0.13, { type: 'highpass', freq: 2400, q: 0.7, level: 0.22 });
+      this.#tone(t, 220, 0.1, 0.15, 'triangle', 140);
+    } else if (kind === 'flower') {
+      this.#noise(t, 0.16, { type: 'bandpass', freq: 3200, q: 1.1, level: 0.11 });
+    } else {
+      this.#noise(t, 0.13, { type: 'lowpass', freq: 900, q: 0.8, level: 0.2 });
+      this.#tone(t, 150, 0.13, 0.13, 'sine', 108);
+    }
+  }
+
+  /** 재료 획득 — 반짝 두 음 */
+  sfxPickup() {
+    if (!this.sfxReady) return;
+    const t = this.ctx.currentTime + 0.01;
+    this.#tone(t, 880, 0.09, 0.09, 'sine');
+    this.#tone(t + 0.07, 1320, 0.12, 0.075, 'sine');
+  }
+
+  /** 희귀 획득(별조각) — 셋잇단 상행 */
+  sfxRare() {
+    if (!this.sfxReady) return;
+    const t = this.ctx.currentTime + 0.01;
+    [1046, 1318, 1568, 2093].forEach((f, i) => this.#tone(t + i * 0.075, f, 0.34, 0.09, 'sine'));
+  }
+
+  /** 열매 먹기 — 톡 삼키는 소리 */
+  sfxEat() {
+    if (!this.sfxReady) return;
+    const t = this.ctx.currentTime + 0.01;
+    this.#tone(t, 430, 0.16, 0.14, 'sine', 250);
+    this.#noise(t + 0.03, 0.1, { type: 'lowpass', freq: 1400, level: 0.08 });
+  }
+
+  /** 기력 부족·가득 참 등 안 되는 소리 */
+  sfxDeny() {
+    if (!this.sfxReady) return;
+    const t = this.ctx.currentTime + 0.01;
+    this.#tone(t, 190, 0.16, 0.12, 'triangle', 130);
+    this.#tone(t + 0.1, 160, 0.16, 0.09, 'triangle', 110);
+  }
+
+  /** 건물 복구 완료 팡파르 — 장조 아르페지오 + 반짝임 */
+  sfxFanfare() {
+    if (!this.sfxReady) return;
+    const t = this.ctx.currentTime + 0.02;
+    [72, 76, 79, 84, 88].forEach((midi, i) => this.#pluck(hz(midi), t + i * 0.11, 1.8, 0.16));
+    this.#noise(t + 0.02, 0.5, { type: 'highpass', freq: 4200, level: 0.05 });
+  }
+
+  /** 재료 투입 — 망치 두 번 */
+  sfxBuild() {
+    if (!this.sfxReady) return;
+    const t = this.ctx.currentTime + 0.01;
+    this.#noise(t, 0.12, { type: 'lowpass', freq: 700, level: 0.18 });
+    this.#tone(t, 170, 0.12, 0.12, 'sine', 120);
+    this.#tone(t + 0.12, 1280, 0.1, 0.05, 'triangle');
+  }
+
+  /** UI 톡 — 창고 이동 등 */
+  sfxUi() {
+    if (!this.sfxReady) return;
+    this.#tone(this.ctx.currentTime + 0.005, 988, 0.07, 0.06, 'sine');
   }
 
   /* ── 외부 제어 ────────────────────────────────────────── */

@@ -906,3 +906,503 @@ canvas#scene {
   .action-btn { width: 74px; height: 74px; bottom: calc(var(--safe-bottom) + 78px); }
   .quick { width: 52px; height: 48px; }
 }
+
+/* ─────────────────────────────────────────────────────────────
+   1단계 생활 시스템 — 기력 · 우체통 · 가방 · 창고 · 복구
+   ───────────────────────────────────────────────────────────── */
+
+/* ── 상단 좌측 묶음 (상태 필 + 기력/우체통) ─────────────── */
+.hud-left {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.hud-stats {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.stamina {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--glass);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: var(--shadow-soft);
+  pointer-events: auto;
+}
+
+.stamina .ico {
+  font-size: 12px;
+  line-height: 1;
+}
+
+.stamina .bar {
+  width: 68px;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(226, 214, 236, 0.85);
+  overflow: hidden;
+}
+
+.stamina .bar > i {
+  display: block;
+  height: 100%;
+  width: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #c8ecb0, #8fd07b);
+  transition: width 0.24s ease, background 0.3s ease;
+}
+
+.stamina .val {
+  font-size: 11px;
+  font-weight: 800;
+  color: #7a6c86;
+  min-width: 21px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.stamina.mid .bar > i {
+  background: linear-gradient(90deg, #ffe4a6, #ffcb63);
+}
+
+.stamina.low .bar > i {
+  background: linear-gradient(90deg, #ffc2cf, #ff92ac);
+}
+
+.stamina.low {
+  animation: staminaLow 1.6s ease-in-out infinite;
+}
+
+@keyframes staminaLow {
+  0%, 100% { box-shadow: var(--shadow-soft); }
+  50% { box-shadow: 0 4px 16px rgba(240, 130, 160, 0.42); }
+}
+
+/* ── 우체통 버튼 · 빨간 배지 ───────────────────────────── */
+.mail-btn {
+  position: relative;
+}
+
+.mail-btn .ico {
+  font-size: 19px;
+  line-height: 1;
+}
+
+.mail-btn .badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: #ff6f8f;
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 800;
+  line-height: 14px;
+  text-align: center;
+  border: 2px solid #fff;
+  box-shadow: 0 2px 6px rgba(220, 90, 120, 0.42);
+}
+
+.mail-btn.has-mail {
+  animation: mailBob 2.4s ease-in-out infinite;
+}
+
+@keyframes mailBob {
+  0%, 92%, 100% { transform: translateY(0); }
+  95% { transform: translateY(-2px) rotate(-3deg); }
+}
+
+/* ── 퀵메뉴 가방 채움 배지 ─────────────────────────────── */
+.quick {
+  position: relative;
+}
+
+.quick-badge {
+  position: absolute;
+  right: 4px;
+  top: 3px;
+  font-size: 9px;
+  font-weight: 800;
+  color: #b2698f;
+  background: #ffe6f0;
+  border-radius: 999px;
+  padding: 0 4px;
+  line-height: 13px;
+}
+
+.quick-badge.full {
+  background: #ffd6e0;
+  color: #c2506d;
+}
+
+/* ── 랜드마크 복구 완료 이름표 ─────────────────────────── */
+.landmark-pill.done {
+  background: rgba(243, 251, 238, 0.95);
+  color: #5f7a4a;
+}
+
+.landmark-pill.done .lm-day {
+  color: #6fa35a;
+}
+
+/* ── 가방 ──────────────────────────────────────────────── */
+.bag-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin: 10px 0 2px;
+}
+
+.bag-slot {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  border-radius: 15px;
+  background: #fff;
+  box-shadow: var(--shadow-soft);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+}
+
+.bag-slot.empty {
+  background: rgba(246, 241, 249, 0.7);
+  box-shadow: none;
+  border: 1.5px dashed rgba(211, 198, 224, 0.85);
+  color: #cfc5da;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.bag-slot .ico {
+  font-size: 22px;
+  line-height: 1;
+}
+
+.bag-slot .n {
+  position: absolute;
+  right: 6px;
+  bottom: 5px;
+  font-size: 10.5px;
+  font-weight: 800;
+  color: #7a6c86;
+  font-variant-numeric: tabular-nums;
+}
+
+.bag-slot .nm {
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #9a90a8;
+}
+
+.bag-slot.tap {
+  box-shadow: 0 0 0 2px rgba(255, 183, 214, 0.9), var(--shadow-soft);
+}
+
+.btn.soft {
+  background: linear-gradient(140deg, #eef9e6, #dcf1cb);
+  color: #5f7a4a;
+  box-shadow: var(--shadow-soft);
+  font-size: 13.5px;
+  padding: 12px 14px;
+}
+
+.btn.wide {
+  width: 100%;
+}
+
+/* ── 창고 ──────────────────────────────────────────────── */
+.store-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.store-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 9px;
+  border-radius: 13px;
+  background: #fff;
+  box-shadow: var(--shadow-soft);
+  font-size: 12.5px;
+}
+
+.store-row .ico {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.store-row .nm {
+  flex: 1;
+  font-weight: 700;
+  color: #625a72;
+}
+
+.store-row .n {
+  font-weight: 800;
+  color: #8a7f99;
+  min-width: 24px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.mini {
+  border: none;
+  background: #f4eef8;
+  color: #8a7f99;
+  font-family: inherit;
+  font-size: 10.5px;
+  font-weight: 800;
+  padding: 6px 8px;
+  border-radius: 9px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.mini:active {
+  background: #ffe6f0;
+  color: #b2698f;
+}
+
+/* ── 복구 ──────────────────────────────────────────────── */
+.req-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 8px 0 10px;
+}
+
+.req-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 13px;
+  background: #fff;
+  box-shadow: var(--shadow-soft);
+}
+
+.req-row .ico {
+  font-size: 17px;
+  line-height: 1;
+}
+
+.req-row .info {
+  flex: 1;
+  min-width: 0;
+}
+
+.req-row .nm {
+  font-size: 12.5px;
+  font-weight: 800;
+  color: #625a72;
+}
+
+.req-row .sub {
+  font-size: 10.5px;
+  color: #9a90a8;
+  margin-top: 1px;
+}
+
+.req-row .need {
+  font-size: 11.5px;
+  font-weight: 800;
+  color: #a08cb0;
+  font-variant-numeric: tabular-nums;
+}
+
+.req-row.done {
+  background: #f4fbee;
+}
+
+.req-row .need.ok {
+  color: #6fa35a;
+}
+
+.req-row .need.lack {
+  color: #c2839b;
+}
+
+.done-banner {
+  text-align: center;
+  font-size: 19px;
+  font-weight: 900;
+  color: #8a6a9e;
+  padding: 12px 0 4px;
+}
+
+.done-banner .sub {
+  font-size: 12px;
+  font-weight: 700;
+  color: #9a90a8;
+  margin-top: 7px;
+  line-height: 1.6;
+}
+
+.site-item.as-button {
+  width: 100%;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  padding: 9px 2px;
+  border-radius: 12px;
+}
+
+.site-item.as-button:active {
+  background: rgba(244, 238, 248, 0.8);
+}
+
+.site-item.done .site-name {
+  color: #6fa35a;
+}
+
+/* ── 우체통 · 편지 ─────────────────────────────────────── */
+.mail-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mail-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: #fff;
+  border-radius: 15px;
+  padding: 11px 12px;
+  box-shadow: var(--shadow-soft);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.mail-row.unread {
+  background: linear-gradient(150deg, #fffaf4, #fff4f9);
+}
+
+.mail-row .mail-ico {
+  font-size: 20px;
+  line-height: 1;
+  flex: none;
+}
+
+.mail-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.mail-title {
+  font-size: 12.5px;
+  font-weight: 800;
+  color: #6b5878;
+  line-height: 1.35;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.mail-from {
+  font-size: 10.5px;
+  color: #9a90a8;
+  margin-top: 3px;
+  font-weight: 600;
+}
+
+.mail-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ff6f8f;
+  flex: none;
+}
+
+.mail-gift {
+  font-size: 16px;
+  flex: none;
+}
+
+.letter-from {
+  font-size: 11px;
+  font-weight: 800;
+  color: #b09abd;
+  margin-bottom: 9px;
+}
+
+.letter-p {
+  margin: 0 0 10px;
+  font-size: 13px;
+  line-height: 1.75;
+  color: #6f6680;
+}
+
+.gift-box {
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 16px;
+  background: linear-gradient(150deg, #fff7fb, #ffeef6);
+}
+
+.gift-head {
+  font-size: 12px;
+  font-weight: 800;
+  color: #b2698f;
+  margin-bottom: 8px;
+}
+
+.gift-items {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 9px;
+}
+
+.gift-chip {
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: #fff;
+  font-size: 11.5px;
+  font-weight: 800;
+  color: #7a5c6d;
+  box-shadow: var(--shadow-soft);
+}
+
+/* ── 플로팅 획득 문구 ──────────────────────────────────── */
+.float-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 26;
+  overflow: hidden;
+}
+
+.float-text {
+  position: absolute;
+  left: 0;
+  top: 0;
+  font-size: 13px;
+  font-weight: 900;
+  color: #5f5470;
+  white-space: nowrap;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.95), 0 2px 7px rgba(255, 255, 255, 0.8);
+  will-change: transform, opacity;
+}

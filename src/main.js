@@ -13,6 +13,21 @@ window.__metamong = {
   get audio() {
     return game.audio;
   },
+  /** 1단계 생활 상태 — QA 스크립트가 그대로 읽는다 */
+  life() {
+    const g = game;
+    const inv = g.progress.inventory;
+    return {
+      stamina: Math.round(g.progress.stamina * 10) / 10,
+      bagSlots: inv.usedSlots(),
+      bag: inv.toJSON().bag,
+      storage: { ...inv.storage },
+      buildings: JSON.parse(JSON.stringify(g.progress.buildings)),
+      mailbox: { read: [...g.progress.mailbox.read], claimed: [...g.progress.mailbox.claimed] },
+      harvested: g.gathering ? Object.keys(g.gathering.toJSON()).length : 0,
+      drops: g.drops ? g.drops.items.map((d) => `${d.itemId}x${d.count}`) : [],
+    };
+  },
   stats() {
     const g = game;
     return {
@@ -31,6 +46,8 @@ window.__metamong = {
       discovered: [...g.state.discovered],
       saveMode: g.saveStore.mode,
       hasSave: g.hasSave,
+      stamina: Math.round(g.progress.stamina * 10) / 10,
+      bagSlots: g.progress.inventory.usedSlots(),
       settings: { ...g.state.settings },
       player: g.player
         ? {

@@ -12,11 +12,18 @@ import { Hud } from '../ui/Hud.js';
 import { TitleScreen } from '../ui/TitleScreen.js';
 import { Modal } from '../ui/Modal.js';
 import { LandmarkLabels } from '../ui/Landmarks.js';
+import { Panels } from '../ui/Panels.js';
 import { h } from '../ui/dom.js';
 import { SaveStore } from '../storage/SaveStore.js';
 import { createPost } from '../render/post.js';
 import { makeRamp } from '../render/toon.js';
 import { loadAtlases } from '../sprites/atlas.js';
+import { Progress } from '../systems/Progress.js';
+import { Gathering } from './Gathering.js';
+import { DropField } from './Drops.js';
+import { Fx } from './Fx.js';
+import { BAG, HARVEST, ITEMS, RECIPES, STAMINA } from '../systems/items.js';
+import { LETTERS } from '../systems/letters.js';
 import {
   CAMERA,
   CATS,
@@ -52,6 +59,15 @@ export class Game {
     this.saveData = null;
     this.hasSave = false;
     this.lastSavedAt = 0;
+
+    // ── 1단계 생활 시스템 (기력·가방·창고·복구·우체통)
+    this.progress = new Progress();
+    this.gathering = null;
+    this.drops = null;
+    this.fx = null;
+    this.panels = null;
+    this.nodeMeshes = [];
+    this.siteMeshes = [];
 
     this.keys = new Set();
     this.paused = false;
@@ -166,6 +182,26 @@ export class Game {
 
     this.world.setWeather(weatherForDay(this.state.day));
     this.lookAt.set(SPAWN.x, this.player.position.y + CAMERA.lookHeight, SPAWN.z);
+
+    // ── 1단계: 채집 노드 · 드롭 · 파티클 · 플로팅 문구
+    this.fx = new Fx(this.scene, this.uiRoot);
+    this.drops = new DropField(this.scene, this.world.terrain);
+    this.gathering = new Gathering({
+      scenery: this.world.scenery,
+      progress: this.progress,
+      drops: this.drops,
+      fx: this.fx,
+      audio: this.audio,
+    });
+    this.gathering.hooks = {
+      toast: (msg, ms) => this.hud && this.hud.toast(msg, ms),
+      save: () => {
+        if (this.mode === 'play') this.save();
+      },
+      onPickup: () => this.#refreshHud(),
+    };
+    this.nodeMeshes = this.world.scenery.nodes.map((n) => n.mesh);
+    this.siteMeshes = this.world.scenery.sites.map((s) => s.billboard.mesh);
   }
 
   #setupPost() {
@@ -178,10 +214,12 @@ export class Game {
       onMute: () => this.toggleMute(),
       onPause: () => this.openPause(),
       onQuick: (id) => this.openQuick(id),
+      onMail: () => this.openMailbox(),
     });
     this.hud.hide();
     this.modal = new Modal(this.uiRoot);
     this.landmarkLabels = new LandmarkLabels(this.uiRoot, this.world.scenery.sites);
+    this.panels = new Panels(this);
   }
 
   #setupInput() {
@@ -374,6 +412,15 @@ export class Game {
     for (const ditto of this.dittos) ditto.discovered = false;
     this.player.teleport(SPAWN.x, SPAWN.z);
     this.player.setYaw(Math.PI);
+
+    // 생활 시스템도 처음 상태로
+    this.progress.reset();
+    if (this.gathering) {
+      this.gathering.applySaved({});
+      this.gathering.hooks.toast = (msg, ms) => this.hud && this.hud.toast(msg, ms);
+    }
+    if (this.fx) this.fx.clear();
+    this.#syncBuilt();
   }
 
   #applySave(data) {
@@ -404,6 +451,20 @@ export class Game {
     const yaw = Number(data.player && data.player.yaw);
     if (Number.isFinite(yaw)) this.player.setYaw(yaw);
     for (const ditto of this.dittos) ditto.discovered = this.state.discovered.includes(ditto.id);
+
+    // ── 1단계 생활 상태 (구버전 세이브는 migrateSave 가 기본값을 채워 준다)
+    this.progress.load(data);
+    if (this.gathering) this.gathering.applySaved(data.nodes || {});
+    this.#syncBuilt();
+  }
+
+  /** 저장된 복구 상태를 3D·이름표에 반영 */
+  #syncBuilt() {
+    for (const lm of LANDMARKS) {
+      const done = !!this.progress.building(lm.id).done;
+      this.world.scenery.setBuilt(lm.id, done);
+      if (this.landmarkLabels) this.landmarkLabels.setDone(lm.id, done);
+    }
   }
 
   #snapCamera() {
@@ -448,6 +509,7 @@ export class Game {
 
   #frame(dt) {
     const playing = this.mode === 'play' && !this.paused && !this.modal.isOpen && !document.hidden;
+    const scaledDt = playing ? dt * this.state.settings.timeScale : 0;
 
     if (playing) {
       this.state.elapsed += dt * this.state.settings.timeScale;
@@ -463,6 +525,10 @@ export class Game {
     this.player.update(dt, move, this.world.terrain, this.camera);
     for (const cat of this.cats) cat.update(dt, this.camera);
     for (const ditto of this.dittos) ditto.update(dt, this.player.position, this.camera);
+
+    // 채집·리젠·열매 드롭·기력 회복 (모달이 열리면 scaledDt 가 0 이라 시간이 멈춘다)
+    if (this.gathering) this.gathering.update(dt, scaledDt, this.player.position, playing);
+    if (this.fx) this.fx.update(dt, this.camera);
 
     // 시간대 색을 스프라이트에 그대로 곱한다(밤에는 보랏빛으로 가라앉힘)
     for (const mat of this.spriteMaterials) mat.color.copy(this.world.spriteLight);
@@ -570,9 +636,10 @@ export class Game {
   #updateTarget() {
     let best = null;
     let bestDist = Infinity;
+    const p = this.player.position;
 
     for (const ditto of this.dittos) {
-      const dist = ditto.distanceTo(this.player.position);
+      const dist = ditto.distanceTo(p);
       ditto.setNear(dist < 3.8);
       if (dist <= INTERACT.dittoRange && dist < bestDist) {
         best = ditto;
@@ -580,23 +647,71 @@ export class Game {
       }
     }
     for (const cat of this.cats) {
-      const dist = cat.distanceTo(this.player.position);
+      const dist = cat.distanceTo(p);
       if (dist <= INTERACT.catRange && dist < bestDist) {
         best = cat;
         bestDist = dist;
       }
     }
+
+    // 채집 노드 — 지금 두드릴 수 있는 가장 가까운 나무·바위·꽃덤불
+    const node = this.gathering.nearest(p, INTERACT.nodeRange);
+    if (node) {
+      const dist = Math.hypot(node.x - p.x, node.z - p.z);
+      if (dist < bestDist) {
+        best = node;
+        bestDist = dist;
+      }
+    }
+
+    // 복구 부지 — 공방은 창고 메뉴를 연다
+    const site = this.#nearestSite(p, INTERACT.siteRange);
+    if (site) {
+      const dist = Math.hypot(site.x - p.x, site.z - p.z);
+      if (dist < bestDist) {
+        best = site;
+        bestDist = dist;
+      }
+    }
+
     this.target = best;
+  }
+
+  #nearestSite(pos, range) {
+    let best = null;
+    let bestDist = range;
+    for (const site of this.world.scenery.sites) {
+      const d = Math.hypot(site.x - pos.x, site.z - pos.z);
+      if (d < bestDist) {
+        best = site;
+        bestDist = d;
+      }
+    }
+    return best;
   }
 
   interact() {
     if (this.mode !== 'play' || this.modal.isOpen || this.paused) return;
     const t = this.target;
     if (!t) {
-      this.hud.toast('가까이에 살펴볼 게 없어요 — 돌멩이를 잘 보세요 ·‿·', 1600);
+      this.hud.toast('가까이에 살펴볼 게 없어요 — 나무나 바위를 두드려 보세요 🪓', 1700);
+      return;
+    }
+    if (t.isNode) {
+      this.gathering.hit(t);
+      this.#refreshHud();
+      return;
+    }
+    if (t.kind === 'site') {
+      this.#openSite(t);
       return;
     }
     this.#activateActor(t);
+  }
+
+  #openSite(site) {
+    if (site.id === 'workshop') this.#openModal(this.panels.workshopMenu());
+    else this.#openModal(this.panels.build(site.id));
   }
 
   #activateActor(actor) {
@@ -634,18 +749,63 @@ export class Game {
       -((e.clientY / window.innerHeight) * 2 - 1)
     );
     this.raycaster.setFromCamera(ndc, this.camera);
-    const meshes = [...this.dittos.map((d) => d.hitMesh), ...this.cats.map((c) => c.body)];
+    const meshes = [
+      ...this.dittos.map((d) => d.hitMesh),
+      ...this.cats.map((c) => c.body),
+      ...this.nodeMeshes,
+      ...this.siteMeshes,
+      ...this.drops.rayTargets(),
+    ];
     const hits = this.raycaster.intersectObjects(meshes, true);
     if (!hits.length) return;
 
     let obj = hits[0].object;
-    let actor = null;
-    while (obj && !actor) {
-      actor = obj.userData && obj.userData.actor ? obj.userData.actor : null;
+    let found = null;
+    while (obj && !found) {
+      const data = obj.userData || {};
+      if (data.drop) found = { kind: 'drop', drop: data.drop };
+      else if (data.node) found = { kind: 'node', node: data.node };
+      else if (data.site) found = { kind: 'site', site: data.site };
+      else if (data.actor) found = { kind: 'actor', actor: data.actor };
       obj = obj.parent;
     }
-    if (!actor) return;
-    if (actor.distanceTo(this.player.position) > INTERACT.tapRange) {
+    if (!found) return;
+
+    const p = this.player.position;
+    const near = (x, z) => Math.hypot(x - p.x, z - p.z);
+
+    if (found.kind === 'drop') {
+      if (near(found.drop.x, found.drop.z) > INTERACT.nodeRange + 1.6) {
+        this.hud.toast('조금 더 가까이 가서 주울까요?', 1600);
+        return;
+      }
+      const took = this.gathering.pickup(found.drop);
+      if (took) this.drops.remove(found.drop);
+      this.#refreshHud();
+      return;
+    }
+
+    if (found.kind === 'node') {
+      if (near(found.node.x, found.node.z) > INTERACT.nodeRange + 0.9) {
+        this.hud.toast('조금 더 가까이 가서 두드려 볼까요?', 1600);
+        return;
+      }
+      this.gathering.hit(found.node);
+      this.#refreshHud();
+      return;
+    }
+
+    if (found.kind === 'site') {
+      if (near(found.site.x, found.site.z) > INTERACT.siteRange + 1.6) {
+        this.hud.toast('조금 더 가까이 가서 살펴볼까요?', 1600);
+        return;
+      }
+      this.#openSite(found.site);
+      return;
+    }
+
+    const actor = found.actor;
+    if (actor.distanceTo(p) > INTERACT.tapRange) {
       this.hud.toast('조금 더 가까이 가서 볼까요?', 1600);
       return;
     }
@@ -665,6 +825,10 @@ export class Game {
       speed: this.state.settings.timeScale,
     });
 
+    this.hud.setStamina(this.progress.stamina, STAMINA.max);
+    this.hud.setMail(this.#mailBadgeCount());
+    this.hud.setBag(this.progress.inventory.usedSlots(), BAG.slots);
+
     const t = this.target;
     if (t && t.kind === 'ditto') {
       this.hud.setAction({
@@ -674,9 +838,29 @@ export class Game {
       });
     } else if (t && t.kind === 'cat') {
       this.hud.setAction({ active: true, icon: '🤲', label: '쓰다듬기' });
+    } else if (t && t.isNode) {
+      const def = HARVEST[t.kind];
+      this.hud.setAction({ active: true, icon: def.icon, label: `${def.verb} ${t.hitsLeft}/${t.hitsNeeded}` });
+    } else if (t && t.kind === 'site') {
+      this.hud.setAction({
+        active: true,
+        icon: t.id === 'workshop' ? '🔨' : t.icon,
+        label: t.id === 'workshop' ? '공방 열기' : '복구 보기',
+      });
     } else {
       this.hud.setAction({ active: false, icon: '✋', label: '둘러보기' });
     }
+  }
+
+  /** 안 읽은 편지 + 아직 안 받은 선물을 한 통으로 센다 */
+  #mailBadgeCount() {
+    let n = 0;
+    for (const letter of LETTERS) {
+      const unread = !this.progress.isRead(letter.id);
+      const giftWaiting = !!letter.gift && !this.progress.isClaimed(letter.id);
+      if (unread || giftWaiting) n += 1;
+    }
+    return n;
   }
 
   /* ── 모달 ──────────────────────────────────────────────── */
@@ -840,30 +1024,34 @@ export class Game {
     if (id === 'build') {
       const list = h('div', {});
       for (const lm of LANDMARKS) {
-        list.append(
+        const st = this.progress.building(lm.id);
+        const recipe = RECIPES[lm.id] || {};
+        const totalNeed = Object.values(recipe).reduce((a, b) => a + b, 0);
+        const totalIn = Object.entries(recipe).reduce((a, [item, need]) => a + Math.min(need, st.invested[item] || 0), 0);
+        const row = h(
+          'button',
+          { class: `site-item as-button ${st.done ? 'done' : ''}`, type: 'button', onclick: () => this.openBuild(lm.id) },
+          h('div', { class: 'site-ico' }, st.done ? '✨' : lm.icon),
           h(
             'div',
-            { class: 'site-item' },
-            h('div', { class: 'site-ico' }, lm.icon),
-            h(
-              'div',
-              { style: { flex: '1' } },
-              h('div', { class: 'site-name' }, lm.name),
-              h('div', { class: 'site-meta' }, `${lm.day}일차 복구 예정`)
-            ),
-            h('span', { class: 'hint' }, '복구 전')
-          )
+            { style: { flex: '1' } },
+            h('div', { class: 'site-name' }, lm.name),
+            h('div', { class: 'site-meta' }, st.done ? '복구 완료' : `재료 ${totalIn}/${totalNeed} 투입`)
+          ),
+          h('span', { class: 'hint' }, st.done ? '완료' : '복구')
         );
+        list.append(row);
       }
+      const doneCount = LANDMARKS.filter((lm) => this.progress.building(lm.id).done).length;
       this.#openModal({
         title: '섬 건축',
-        subtitle: '4단계 복구 부지가 섬에 자리잡고 있어요',
+        subtitle: `네 곳 중 ${doneCount}곳 복구 완료`,
         body: h(
           'div',
           {},
           list,
-          h('div', { class: 'section-label' }, '다음 단계'),
-          h('div', { class: 'hint' }, '목제 울타리 배치와 BFS 경로 검사는 Phase 3에서 열려요.')
+          h('div', { class: 'section-label' }, 'Tip'),
+          h('div', { class: 'hint' }, '건물 앞에서 바로 복구할 수도 있어요. 공방을 복구하면 창고가 열려요.')
         ),
         actions: [{ label: '닫기', kind: 'primary', onClick: () => this.modal.close() }],
       });
@@ -871,21 +1059,7 @@ export class Game {
     }
 
     if (id === 'bag') {
-      const items = ['통나무', '가지', '조약돌', '생선', '메타몽 젤리'];
-      this.#openModal({
-        title: '가방',
-        subtitle: '아직 비어 있어요',
-        body: h(
-          'div',
-          {},
-          h('div', { class: 'hint' }, 'Phase 2에서 채집·요리가 열리면 이 가방이 채워져요.'),
-          h('div', { class: 'section-label' }, 'Phase 2에서 열리는 재료'),
-          ...items.map((name) =>
-            h('div', { class: 'row' }, h('div', { class: 'label' }, name), h('span', { class: 'hint' }, '— 준비 중'))
-          )
-        ),
-        actions: [{ label: '닫기', kind: 'primary', onClick: () => this.modal.close() }],
-      });
+      this.openBag();
       return;
     }
 
@@ -908,11 +1082,175 @@ export class Game {
     }
   }
 
+  /* ── 1단계: 가방 · 창고 · 복구 · 우체통 ──────────────── */
+
+  openBag() {
+    if (this.mode !== 'play') return;
+    this.#openModal(this.panels.bag());
+  }
+
+  openStorage() {
+    if (this.mode !== 'play') return;
+    if (!this.progress.building('workshop').done) {
+      this.audio.sfxDeny();
+      this.hud.toast('공방을 먼저 복구해야 창고가 열려요 🔨', 2200);
+      return;
+    }
+    this.#openModal(this.panels.storage());
+  }
+
+  openBuild(id) {
+    if (this.mode !== 'play') return;
+    this.#openModal(this.panels.build(id));
+  }
+
+  openWorkshop() {
+    if (this.mode !== 'play') return;
+    this.#openModal(this.panels.workshopMenu());
+  }
+
+  openMailbox(letterId = null) {
+    if (this.mode !== 'play') return;
+    if (letterId) this.progress.markRead(letterId);
+    this.#openModal(this.panels.mailbox(letterId));
+    this.#refreshHud();
+  }
+
+  eatBerry() {
+    if (this.mode !== 'play') return false;
+    const inv = this.progress.inventory;
+    if (inv.count('berry') <= 0) {
+      this.audio.sfxDeny();
+      this.hud.toast('가방에 열매가 없어요 🍓 — 나무 밑을 살펴보세요', 2000);
+      return false;
+    }
+    if (this.progress.stamina >= STAMINA.max) {
+      this.hud.toast('기력이 이미 가득해요 💪', 1600);
+      return false;
+    }
+    inv.take('berry', 1);
+    this.progress.restStamina(STAMINA.eat);
+    this.audio.sfxEat();
+    const p = this.player.position;
+    if (this.fx) this.fx.float(`+${STAMINA.eat} 기력`, p.x, p.y + 1.7, p.z, '#6f9450');
+    this.hud.toast(`열매를 먹었어요 — 기력 +${STAMINA.eat}`, 1800);
+    this.#refreshHud();
+    this.save();
+    if (this.modal.isOpen) this.#openModal(this.panels.bag());
+    return true;
+  }
+
+  moveToStorage(id, amount = 'all') {
+    const moved = this.progress.inventory.toStorage(id, amount);
+    if (moved > 0) {
+      this.audio.sfxUi();
+      this.save();
+    } else {
+      this.audio.sfxDeny();
+    }
+    this.#openModal(this.panels.storage());
+  }
+
+  moveFromStorage(id, amount = 'all') {
+    const moved = this.progress.inventory.fromStorage(id, amount);
+    if (moved > 0) {
+      this.audio.sfxUi();
+      this.save();
+    } else {
+      this.audio.sfxDeny();
+      this.hud.toast('가방이 가득 차서 꺼내지 못했어요', 1800);
+    }
+    this.#openModal(this.panels.storage());
+  }
+
+  /** 가방에서 모자란 만큼 한 번에 넣는다 */
+  invest(id) {
+    const st = this.progress.building(id);
+    const recipe = RECIPES[id] || {};
+    const inv = this.progress.inventory;
+    let added = 0;
+    for (const [item, need] of Object.entries(recipe)) {
+      const missing = need - (st.invested[item] || 0);
+      if (missing <= 0) continue;
+      const take = inv.take(item, missing);
+      if (take > 0) {
+        st.invested[item] = (st.invested[item] || 0) + take;
+        added += take;
+      }
+    }
+    if (added > 0) {
+      this.audio.sfxBuild();
+      const lm = LANDMARKS.find((l) => l.id === id);
+      if (lm && this.fx) this.fx.burst(lm.x, lm.y + lm.height * 0.5, lm.z, '#ffe3b0', 12, { spread: 1.6, up: 2.2 });
+      this.save();
+      this.#refreshHud();
+      this.#openModal(this.panels.build(id));
+    } else {
+      this.audio.sfxDeny();
+      this.hud.toast('넣을 재료가 부족해요 — 채집해 올까요? 🪓', 2000);
+    }
+  }
+
+  completeBuild(id) {
+    const st = this.progress.building(id);
+    const recipe = RECIPES[id] || {};
+    const ready = Object.entries(recipe).every(([item, need]) => (st.invested[item] || 0) >= need);
+    if (!ready || st.done) return false;
+
+    const lm = LANDMARKS.find((l) => l.id === id);
+    st.done = true;
+    this.world.scenery.setBuilt(id, true);
+    this.landmarkLabels.setDone(id, true);
+    this.audio.sfxFanfare();
+    if (lm && this.fx) {
+      this.fx.burst(lm.x, lm.y + lm.height * 0.55, lm.z, '#ffe6a8', 34, { spread: 3.2, up: 4.4, size: 1.3 });
+      this.fx.float('복구 완료!', lm.x, lm.y + lm.height * 0.9, lm.z, '#b2698f');
+    }
+    this.hud.toast(`🎉 ${lm ? lm.name : id} 복구 완료!`, 3200);
+    if (id === 'workshop') {
+      setTimeout(() => this.hud.toast('공방이 열렸어요 — 창고에 재료를 맡길 수 있어요 📦', 3000), 900);
+    }
+    this.save();
+    this.#refreshHud();
+    this.#openModal(this.panels.build(id));
+    return true;
+  }
+
+  claimGift(letterId) {
+    const letter = LETTERS.find((l) => l.id === letterId);
+    if (!letter || !letter.gift || this.progress.isClaimed(letterId)) return false;
+    const inv = this.progress.inventory;
+    let given = 0;
+    let stored = 0;
+    for (const [id, n] of Object.entries(letter.gift)) {
+      const leftover = inv.add(id, n);
+      given += n - leftover;
+      if (leftover > 0) {
+        inv.storage[id] = (inv.storage[id] || 0) + leftover;
+        stored += leftover;
+      }
+    }
+    this.progress.markClaimed(letterId);
+    this.progress.markRead(letterId);
+    this.audio.sfxPickup();
+    this.hud.toast(
+      stored > 0 ? `선물을 받았어요 — 가방이 가득해 ${stored}개는 창고에 넣었어요 🎁` : '선물을 받았어요 🎁',
+      2800
+    );
+    this.save();
+    this.#refreshHud();
+    this.#openModal(this.panels.mailbox(letterId));
+    return true;
+  }
+
   /* ── 저장 ──────────────────────────────────────────────── */
 
   snapshot() {
+    const life = this.progress.toJSON();
+    // 노드 상태는 Gathering 이 들고 있다(리젠 카운트다운 포함)
+    life.nodes = this.gathering ? this.gathering.toJSON() : {};
     return {
-      version: 1,
+      version: 2,
       savedAt: Date.now(),
       day: this.state.day,
       elapsedSeconds: Math.round(this.state.elapsed * 100) / 100,
@@ -930,6 +1268,7 @@ export class Game {
       discoveredDittos: [...this.state.discovered],
       discovered: [...this.state.discovered],
       settings: { ...this.state.settings },
+      ...life,
     };
   }
 

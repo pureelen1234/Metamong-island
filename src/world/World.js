@@ -259,7 +259,7 @@ export class World {
     this.water.update(this.time, p);
 
     // 도트 소품 빌보드 · 비
-    this.scenery.update(dt, camera);
+    this.scenery.update(dt, camera, p.night);
     this.#updateRain(dt, playerPos);
   }
 

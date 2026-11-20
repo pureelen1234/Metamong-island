@@ -319,6 +319,10 @@ export const INTERACT = {
   dittoRange: 2.9,
   catRange: 2.2,
   tapRange: 5.0,
+  /** 채집(나무·바위·꽃덤불) — 스프라이트 발밑에서 이 거리 안이면 두드릴 수 있다 */
+  nodeRange: 2.5,
+  /** 건물 복구/창고 메뉴 */
+  siteRange: 3.4,
 };
 
 export const SAVE = {

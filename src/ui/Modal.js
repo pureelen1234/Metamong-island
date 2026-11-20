@@ -42,7 +42,12 @@ export class Modal {
       const wrap = h('div', { class: 'modal-actions' });
       for (const a of actions) {
         const btn = h('button', { class: `btn ${a.kind || ''}`, type: 'button' }, a.label);
+        if (a.disabled) {
+          btn.disabled = true;
+          btn.setAttribute('disabled', 'disabled');
+        }
         btn.addEventListener('click', () => {
+          if (btn.disabled) return;
           if (a.onClick) a.onClick();
         });
         wrap.append(btn);

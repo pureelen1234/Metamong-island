@@ -1,4 +1,12 @@
-/** Hud.js — 인게임 HUD (위젯 5개: 상태 필 / 상단 우측 컨트롤 / 조이스틱 / 액션 / 퀵메뉴바) */
+/**
+ * Hud.js — 인게임 HUD
+ * 위젯: 상태 필 / 기력 게이지 · 우체통 / 상단 우측 컨트롤 / 조이스틱 / 액션 / 퀵메뉴바
+ *
+ * 1단계 추가
+ *  · 기력 게이지 — 채집할 때마다 줄고, 열매를 먹으면 차오른다
+ *  · 우체통 버튼 — 안 읽은 편지 + 미수령 선물 수를 빨간 배지로 (우체통 메타몽과는 별개)
+ *  · 가방 버튼 배지 — 8칸 중 몇 칸을 쓰고 있는지
+ */
 import { h } from './dom.js';
 import { Joystick } from './Joystick.js';
 import { Toast } from './Toast.js';
@@ -39,10 +47,31 @@ export class Hud {
       this.speedTag
     );
 
+    // ── 기력 + 우체통
+    this.staminaFill = h('i');
+    this.staminaVal = h('span', { class: 'val' }, '100');
+    this.stamina = h(
+      'div',
+      { class: 'stamina', title: '기력 — 채집할 때 줄고, 열매를 먹으면 차요' },
+      h('span', { class: 'ico' }, '💪'),
+      h('div', { class: 'bar' }, this.staminaFill),
+      this.staminaVal
+    );
+
+    this.mailBadge = h('span', { class: 'badge hidden' }, '0');
+    this.mailBtn = h(
+      'button',
+      { class: 'icon-btn mail-btn', type: 'button', 'aria-label': '우체통 열기', onclick: () => this.handlers.onMail?.() },
+      h('span', { class: 'ico' }, '📬'),
+      this.mailBadge
+    );
+
+    this.left = h('div', { class: 'hud-left' }, this.pill, h('div', { class: 'hud-stats' }, this.stamina, this.mailBtn));
+
     // ── 상단 우측 컨트롤
     this.muteBtn = h('button', { class: 'icon-btn', type: 'button', 'aria-label': '음소거 토글', onclick: () => this.handlers.onMute?.() }, '🔊');
     this.pauseBtn = h('button', { class: 'icon-btn', type: 'button', 'aria-label': '일시정지 및 설정', onclick: () => this.handlers.onPause?.() }, '⏸');
-    this.top = h('div', { class: 'hud-top' }, this.pill, h('div', { class: 'hud-controls' }, this.muteBtn, this.pauseBtn));
+    this.top = h('div', { class: 'hud-top' }, this.left, h('div', { class: 'hud-controls' }, this.muteBtn, this.pauseBtn));
 
     // ── 액션 버튼
     this.actionIcon = h('span', { class: 'ico' }, '✋');
@@ -56,8 +85,17 @@ export class Hud {
 
     // ── 퀵 메뉴바
     this.quickbar = h('div', { class: 'quickbar' });
+    this.quickBadges = {};
     for (const item of QUICK_ITEMS) {
-      const btn = h('button', { class: 'quick', type: 'button', onclick: () => this.handlers.onQuick?.(item.id) }, h('span', { class: 'ico' }, item.icon), h('span', {}, item.label));
+      const badge = item.id === 'bag' ? h('span', { class: 'quick-badge' }, '0/8') : null;
+      const btn = h(
+        'button',
+        { class: 'quick', type: 'button', onclick: () => this.handlers.onQuick?.(item.id) },
+        h('span', { class: 'ico' }, item.icon),
+        h('span', {}, item.label),
+        badge
+      );
+      if (badge) this.quickBadges.bag = badge;
       this.quickbar.append(btn);
     }
 
@@ -74,6 +112,8 @@ export class Hud {
     this.container.append(this.top, this.actionBtn, this.quickbar, this.glOverlay);
 
     this.lastPill = '';
+    this.lastStamina = -1;
+    this.lastMail = -1;
   }
 
   show() {
@@ -99,6 +139,32 @@ export class Hud {
     } else {
       this.speedTag.classList.add('hidden');
     }
+  }
+
+  setStamina(current, max = 100) {
+    const v = Math.max(0, Math.min(max, Math.round(current)));
+    if (v === this.lastStamina) return;
+    this.lastStamina = v;
+    this.staminaFill.style.width = `${(v / max) * 100}%`;
+    this.staminaVal.textContent = String(v);
+    this.stamina.classList.toggle('low', v < 25);
+    this.stamina.classList.toggle('mid', v >= 25 && v < 55);
+  }
+
+  setMail(count) {
+    const n = Math.max(0, Math.floor(Number(count) || 0));
+    if (n === this.lastMail) return;
+    this.lastMail = n;
+    this.mailBadge.textContent = n > 9 ? '9+' : String(n);
+    this.mailBadge.classList.toggle('hidden', n <= 0);
+    this.mailBtn.classList.toggle('has-mail', n > 0);
+  }
+
+  setBag(used, total) {
+    const badge = this.quickBadges.bag;
+    if (!badge) return;
+    badge.textContent = `${used}/${total}`;
+    badge.classList.toggle('full', used >= total);
   }
 
   setAction({ active, icon = '✋', label = '둘러보기' }) {
