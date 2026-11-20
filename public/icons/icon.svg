@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#bfe6ff" />
+      <stop offset="1" stop-color="#ffe9f2" />
+    </linearGradient>
+    <linearGradient id="sea" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#a5e2ee" />
+      <stop offset="1" stop-color="#7fd0e2" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#sky)" />
+  <circle cx="256" cy="392" r="150" fill="url(#sea)" />
+  <ellipse cx="256" cy="300" rx="150" ry="96" fill="#f6e7c4" />
+  <ellipse cx="256" cy="286" rx="122" ry="76" fill="#b4e0a6" />
+  <path d="M214 246 L238 210 L262 246 L286 210 L310 246 Z" fill="#8fce90" />
+  <g>
+    <path d="M176 300 Q186 252 236 250 Q292 248 300 296 Q304 330 258 334 Q196 338 178 314 Z" fill="#d7d0e0" />
+    <circle cx="222" cy="290" r="9" fill="#3c3b47" />
+    <circle cx="272" cy="290" r="9" fill="#3c3b47" />
+    <path d="M236 306 Q247 314 258 306" stroke="#3c3b47" stroke-width="7" fill="none" stroke-linecap="round" />
+  </g>
+  <circle cx="352" cy="232" r="16" fill="#fff4d1" />
+</svg>

@@ -1,0 +1,19 @@
+# 의존성·빌드 산출물
+node_modules/
+dist/
+.vite/
+*.tsbuildinfo
+
+# 검증용 대용량 캡처 (로컬 보관, 레포 미포함)
+screenshots/
+
+# OS·에디터·로그
+.DS_Store
+Thumbs.db
+*.log
+npm-debug.log*
+.env
+.env.*
+!.env.example
+.vscode/
+.idea/

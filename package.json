@@ -1,0 +1,18 @@
+{
+  "name": "metamong-island",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "보경이의 어설픈 메타몽 섬 - Phase 1 모바일 웹 3D MVP",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "three": "^0.187.0"
+  },
+  "devDependencies": {
+    "vite": "^6.4.6"
+  }
+}
