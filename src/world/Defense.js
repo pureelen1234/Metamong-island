@@ -36,6 +36,10 @@ import {
   slotMarkerTexture,
   structureTexture,
 } from '../sprites/defenseArt.js';
+import { Billboard } from '../sprites/Billboard.js';
+
+/** 불청객 종류 → public/sprites 의 HD-2D 도트 아틀라스 세트 */
+const RAIDER_SET = { grunt: 'raider', runner: 'raider_runner', big: 'raider_big' };
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const dist2 = (ax, az, bx, bz) => Math.hypot(ax - bx, az - bz);
@@ -43,7 +47,7 @@ const dist2 = (ax, az, bx, bz) => Math.hypot(ax - bx, az - bz);
 export class Defense {
   /**
    * @param {{scene:THREE.Scene, terrain:object, progress:object, player:object, cats:Array,
-   *          dittos:Array, fx:object, spriteMaterials:Array, hooks:object}} opts
+   *          dittos:Array, fx:object, spriteMaterials:Array, atlases:Map, camera:object, hooks:object}} opts
    */
   constructor(opts) {
     this.scene = opts.scene;
@@ -55,6 +59,9 @@ export class Defense {
     this.fx = opts.fx;
     this.hooks = opts.hooks || {};
     this.spriteMaterials = opts.spriteMaterials || [];
+    /** 도트 아틀라스 — 불청객을 32px 캔버스 대신 HD-2D 캐릭터로 그린다 */
+    this.atlases = opts.atlases || null;
+    this.camera = opts.camera || null;
 
     this.root = new THREE.Group();
     this.root.name = 'Defense';
@@ -225,7 +232,10 @@ export class Defense {
     shadow.renderOrder = 2;
     this.root.add(shadow);
 
-    const collider = { x: slot.x, z: slot.z, r: 0.42 };
+    // 방어 설비는 아군을 막지 않는다 — 주인공·고양이·메타몽은 자기 마을 울타리를 그냥 지나다닌다.
+    // 적(불청객)은 Defense#blockingStructure 가 설비 자체를 보고 길을 막는다.
+    // 그래서 이 콜라이더는 foeOnly(allyPass) — Player.canStand 가 건너뛰고, 세이브 복원 때도 끼이지 않는다.
+    const collider = { x: slot.x, z: slot.z, r: 0.42, allyPass: true, foeOnly: true };
     if (this.player && Array.isArray(this.player.colliders)) this.player.colliders.push(collider);
 
     const st = {
@@ -670,12 +680,27 @@ export class Defense {
 
   #spawnRaider(kind) {
     const def = RAIDER_KINDS[kind] || RAIDER_KINDS.grunt;
-    const lane = (Math.random() - 0.5) * 1.3;
+    // 같은 자리에 겹쳐 한 덩어리로 보이지 않도록, 내려오는 순서대로 좌우로 벌린다
+    const laneSlot = (this.wave ? this.wave.spawned : 0) % 3;
+    const lane = (laneSlot - 1) * 0.62 + (Math.random() - 0.5) * 0.3;
     const x = DEFENSE.landing.x + lane;
-    const z = DEFENSE.landing.z + (Math.random() - 0.5) * 1.6;
+    const z = DEFENSE.landing.z + (Math.random() - 0.5) * 1.2;
     const y = this.terrain.groundY(x, z);
-    const sprite = this.#sprite(raiderTexture(kind), def.height);
-    sprite.position.set(x, y + def.height / 2, z);
+
+    // 불청객도 주인공·냥이와 같은 HD-2D 도트 — 컨셉 시안의 후드·고글·망토 차림
+    const atlas = this.atlases ? this.atlases.get(RAIDER_SET[kind] || 'raider') : null;
+    let bb = null;
+    let sprite;
+    if (atlas) {
+      bb = new Billboard(atlas, 'back1', { height: def.height });
+      bb.mesh.renderOrder = 5;
+      this.spriteMaterials.push(bb.material);
+      sprite = bb.mesh;
+    } else {
+      // 아틀라스를 못 읽었을 때만 쓰는 예비 그림 (32px 캔버스)
+      sprite = this.#sprite(raiderTexture(kind), def.height);
+    }
+    sprite.position.set(x, bb ? y : y + def.height / 2, z);
     this.root.add(sprite);
 
     const geo = new THREE.CircleGeometry(def.height * 0.28, 16);
@@ -700,6 +725,9 @@ export class Defense {
       state: 'walk',
       speed: def.speed,
       sprite,
+      bb,
+      animT: Math.random() * 4,
+      frameName: bb ? 'front1' : null,
       shadow,
       stun: 0,
       slow: 0,
@@ -751,13 +779,32 @@ export class Defense {
 
   #removeRaider(r, count = true) {
     this.root.remove(r.sprite);
-    r.sprite.material.dispose();
+    if (r.bb) r.bb.dispose();
+    else r.sprite.material.dispose();
     this.root.remove(r.shadow);
     r.shadow.geometry.dispose();
     r.shadow.material.dispose();
     const i = this.raiders.indexOf(r);
     if (i >= 0) this.raiders.splice(i, 1);
     return count;
+  }
+
+  /** 불청객 자리 잡기 — HD-2D 빌보드는 원점이 발밑, 예비 스프라이트는 중심 */
+  #placeRaider(r, lift = 0) {
+    if (r.bb) r.bb.mesh.position.set(r.x, r.y + lift, r.z);
+    else r.sprite.position.set(r.x, r.y + r.def.height / 2 + lift, r.z);
+  }
+
+  /** 걸음 프레임 — 언제나 카메라 쪽(정면)을 보여 줘야 후드·고글·물약이 읽힌다 */
+  #animateRaider(r, dt) {
+    if (!r.bb) return;
+    const rate = r.state === 'attack' ? 3.4 : r.state === 'walk' ? 7 : 6;
+    r.animT = (r.animT || 0) + dt * rate;
+    const name = `front${(Math.floor(r.animT) % 4) + 1}`;
+    if (name !== r.frameName) {
+      r.frameName = name;
+      r.bb.setFrame(name);
+    }
   }
 
   #blockingStructure(r) {
@@ -778,8 +825,17 @@ export class Defense {
   #updateRaider(r, dt) {
     if (r.state === 'down') {
       r.downT += dt;
-      r.sprite.position.y = Math.max(r.y + 0.05, r.sprite.position.y - dt * 1.4);
-      r.sprite.material.opacity = Math.max(0, 1 - r.downT * 1.6);
+      if (r.bb && !r.dying) {
+        // 빌보드도 쓰러지며 흐려지게 — 이 순간에만 투명 합성을 켠다
+        r.dying = true;
+        r.bb.material.transparent = true;
+        r.bb.material.depthWrite = true;
+        r.bb.material.needsUpdate = true;
+        r.bb.material.opacity = 1;
+      }
+      this.#placeRaider(r, -Math.min(0.3, r.downT * 0.6));
+      if (r.bb) r.bb.material.opacity = Math.max(0, 1 - r.downT * 1.8);
+      else r.sprite.material.opacity = Math.max(0, 1 - r.downT * 1.6);
       r.shadow.material.opacity = Math.max(0, 0.28 - r.downT * 0.4);
       if (r.downT > 0.55) this.#removeRaider(r);
       return;
@@ -787,7 +843,8 @@ export class Defense {
 
     if (r.stun > 0) {
       r.stun = Math.max(0, r.stun - dt);
-      r.sprite.position.set(r.x, r.y + r.def.height / 2 + Math.sin(r.stun * 30) * 0.05, r.z);
+      this.#placeRaider(r, Math.sin(r.stun * 30) * 0.05);
+      this.#animateRaider(r, dt * 0.4);
       return;
     }
 
@@ -831,7 +888,8 @@ export class Defense {
           this.fx?.burst(target.x, target.y + 0.4, target.z, '#d8c7a6', 5, { spread: 0.6, up: 1.0 });
         }
         this.#damageStructure(target, dps * dt);
-        r.sprite.position.set(r.x, r.y + r.def.height / 2 + Math.sin(performance.now() * 0.02) * 0.03, r.z);
+        this.#placeRaider(r, Math.sin(performance.now() * 0.02) * 0.03);
+        this.#animateRaider(r, dt);
         return;
       }
     }
@@ -897,9 +955,23 @@ export class Defense {
       r.x += (dx / d) * step;
       r.z += (dz / d) * step;
     }
+
+    // 겹침 방지 — 동료와 0.55m 안으로 붙으면 살짝 비켜 선다(한 덩어리로 보이지 않게)
+    for (const o of this.raiders) {
+      if (o === r || o.state === 'down') continue;
+      const ox = r.x - o.x;
+      const oz = r.z - o.z;
+      const od2 = ox * ox + oz * oz;
+      if (od2 > 0.3025 || od2 < 1e-6) continue;
+      const od = Math.sqrt(od2);
+      const push = (0.55 - od) * 0.5;
+      r.x += (ox / od) * push;
+      r.z += (oz / od) * push;
+    }
     r.y = this.terrain.groundY(r.x, r.z);
     r.bob += dt * 8;
-    r.sprite.position.set(r.x, r.y + r.def.height / 2 + Math.abs(Math.sin(r.bob)) * 0.05, r.z);
+    this.#placeRaider(r, Math.abs(Math.sin(r.bob)) * 0.05);
+    this.#animateRaider(r, dt);
     r.shadow.position.set(r.x, r.y + 0.02, r.z);
 
     // 광장 안전 울타리 침입 — 코인을 챙겨 도망
@@ -1012,6 +1084,11 @@ export class Defense {
       if (this.#stepWave(sub, canAct)) break;
     }
     this.#updateProjectiles(canAct ? dt : 0);
+
+    // 불청객 도트도 카메라를 향해 Y축으로만 돈다(다른 캐릭터와 같은 HD-2D 빌보드)
+    if (this.camera) {
+      for (const r of this.raiders) if (r.bb) r.bb.faceCamera(this.camera);
+    }
   }
 
   /** 웨이브 한 걸음 — 웨이브가 끝났으면 true */

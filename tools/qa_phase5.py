@@ -139,6 +139,20 @@ def teleport(page, x, z, settle=600):
     page.wait_for_timeout(settle)
 
 
+def player_pos(page):
+    """주인공의 월드 좌표 — 끼임(이동 불가) 판정에 쓴다"""
+    return page.evaluate("() => { const p = window.__metamong.game.player.position; return [+p.x.toFixed(3), +p.z.toFixed(3)] }")
+
+
+def hold_key(page, key, ms=900):
+    """키를 누르고 있는다 — 헤드리스는 프레임이 느려 이동 거리가 짧으니 넉넉히"""
+    alive(page)
+    page.keyboard.down(key)
+    page.wait_for_timeout(ms)
+    page.keyboard.up(key)
+    page.wait_for_timeout(200)
+
+
 def grant(page, items):
     """가방 8칸을 넘지 않도록 아이템을 나눠 넣는다."""
     page.evaluate(
@@ -312,14 +326,40 @@ def run():
 
                 # ═══ ③ 슬롯 관리 → 설치 (UI 클릭) ═════════════════
                 page.evaluate("() => window.__metamong.game.modal.close()")
+                # 제보 재현: 슬롯 바로 위에 서서 설치해도 설치 뒤에 걸어 나갈 수 있어야 한다
+                teleport(page, 0.62, 27.3, 300)
                 page.evaluate("() => window.__metamong.game.openDefenseSlot(0)")
                 page.wait_for_timeout(600)
                 check('슬롯 관리 모달', '번 방어 슬롯' in modal_title(page), modal_title(page))
                 click_in_body(page, '설치', '.df-pick-row', '나무 울타리')
                 slots = crop_slots(page)
                 check('1번 슬롯에 나무 울타리 설치', slots[0]['kind'] == 'fence' and slots[0]['hp'] == 88, slots[0])
+                check(
+                    '설비 콜라이더는 아군 통과(foeOnly)',
+                    page.evaluate("() => !!window.__metamong.game.defense.structureAt(0).collider.allyPass"),
+                )
                 snap(page, '07_slot_installed.png')
                 page.evaluate("() => window.__metamong.game.modal.close()")
+                page.wait_for_timeout(320)
+                st = page.evaluate(
+                    "() => ({ modal: window.__metamong.game.modal.isOpen, paused: window.__metamong.game.paused, joy: window.__metamong.game.hud.joystick.enabled })"
+                )
+                check('설치 모달 닫힘 · paused 해제 · 조이스틱 활성', not st['modal'] and not st['paused'] and st['joy'], st)
+                p0 = player_pos(page)
+                hold_key(page, 'ArrowUp', 2400)
+                p1 = player_pos(page)
+                check('울타리를 설치한 자리에서 바로 걸어 나감 (키보드)', abs(p1[1] - p0[1]) > 0.6, (p0, p1))
+                teleport(page, 0.62, 28.2, 300)
+                hold_key(page, 'ArrowUp', 3200)
+                p2 = player_pos(page)
+                check('아군(주인공)은 자기 울타리를 지나 북쪽으로 통과', p2[1] < 26.8, p2)
+                teleport(page, 0.62, 28.2, 300)
+                page.evaluate("() => { const j = window.__metamong.game.hud.joystick; j.vector.x = 0; j.vector.y = -1; }")
+                page.wait_for_timeout(3200)
+                page.evaluate("() => { const j = window.__metamong.game.hud.joystick; j.vector.x = 0; j.vector.y = 0; }")
+                p3 = player_pos(page)
+                check('조이스틱으로도 끼임 없이 울타리 통과', p3[1] < 26.9, p3)
+                teleport(page, 0.4, 26.0, 400)
 
                 # 나머지는 같은 경로를 빠르게(설치 로직은 동일)
                 page.evaluate(
@@ -378,6 +418,37 @@ def run():
                 check('수집단 배가 보임', ds['boatVisible'] is True, ds['boatVisible'])
                 red = canvas_red_pixels(page, '.minimap-canvas')
                 check('미니맵에 빨간 점', red >= 6, red)
+
+                # ── 울타리는 불청객만 막는다 (아군 통과 수정의 반대쪽 확인)
+                seed = page.evaluate(
+                    """() => {
+                      const d = window.__metamong.game.defense;
+                      const st = d.structureAt(0);
+                      const r = d.raiders[0];
+                      if (!st || !r) return null;
+                      // 울타리 남쪽 0.9m · 진격로 위에 세워 둔다
+                      r.x = st.x;
+                      r.z = st.z + 0.9;
+                      r.state = 'walk';
+                      r.target = null;
+                      r.ignoreStructT = 0;
+                      return { fenceHp: Math.round(st.hp), fenceZ: st.z, rz: r.z };
+                    }"""
+                )
+                page.wait_for_timeout(1500)
+                blocked = page.evaluate(
+                    """() => {
+                      const d = window.__metamong.game.defense;
+                      const st = d.structureAt(0);
+                      const r = d.raiders[0];
+                      if (!st) return null;
+                      return { hp: Math.round(st.hp), fenceZ: st.z, state: r ? r.state : null, rz: r ? +r.z.toFixed(2) : null };
+                    }"""
+                )
+                check('불청객은 울타리에 막혀 공격한다', bool(seed and blocked) and (blocked['state'] == 'attack' or blocked['hp'] < seed['fenceHp']), (seed, blocked))
+                check('불청객은 울타리를 지나 북쪽으로 못 간다', bool(blocked) and blocked['rz'] is not None and blocked['rz'] > blocked['fenceZ'], blocked)
+                page.evaluate("() => { const r = window.__metamong.game.defense.raiders[0]; if (r) { r.state = 'walk'; r.target = null; r.ignoreStructT = 1.2; } }")
+                page.wait_for_timeout(400)
 
                 # ═══ ⑥ 직접 사격 — 새총 · 물풍선 ═════════════════
                 page.evaluate(
@@ -620,6 +691,37 @@ def run():
                 check('설치물이 3D에 다시 세워짐', page.evaluate("() => window.__metamong.game.defense.structures.filter(Boolean).length") == 2)
                 snap(page, '21_reloaded.png')
                 check('불러온 뒤 업적 조건 유지 (포탑 장인)', any(r['id'] == 'ach_turret_master' and r['done'] for r in lf['achRows']))
+
+                # ── 이미 끼어서 저장된 세이브도 새로고침하면 풀린다 (설비 자리 · 건물 안)
+                snap6 = page.evaluate("() => window.__metamong.game.snapshot()")
+                workshop = page.evaluate("() => { const s = window.__metamong.game.world.scenery.sites.find((x) => x.id === 'workshop'); return { x: s.x, z: s.z }; }")
+                for spot, (sx, sz) in (('울타리 자리', (0.62, 27.3)), ('공방 건물 안', (workshop['x'], workshop['z']))):
+                    page.evaluate(
+                        """async ([snap, x, z]) => {
+                          const g = window.__metamong.game;
+                          const s = JSON.parse(JSON.stringify(snap));
+                          s.player = { x, z, yaw: Math.PI };
+                          s.playerPos = { x, y: 0, z };
+                          await g.saveStore.save(s);
+                        }""",
+                        [snap6, sx, sz],
+                    )
+                    page.reload(wait_until='networkidle')
+                    page.wait_for_timeout(2400)
+                    page.locator('.title-actions button').first.click(no_wait_after=True)
+                    page.wait_for_timeout(2200)
+                    pp = player_pos(page)
+                    inside = page.evaluate(
+                        """() => {
+                          const g = window.__metamong.game;
+                          const p = g.player.position;
+                          return g.player.colliders.some((c) => !c.allyPass && Math.hypot(p.x - c.x, p.z - c.z) < c.r + 0.3);
+                        }"""
+                    )
+                    check(f'끼어서 저장된 세이브({spot}) — 새로고침 후 콜라이더 밖', not inside, pp)
+                    hold_key(page, 'ArrowDown', 800)
+                    pp2 = player_pos(page)
+                    check(f'끼어서 저장된 세이브({spot}) — 불러온 뒤 이동 가능', abs(pp2[1] - pp[1]) + abs(pp2[0] - pp[0]) > 0.4, (pp, pp2))
 
                 # ── v5 세이브 주입 → v6 마이그레이션
                 page.evaluate(

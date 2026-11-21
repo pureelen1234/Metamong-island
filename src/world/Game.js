@@ -386,6 +386,8 @@ export class Game {
       dittos: this.dittos,
       fx: this.fx,
       spriteMaterials: this.spriteMaterials,
+      atlases: this.atlases,
+      camera: this.camera,
       hooks: {
         toast: (msg, ms) => this.hud && this.hud.toast(msg, ms),
         save: () => {
@@ -616,12 +618,16 @@ export class Game {
     this.#syncCart();
     this.#welcomeSync();
     if (this.defense) this.defense.sync();
+    // 세이브를 복원한 직후 콜라이더(건물·나무·설비) 안에 겹쳐 있으면 밖으로 빼 준다
+    // — 울타리 위에서 저장한 세이브를 새로고침해도 이동이 막히지 않는다
+    const freed = this.player.unstick();
     this.checkAchievements();
 
     this.hud.toast(
       fromSave ? `Day ${this.state.day} — 다시 만나서 반가워요 🌿` : 'Day 1 — 섬에 도착했어요 🌿',
       2800
     );
+    if (freed) this.hud.toast('🪄 끼어 있던 자리에서 살며시 빠져나왔어요', 2000);
     this.autosaveAcc = 0;
     this.save();
   }
@@ -708,6 +714,8 @@ export class Game {
 
     // ── 5단계: 방어 슬롯에 세워 둔 설비 복원
     if (this.defense) this.defense.sync();
+    // 복원된 설비·건물 콜라이더 안에 서 있던 세이브라면 가장 가까운 안전한 자리로
+    this.player.unstick();
   }
 
   /** 저장된 복구 상태를 3D·이름표에 반영 */

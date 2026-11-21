@@ -540,15 +540,15 @@ v1~v5 세이브는 로드 시 빈 슬롯·0전적으로 채워지고 Day·코인
 ```bash
 npm run build
 node tools/check_layout.mjs                  # 배치 + 방어 슬롯 5곳 · 상륙 지점 · 진격로
-QA_PART=content python3 tools/qa_phase5.py    # 예고·제작·설치·대피·웨이브·헬퍼·승리·순한 맛·밤 자동 상륙 (56 체크)
-QA_PART=save    python3 tools/qa_phase5.py    # v6 저장/복원 + v5·v4·v1 → v6 (20 체크)
+QA_PART=content python3 tools/qa_phase5.py    # 예고·제작·설치·끼임·대피·웨이브·헬퍼·승리·순한 맛·밤 자동 상륙 (63 체크)
+QA_PART=save    python3 tools/qa_phase5.py    # v6 저장/복원 + 끼인 세이브 탈출 + v5·v4·v1 → v6 (24 체크)
 QA_PART=regress python3 tools/qa_phase5.py    # 1~4단계 회귀 (18 체크)
 QA_PART=regress python3 tools/qa_phase4.py    # 4단계 회귀 (14 체크)
 python3 tools/check_modal_fix.py audit        # 모달 25종 레이아웃(방어 4종 추가)
 python3 tools/qa_live.py                      # 배포된 GitHub Pages 부팅 확인
 ```
 
-결과: **qa_phase5 94/94(56+20+18) · qa_phase4 회귀 14/14 · 모달 25/25 · 콘솔 에러 0 · 404 0**.
+결과: **qa_phase5 105/105(63+24+18) · 콘솔 에러 0 · 404 0**.
 (헤드리스 소프트웨어 렌더러는 프레임이 느려 게임 시간이 실시간보다 훨씬 느리게 흐릅니다.
 오래 걸리는 구간은 게임의 **시간 배속 10×/60×** 기능을 그대로 써서 감았습니다 — 방어전도 배속을 따릅니다.)
 
@@ -562,3 +562,40 @@ python3 tools/qa_live.py                      # 배포된 GitHub Pages 부팅 �
 | `14_helpers_turret.png` | 옹이·솜이 헬퍼와 포탑 자동 사격 |
 | `15_victory.png` · `19_partial_steal.png` · `20_partial_modal.png` | 승리 결과 · 순한 맛(코인만 빼앗김) |
 | `16_defense_after.png` · `21_reloaded.png` · `22_v5_migrated.png` · `23_v1_migrated.png` | 전적 반영 · v6 복원 · v5/v1 마이그레이션 |
+
+---
+
+# 5단계 긴급 수정 (2026-11-21 밤) — 울타리 끼임 · 불청객 HD-2D 도트
+
+## 1. "울타리 만들었는데 캐릭터가 멈췄어" — 설치한 설비의 콜라이더가 아군을 가둠
+
+원인: `Defense.#place()` 가 설치한 설비 자리(x,z,r 0.42)를 **플레이어 콜라이더**로 밀어 넣었습니다.
+`Player.canStand()` 는 `r + PLAYER.radius(0.36)` 안을 전부 막으므로, 슬롯 **바로 위에 서서** 설치하면
+어느 방향으로도 한 걸음(≈0.07m)을 내딛을 수 없어 **완전히 끼었습니다**(키보드·조이스틱 모두 0 이동 — 실측 재현).
+설비 위에서 저장한 세이브를 새로고침해도 같은 자리에 그대로 서서 다시 끼었습니다.
+
+수정:
+- **아군 통과 / 적만 차단** — 설비 콜라이더를 `allyPass: true, foeOnly: true` 로 표시하고
+  `Player.canStand()` 가 건너뜁니다. 불청객은 원래 `Defense.#blockingStructure()` 가 설비 자체를 보고
+  막으므로(울타리 1.35m·나머지 0.95m) 적 차단은 그대로입니다. 주인공·고양이·메타몽은 자기 마을 울타리를 그냥 지나갑니다.
+- **끼임 탈출(`Player.unstick`)** — 현재 자리가 콜라이더 안이면 겹친 원에서 바깥으로 밀어내고,
+  물·절벽이면 가장 가까운 걷는 자리를 찾아 옮깁니다. `Player.update` 가 매 프레임 한 번 확인하고,
+  세이브 복원(`#applySave`·`#enter`)에서도 한 번 더 불러 **이미 끼어서 저장된 세이브도 새로고침 즉시 풀립니다**.
+- 검증(`tools/qa_phase5.py`): 슬롯 위에서 설치 → 키보드·조이스틱 이동 3종, 울타리 통과, 불청객 차단,
+  "울타리 자리·공방 건물 안에서 저장한 세이브" 탈출 4종을 추가했습니다.
+
+## 2. "약탈자가 로봇 같아" — 32px 캔버스 → 컨셉 시안 기반 HD-2D 도트
+
+기존 불청객은 `defenseArt.raiderTexture()` 가 32×32 캔버스에 찍은 사각 후드 + 노란 네모 눈이라,
+172×296 셀의 주인공·솜이·옹이 도트 옆에서 로봇처럼 보였습니다.
+
+- `downloads/metamong_concept_intruder.png`(후드·황동 고글·회색 망토·보라 물약·가죽 벨트)를 기준으로
+  **정면 걷기 4 + 뒷면 걷기 4 = 2행×4열** 고해상 도트 시트를 3종 뽑았습니다
+  (`downloads/raider_gen/` → `slice_sprites.py` → `tools/build_raider_sprites.py`).
+- `public/sprites/raider_sheet.png` · `raider_runner_sheet.png` · `raider_big_sheet.png`(+`.json`) 로
+  게임 아틀라스에 등록(`atlas.js` 의 `SPRITE_SETS`)하고, `Defense` 가 `Billboard` 로 그립니다.
+  카메라를 향해 Y축으로만 돌고, 걸음 4프레임을 상태별 속도(걷기 7/s · 공격 3.4/s)로 재생합니다.
+- 세 종류는 같은 수집단 유니폼에 실루엣만 다릅니다 — 기본(회색 망토) · 발빠른 자(가는 몸·펄럭이는 스카프) ·
+  덩치(넓은 어깨·긴 망토, Day 6부터). 겹쳐 한 덩어리로 보이지 않도록 상륙 차선을 3열로 벌리고
+  동료와 0.55m 안으로 붙으면 서로 비켜 섭니다.
+- 확인 캡처: `screenshots/raider/04_kinds.png`(3종 클로즈업) · `05_day6_wave.png`(Day 6 웨이브).

@@ -135,6 +135,8 @@ export class Player {
   update(dt, dir, terrain, camera) {
     const mag = Math.min(1, Math.hypot(dir.x, dir.z));
     const t = terrain || this.terrain;
+    // 겹쳐 있으면 먼저 밖으로 — 설비 설치 직후·세이브 복원 직후의 끼임을 여기서 푼다
+    this.unstick(t);
     this.moving += (mag - this.moving) * Math.min(1, dt * 10);
     this.idleT += dt;
     if (this.emoteT > 0) this.emoteT = Math.max(0, this.emoteT - dt);
@@ -228,12 +230,78 @@ export class Player {
     if (!terrain.isWalkable(x, z)) return false;
     for (let i = 0; i < this.colliders.length; i++) {
       const c = this.colliders[i];
+      // allyPass — 아군(주인공·고양이·메타몽)은 지나가는 자리.
+      // 방어 설비(울타리·허수아비·포탑·경보등)가 여기 해당한다: 불청객만 Defense 가 따로 막는다.
+      if (c.allyPass) continue;
       const dx = x - c.x;
       const dz = z - c.z;
       const r = c.r + PLAYER.radius;
       if (dx * dx + dz * dz < r * r) return false;
     }
     return true;
+  }
+
+  /**
+   * 콜라이더 안에 겹쳐 있으면 가장 가까운 안전한 자리로 밀어낸다.
+   *   · 울타리·설비를 세운 자리에 서 있었거나
+   *   · 설비 위에서 저장한 세이브를 다시 불렀을 때
+   * 이동이 통째로 막히지 않도록 매 프레임 한 번 확인한다(겹치지 않으면 즉시 반환).
+   * @returns {{x:number,z:number}|null} 실제로 옮겼으면 새 자리, 아니면 null
+   */
+  unstick(terrain) {
+    const t = terrain || this.terrain;
+    if (this.canStand(t, this.position.x, this.position.z)) return null;
+    const from = { x: this.position.x, z: this.position.z };
+    let x = from.x;
+    let z = from.z;
+
+    // ① 겹친 콜라이더 바깥으로 밀어낸다 — 여러 개가 겹쳐도 몇 번이면 풀린다
+    for (let iter = 0; iter < 6; iter++) {
+      let pushed = false;
+      for (let i = 0; i < this.colliders.length; i++) {
+        const c = this.colliders[i];
+        if (c.allyPass) continue;
+        const r = c.r + PLAYER.radius + 0.02;
+        let dx = x - c.x;
+        let dz = z - c.z;
+        let d = Math.hypot(dx, dz);
+        if (d >= r) continue;
+        if (d < 1e-4) {
+          // 정확히 중심에 서 있다 — 바라보는 반대쪽으로
+          dx = -Math.sin(this.yaw);
+          dz = -Math.cos(this.yaw);
+          d = 1;
+        }
+        x = c.x + (dx / d) * r;
+        z = c.z + (dz / d) * r;
+        pushed = true;
+      }
+      if (!pushed) break;
+    }
+
+    // ② 밀려난 자리가 물·절벽이라 못 서면, 가까운 걷는 자리를 찾는다
+    const candidates = [{ x, z }];
+    for (let ring = 1; ring <= 8; ring++) {
+      const rad = ring * 0.25;
+      for (let i = 0; i < 12; i++) {
+        const a = (i / 12) * Math.PI * 2 + ring * 0.26;
+        candidates.push({ x: x + Math.cos(a) * rad, z: z + Math.sin(a) * rad });
+      }
+    }
+    let best = null;
+    let bestD = Infinity;
+    for (const p of candidates) {
+      if (!t.isWalkable(p.x, p.z)) continue;
+      if (!this.canStand(t, p.x, p.z)) continue;
+      const d = Math.hypot(p.x - from.x, p.z - from.z);
+      if (d < bestD) {
+        bestD = d;
+        best = p;
+      }
+    }
+    if (!best) return null;
+    this.teleport(best.x, best.z, t);
+    return { x: best.x, z: best.z };
   }
 
   teleport(x, z, terrain) {

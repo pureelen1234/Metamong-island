@@ -1,0 +1,75 @@
+{
+ "set": "raider",
+ "cell": [
+  141,
+  259
+ ],
+ "grid": [
+  4,
+  2
+ ],
+ "sheet": "raider_sheet.png",
+ "frames": [
+  {
+   "name": "front1",
+   "row": 1,
+   "col": 1,
+   "w": 136,
+   "h": 254
+  },
+  {
+   "name": "front2",
+   "row": 1,
+   "col": 2,
+   "w": 137,
+   "h": 254
+  },
+  {
+   "name": "front3",
+   "row": 1,
+   "col": 3,
+   "w": 135,
+   "h": 254
+  },
+  {
+   "name": "front4",
+   "row": 1,
+   "col": 4,
+   "w": 134,
+   "h": 255
+  },
+  {
+   "name": "back1",
+   "row": 2,
+   "col": 1,
+   "w": 137,
+   "h": 246
+  },
+  {
+   "name": "back2",
+   "row": 2,
+   "col": 2,
+   "w": 132,
+   "h": 246
+  },
+  {
+   "name": "back3",
+   "row": 2,
+   "col": 3,
+   "w": 137,
+   "h": 246
+  },
+  {
+   "name": "back4",
+   "row": 2,
+   "col": 4,
+   "w": 132,
+   "h": 246
+  }
+ ],
+ "notes": [
+  "회색 망토 수집단 (기본) — 컨셉 시안(downloads/metamong_concept_intruder.png) 기반 HD-2D 도트",
+  "1행 정면 걷기 4프레임 · 2행 뒷면 걷기 4프레임 (남쪽으로 갈 때 정면, 북쪽으로 갈 때 뒷면)",
+  "셀 141×259 · 시트 701×561 (네이티브 ×1/2)"
+ ]
+}

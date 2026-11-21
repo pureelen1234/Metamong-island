@@ -1,12 +1,24 @@
 /**
  * atlas.js — 도트 스프라이트 아틀라스 로더 (HD-2D)
  *
- * public/sprites/ 의 7개 세트(PNG 아틀라스 + JSON 매니페스트)를 읽어
+ * public/sprites/ 의 세트(PNG 아틀라스 + JSON 매니페스트)를 읽어
  * 픽셀이 뭉개지지 않도록 NearestFilter · mipmap 없음으로 텍스처를 만든다.
  */
 import * as THREE from 'three';
 
-export const SPRITE_SETS = ['protagonist', 'somi', 'ongi', 'ditto_basic', 'disguises', 'buildings', 'nature'];
+export const SPRITE_SETS = [
+  'protagonist',
+  'somi',
+  'ongi',
+  'ditto_basic',
+  'disguises',
+  'buildings',
+  'nature',
+  // 5단계 불청객 — 컨셉 시안 기반 HD-2D 도트 (2행×4열: 정면 걷기·뒷면 걷기)
+  'raider',
+  'raider_runner',
+  'raider_big',
+];
 
 const loader = new THREE.TextureLoader();
 

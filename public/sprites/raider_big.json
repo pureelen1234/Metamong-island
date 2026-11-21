@@ -1,0 +1,75 @@
+{
+ "set": "raider_big",
+ "cell": [
+  181,
+  241
+ ],
+ "grid": [
+  4,
+  2
+ ],
+ "sheet": "raider_big_sheet.png",
+ "frames": [
+  {
+   "name": "front1",
+   "row": 1,
+   "col": 1,
+   "w": 177,
+   "h": 237
+  },
+  {
+   "name": "front2",
+   "row": 1,
+   "col": 2,
+   "w": 163,
+   "h": 237
+  },
+  {
+   "name": "front3",
+   "row": 1,
+   "col": 3,
+   "w": 165,
+   "h": 237
+  },
+  {
+   "name": "front4",
+   "row": 1,
+   "col": 4,
+   "w": 173,
+   "h": 236
+  },
+  {
+   "name": "back1",
+   "row": 2,
+   "col": 1,
+   "w": 156,
+   "h": 231
+  },
+  {
+   "name": "back2",
+   "row": 2,
+   "col": 2,
+   "w": 153,
+   "h": 231
+  },
+  {
+   "name": "back3",
+   "row": 2,
+   "col": 3,
+   "w": 156,
+   "h": 231
+  },
+  {
+   "name": "back4",
+   "row": 2,
+   "col": 4,
+   "w": 156,
+   "h": 231
+  }
+ ],
+ "notes": [
+  "덩치 망토 수집단 (넓은 어깨·긴 망토) — 컨셉 시안(downloads/metamong_concept_intruder.png) 기반 HD-2D 도트",
+  "1행 정면 걷기 4프레임 · 2행 뒷면 걷기 4프레임 (남쪽으로 갈 때 정면, 북쪽으로 갈 때 뒷면)",
+  "셀 181×241 · 시트 768×512 (네이티브 ×1/2)"
+ ]
+}
