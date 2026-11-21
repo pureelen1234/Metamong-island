@@ -7,10 +7,12 @@
  * v4: 3단계 생활 상태(crops·farmPlots·counters·achievements) — 사각 섬 · 텃밭 농사 · 업적
  * v5: 4단계 생활 상태(bridge/bridgeBuilt · cartLevel/bagCapacity · paddyPlots · welcome)
  *     — 72×72 섬 · 중앙 강/다리 · 북쪽 숲/채석장/논 · 리어카
+ * v6: 5단계 생활 상태(defense) — 불청객 방어전
+ *     방어 슬롯 5곳에 세운 설비(종류·체력) · 제작 창고 · 전적(승/패 · 포탑 명중 · 완벽 대피)
  *
  * 어떤 버전이 들어와도 SaveStore 가 읽는 순간 코어 필드를 검사하고, 생활 상태는
- * Progress 로 정규화해 "기본값이 병합된" 한 덩어리로 돌려준다. v1~v4 세이브는
- * v5 필드가 조용히 기본값(다리 없음·리어카 없음·빈 논·웰컴 0단계)으로 채워지므로
+ * Progress 로 정규화해 "기본값이 병합된" 한 덩어리로 돌려준다. v1~v5 세이브는
+ * v6 필드가 조용히 기본값(빈 방어 슬롯 · 창고 0 · 전적 0)으로 채워지므로
  * 그대로 이어서 플레이할 수 있다.
  *
  * 원칙: 절대 throw 하지 않는다. 알아볼 수 없으면 null(=새 섬)을 돌려준다.
@@ -18,7 +20,7 @@
 import { Progress } from '../systems/Progress.js';
 import { DAY_SECONDS, SPAWN } from '../config.js';
 
-export const SAVE_VERSION = 5;
+export const SAVE_VERSION = 6;
 
 const DEFAULT_SETTINGS = { muted: false, timeScale: 1, fps30: false };
 const SPEEDS = [1, 10, 60];

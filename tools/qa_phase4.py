@@ -710,12 +710,12 @@ def run():
                 check('범례 13줄 이상', legends >= 13, legends)
                 close_modal(page)
 
-                # 업적 화면 (14종)
+                # 업적 화면 (5단계에서 17종으로 늘었다 — 회귀는 '늘어난 만큼'만 확인)
                 page.evaluate("() => window.__metamong.game.openAchievements()")
                 page.wait_for_timeout(500)
                 snap(page, '19_achievements.png')
                 rows = page.locator('.ach-row').count()
-                check('업적 14종', rows == 14, rows)
+                check('업적 17종 (4단계 14 + 방어전 3)', rows == 17, rows)
                 coins_before = life(page)['coins']
                 if page.locator('.ach-row .ach-claim.on').count():
                     page.locator('.ach-row .ach-claim.on').first.click(no_wait_after=True)
@@ -856,7 +856,7 @@ def run():
                 # 옛 좌표(0.4, 11.8)에 서 있어도 새 섬에서 걸을 수 있는 자리로 복원된다
                 check('v3 → v5: 플레이어가 걷기 가능한 자리', page.evaluate("() => { const p = window.__metamong.game.player.position; return window.__metamong.game.world.terrain.isWalkable(p.x, p.z); }") is True)
                 snap(page, '23_v3_migrated.png')
-                check('업적 14종 유지', len(lf['achRows']) == 14, len(lf['achRows']))
+                check('업적 17종 유지', len(lf['achRows']) == 17, len(lf['achRows']))
 
         except Exception:
             print('  ✗ 예외:')

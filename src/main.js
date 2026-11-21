@@ -69,6 +69,12 @@ window.__metamong = {
       paddyPlanted: p.paddyPlots.filter(Boolean).length,
       paddyRipe: p.paddyPlots.filter((st) => st && st.remain <= 0).length,
       welcome: { step: p.welcome ? p.welcome.step : 0 },
+      // ── 5단계: 방어전
+      defense: {
+        ...JSON.parse(JSON.stringify(p.defense)),
+        installed: p.defense.slots.filter(Boolean).length,
+        stockTotal: Object.values(p.defense.stock).reduce((a, b) => a + b, 0),
+      },
       mapGrid: { grid: GRID, half: HALF },
       fishing: g.fishing
         ? { state: g.fishing.state, active: g.fishing.active, baitUsed: !!g.fishing.baitUsed, last: g.fishing.lastResult ? { id: g.fishing.lastResult.fish.id, size: g.fishing.lastResult.size } : null }
@@ -98,6 +104,7 @@ window.__metamong = {
       coins: g.progress.coins,
       quests: g.progress.claimableQuests,
       fishing: g.fishing ? g.fishing.state : 'idle',
+      defense: g.defense ? g.defense.stats() : null,
       settings: { ...g.state.settings },
       player: g.player
         ? {

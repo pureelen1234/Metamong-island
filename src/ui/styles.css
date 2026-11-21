@@ -2739,3 +2739,407 @@ canvas#scene {
 @media (max-width: 360px) {
   .welcome-chip { max-width: 196px; font-size: 10px; }
 }
+
+/* ─────────────────────────────────────────────────────────────
+   5단계 — 불청객 방어전 (예고 배너 · 웨이브 스트립 · 무기 · 슬롯)
+   ───────────────────────────────────────────────────────────── */
+
+/* ── 예고 배너 (웰컴 칩 아래, 상단 좌측 컬럼) ─────────────── */
+.defense-banner {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+}
+
+.defense-banner .df-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 210px;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(238, 245, 255, 0.95));
+  box-shadow: var(--shadow-soft);
+  font-family: inherit;
+  font-size: 10.5px;
+  font-weight: 800;
+  color: #5c6884;
+  text-align: left;
+  cursor: pointer;
+  pointer-events: auto;
+  animation: welcomeIn 0.34s ease;
+}
+
+.defense-banner .df-main:active {
+  transform: scale(0.97);
+}
+
+.defense-banner .df-ico {
+  font-size: 12px;
+  line-height: 1;
+}
+
+.defense-banner .df-txt {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.defense-banner .df-go {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(140deg, #ffe6ef, #ffcfe0);
+  color: #b2506f;
+  font-size: 11px;
+  font-weight: 900;
+  box-shadow: var(--shadow-soft);
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.defense-banner .df-go:active {
+  transform: scale(0.92);
+}
+
+/* ── 웨이브 스트립 (좌측 상단, 미니맵과 겹치지 않는 자리) ── */
+.defense-strip {
+  position: absolute;
+  left: 12px;
+  top: calc(var(--safe-top) + 140px);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 234px;
+  padding: 7px 11px;
+  border-radius: 999px;
+  background: rgba(255, 244, 247, 0.94);
+  box-shadow: var(--shadow);
+  font-size: 11px;
+  font-weight: 800;
+  color: #a4475f;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.defense-strip.danger {
+  background: rgba(255, 231, 236, 0.96);
+  color: #bf3a55;
+}
+
+.defense-strip .ico {
+  font-size: 12px;
+  line-height: 1;
+}
+
+.defense-strip .bar {
+  width: 58px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(200, 150, 170, 0.26);
+  overflow: hidden;
+}
+
+.defense-strip .bar > i {
+  display: block;
+  height: 100%;
+  width: 0;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #ffb3c9, #ff7d9c);
+  transition: width 0.2s ease;
+}
+
+/* ── 무기 버튼 (액션 버튼 위, 오른쪽) ─────────────────────── */
+.weapon-bar {
+  position: absolute;
+  right: 18px;
+  bottom: calc(var(--safe-bottom) + 194px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: auto;
+}
+
+.weapon-bar .wp {
+  position: relative;
+  width: 70px;
+  height: 58px;
+  border: none;
+  border-radius: 20px;
+  background: linear-gradient(155deg, #fff6fa, #ffe3ef);
+  color: #8a5670;
+  box-shadow: 0 8px 18px rgba(214, 150, 180, 0.35), inset 0 2px 0 rgba(255, 255, 255, 0.8);
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 800;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  cursor: pointer;
+  transition: transform 0.12s ease, opacity 0.18s ease;
+}
+
+.weapon-bar .wp:active {
+  transform: scale(0.94);
+}
+
+.weapon-bar .wp .wp-ico {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.weapon-bar .wp.cool {
+  opacity: 0.5;
+}
+
+.weapon-bar .wp.balloon {
+  background: linear-gradient(155deg, #eefaff, #cfeaf9);
+  color: #3f6c86;
+  box-shadow: 0 8px 18px rgba(120, 180, 210, 0.35), inset 0 2px 0 rgba(255, 255, 255, 0.85);
+}
+
+.weapon-bar .wp-ammo {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #8fbcd6;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 900;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 2px 6px rgba(90, 120, 150, 0.35);
+}
+
+.weapon-bar .wp.empty .wp-ammo {
+  background: #e9a3a3;
+}
+
+/* ── 방어 현황 모달 ─────────────────────────────────────── */
+.df-summary {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 11px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #f4f8ff, #fff4f8);
+  box-shadow: var(--shadow-soft);
+}
+
+.df-summary .df-badge {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.df-summary .df-sum-text {
+  min-width: 0;
+}
+
+.df-summary .df-sum-text .nm {
+  font-size: 12.5px;
+  font-weight: 900;
+  color: #5c6884;
+}
+
+.df-summary .df-sum-text .meta {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #9a90a8;
+  margin-top: 2px;
+}
+
+.df-slot-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.df-slot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: var(--shadow-soft);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.df-slot:active {
+  transform: scale(0.985);
+}
+
+.df-slot.on {
+  box-shadow: 0 0 0 2px #ffe0b6, var(--shadow-soft);
+}
+
+.df-slot .ds-no {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: #f2ecf6;
+  color: #8a7d99;
+  font-size: 10px;
+  font-weight: 900;
+  display: grid;
+  place-items: center;
+}
+
+.df-slot .ds-ico {
+  flex: none;
+  width: 22px;
+  font-size: 16px;
+  text-align: center;
+}
+
+.df-slot .ds-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.df-slot .ds-main .nm {
+  font-size: 12px;
+  font-weight: 800;
+  color: #625a72;
+}
+
+.df-slot .ds-main .meta {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #9a90a8;
+  margin-top: 2px;
+}
+
+.df-slot .ds-go {
+  flex: none;
+  font-size: 10px;
+  font-weight: 800;
+  color: #b2698f;
+}
+
+/* ── 슬롯 관리 · 방어 제작 ──────────────────────────────── */
+.df-installed,
+.df-result {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 11px;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: var(--shadow-soft);
+}
+
+.df-installed .ico {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.df-installed .main,
+.df-result .main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.df-installed .main .nm,
+.df-result .main .nm {
+  font-size: 12.5px;
+  font-weight: 900;
+  color: #625a72;
+}
+
+.df-installed .main .meta,
+.df-result .main .meta {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #9a90a8;
+  margin-top: 2px;
+  line-height: 1.4;
+  word-break: keep-all;
+}
+
+.df-pick {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.df-pick-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 10px;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: var(--shadow-soft);
+  flex-wrap: wrap;
+}
+
+.df-pick-row .ico {
+  flex: none;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.df-pick-row .main {
+  flex: 1 1 120px;
+  min-width: 0;
+}
+
+.df-pick-row .main .nm {
+  font-size: 12px;
+  font-weight: 800;
+  color: #625a72;
+}
+
+.df-pick-row .main .meta {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #9a90a8;
+  margin-top: 2px;
+  line-height: 1.4;
+  word-break: keep-all;
+}
+
+.df-pick-row .mini {
+  flex: none;
+}
+
+.df-result {
+  background: linear-gradient(135deg, #fff8f2, #f4f9ff);
+}
+
+.df-result .ico {
+  font-size: 26px;
+  line-height: 1;
+}
+
+@media (max-height: 700px) {
+  .weapon-bar {
+    bottom: calc(var(--safe-bottom) + 168px);
+    gap: 6px;
+  }
+  .weapon-bar .wp {
+    width: 62px;
+    height: 50px;
+    border-radius: 17px;
+  }
+  .defense-strip {
+    top: calc(var(--safe-top) + 126px);
+  }
+}

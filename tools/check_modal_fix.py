@@ -364,6 +364,11 @@ AUDIT_MODALS = [
     ('a19_fish', "g.openFishSpot()"),
     ('a20_minimap', "g.openMinimap()"),
     ('a21_welcome', "g.openWelcome()"),
+    # 5단계: 방어전 화면
+    ('a22_defense', "g.openDefense()"),
+    ('a23_defense_slot', "g.openDefenseSlot(0)"),
+    ('a24_defense_craft', "g.openDefenseCraft()"),
+    ('a25_defense_result', "g.paused = true; g.modal.open(g.phase5.result(g.defense && g.defense.lastResult ? g.defense.lastResult : { victory: false, day: 6, total: 7, down: 3, stolen: 12, turretHits: 4, somiHits: 1, ongiHits: 2, reward: null }))"),
 ]
 
 BUILD_ALL = """() => {

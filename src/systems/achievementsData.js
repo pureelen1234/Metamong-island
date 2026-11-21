@@ -163,6 +163,37 @@ export const ACHIEVEMENTS = [
     value: (p) => LANDMARKS.filter((lm) => p.building(lm.id).done).length,
     reward: { coin: 120, star: 2 },
   },
+  // ── 5단계: 불청객 방어전
+  {
+    id: 'ach_first_defense',
+    group: 'life',
+    icon: '🛡️',
+    name: '첫 방어 성공',
+    desc: '회색 망토 수집단을 모두 막아내기',
+    need: 1,
+    value: (p) => Math.max(0, Math.floor(Number(p.defense && p.defense.wins) || 0)),
+    reward: { coin: 90, star: 2 },
+  },
+  {
+    id: 'ach_perfect_evac',
+    group: 'life',
+    icon: '🟣',
+    name: '완벽한 대피',
+    desc: '메타몽을 모두 광장으로 모은 뒤 방어전에서 이기기',
+    need: 1,
+    value: (p) => Math.max(0, Math.floor(Number(p.defense && p.defense.perfectEvacs) || 0)),
+    reward: { coin: 80, star: 2 },
+  },
+  {
+    id: 'ach_turret_master',
+    group: 'life',
+    icon: '🎈',
+    name: '포탑 장인',
+    desc: '물풍선 포탑으로 불청객을 10번 맞히기',
+    need: 10,
+    value: (p) => Math.max(0, Math.floor(Number(p.defense && p.defense.turretHits) || 0)),
+    reward: { coin: 70, star: 1 },
+  },
 ];
 
 export const ACH_ORDER = ACHIEVEMENTS.map((a) => a.id);

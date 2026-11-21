@@ -11,9 +11,10 @@
  *   ⑤ 스폰 지점·부두 앞 낚시 자리·찌가 물 위에 있는가
  *   ⑥ 4단계: 중앙 강이 길을 끊고, 다리 데크가 강을 건너며, 다리를 놓으면 건널 수 있는가
  *   ⑦ 4단계: 남쪽/북쪽 개척권에 메타몽이 흩어져 있는가
+ *   ⑧ 5단계: 불청객 상륙 지점·진격로·방어 슬롯 5곳이 땅/길 위에 있고 서로 겹치지 않는가
  */
 import * as THREE from 'three';
-import { NATURE, LANDMARKS, DITTOS, CATS, FARM, PADDY, SPAWN, ZONES, BRIDGE, RIVER, riverCenterZ, isOnBridgeDeck } from '../src/config.js';
+import { NATURE, LANDMARKS, DITTOS, CATS, DEFENSE, FARM, PADDY, SPAWN, ZONES, BRIDGE, RIVER, riverCenterZ, isOnBridgeDeck } from '../src/config.js';
 import { HEIGHTS, isWalkableAt, islandHeight, setBridgeBuilt } from '../src/terrain/Heightmap.js';
 import { ROUTES } from '../src/world/Path.js';
 import { FISHING } from '../src/systems/lifeData.js';
@@ -178,6 +179,29 @@ for (const z of ZONES) {
   if (z.side === 'north' && z.z > riverCenterZ(z.x)) fail(`구역 ${z.name} 이 남쪽에 있다`);
   if (z.side === 'south' && z.z <= riverCenterZ(z.x)) fail(`구역 ${z.name} 이 북쪽에 있다`);
 }
+
+/* ── ⑨ 5단계 방어전 무대 ───────────────────────────── */
+for (const [i, w] of DEFENSE.route.entries()) walk(w.x, w.z, `불청객 진격로 ${i + 1}`);
+walk(DEFENSE.landing.x, DEFENSE.landing.z, '상륙 지점');
+const boatH = islandHeight(DEFENSE.boat.x, DEFENSE.boat.z);
+if (boatH > -0.1) fail(`수집단의 배(${DEFENSE.boat.x}, ${DEFENSE.boat.z})가 물 위가 아니다 (h=${boatH.toFixed(2)})`);
+walk(DEFENSE.plaza.x, DEFENSE.plaza.z, '광장 안전 울타리');
+for (const slot of DEFENSE.slots) {
+  walk(slot.x, slot.z, `방어 슬롯 ${slot.id}`);
+  const pd = distToPaths(slot.x, slot.z);
+  if (pd > 1.4) fail(`방어 슬롯 ${slot.id} (${slot.x}, ${slot.z}) 이 오솔길에서 너무 멀다 (${pd.toFixed(2)})`);
+  for (const c of colliders) {
+    const d = Math.hypot(slot.x - c.x, slot.z - c.z);
+    if (d < c.r + 0.45) fail(`방어 슬롯 ${slot.id} 이 ${c.kind}(${c.x},${c.z}) 에 파묻힌다 (${d.toFixed(2)})`);
+  }
+  for (const lm of LANDMARKS) {
+    if (Math.hypot(slot.x - lm.x, slot.z - lm.z) < 2.2) fail(`방어 슬롯 ${slot.id} 이 ${lm.name} 에 너무 가깝다`);
+  }
+  if (Math.hypot(slot.x - DEFENSE.plaza.x, slot.z - DEFENSE.plaza.z) < DEFENSE.plaza.r - 0.5) {
+    fail(`방어 슬롯 ${slot.id} 이 광장 안전 울타리 안쪽에 있다`);
+  }
+}
+notes.push(`방어 슬롯 ${DEFENSE.slots.length}곳 · 상륙(${DEFENSE.landing.x}, ${DEFENSE.landing.z}) → 광장(${DEFENSE.plaza.x}, ${DEFENSE.plaza.z})`);
 
 /* ── ⑧ 길이 물에 잠기지 않는가 ──────────────────────── */
 for (const [x, z] of PATH_PTS) {

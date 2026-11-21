@@ -32,8 +32,10 @@ import { Minimap } from '../ui/Minimap.js';
 import { Farming } from './Farming.js';
 import { Bridge } from './Bridge.js';
 import { Paddy } from './Paddy.js';
+import { Defense } from './Defense.js';
 import { setBridgeBuilt } from '../terrain/Heightmap.js';
 import { Phase4Panels } from '../ui/Phase4Panels.js';
+import { Phase5Panels } from '../ui/Phase5Panels.js';
 import { stageOf } from './Farming.js';
 import { cook as cookRecipe } from '../systems/Cooking.js';
 import { buy as buyGoods, sell as sellGoods } from '../systems/Shop.js';
@@ -54,6 +56,7 @@ import {
   CAMERA,
   CATS,
   DAY_SECONDS,
+  DEFENSE,
   DITTOS,
   FARM,
   INTERACT,
@@ -63,9 +66,11 @@ import {
   SPAWN,
   WELCOME,
   clockLabel,
+  isInvasionDay,
   phaseAt,
   weatherForDay,
 } from '../config.js';
+import { STRUCTURES } from '../systems/defenseData.js';
 
 const DEFAULT_SETTINGS = { muted: false, timeScale: 1, fps30: false };
 const SPEEDS = [1, 10, 60];
@@ -102,9 +107,12 @@ export class Game {
     this.bridge = null;
     this.phase3 = null;
     this.phase4 = null;
+    this.phase5 = null;
+    this.defense = null;
     this.minimap = null;
     this.achAcc = 0;
     this.welcomeAcc = 0;
+    this.somiPickAcc = 0;
     this.cartSprite = null;
     this.fishTarget = null;
     this.nodeMeshes = [];
@@ -366,6 +374,37 @@ export class Game {
     this.cartSprite.renderOrder = 4;
     this.scene.add(this.cartSprite);
     this.spriteMaterials.push(this.cartSprite.material);
+
+    // ── 5단계: 불청객 방어전 (슬롯 · 웨이브 · 냥이 헬퍼 · 메타몽 대피)
+    this.defense = new Defense({
+      scene: this.scene,
+      terrain: this.world.terrain,
+      progress: this.progress,
+      player: this.player,
+      cats: this.cats,
+      dittos: this.dittos,
+      fx: this.fx,
+      spriteMaterials: this.spriteMaterials,
+      hooks: {
+        toast: (msg, ms) => this.hud && this.hud.toast(msg, ms),
+        save: () => {
+          if (this.mode === 'play') this.save();
+        },
+        getDiscovered: () => this.state.discovered,
+        catLevel: (id) => this.progress.catRow(id).level,
+        day: () => this.state.day,
+        onWaveStart: () => {
+          this.save();
+          this.#refreshHud();
+        },
+        onEvacDone: () => {
+          this.save();
+          this.checkAchievements();
+          this.#refreshHud();
+        },
+        onWaveEnd: (res) => this.#onDefenseEnd(res),
+      },
+    });
   }
 
   #setupPost() {
@@ -381,6 +420,9 @@ export class Game {
       onMail: () => this.openMailbox(),
       onQuest: () => this.openQuest(),
       onWelcome: () => this.openWelcome(),
+      onDefense: () => this.openDefense(),
+      onDefenseStart: () => this.startDefenseNow(),
+      onWeapon: (kind) => this.fireWeapon(kind),
     });
     this.hud.hide();
     this.modal = new Modal(this.uiRoot);
@@ -389,6 +431,7 @@ export class Game {
     this.life = new LifePanels(this);
     this.phase3 = new Phase3Panels(this);
     this.phase4 = new Phase4Panels(this);
+    this.phase5 = new Phase5Panels(this);
     this.minimap = new Minimap(this.hud.container, this);
     if (this.fishing) this.fishing.hud = this.hud;
   }
@@ -571,6 +614,7 @@ export class Game {
     this.#syncBridge(true);
     this.#syncCart();
     this.#welcomeSync();
+    if (this.defense) this.defense.sync();
     this.checkAchievements();
 
     this.hud.toast(
@@ -604,6 +648,10 @@ export class Game {
     if (this.fx) this.fx.clear();
     if (this.farming) this.farming.syncAll();
     if (this.paddy) this.paddy.syncAll();
+    if (this.defense) {
+      this.defense.releaseDittos();
+      this.defense.sync();
+    }
     this.#syncBuilt();
   }
 
@@ -656,6 +704,9 @@ export class Game {
     this.#syncBridge(true);
     this.#syncCart();
     if (this.paddy) this.paddy.syncAll();
+
+    // ── 5단계: 방어 슬롯에 세워 둔 설비 복원
+    if (this.defense) this.defense.sync();
   }
 
   /** 저장된 복구 상태를 3D·이름표에 반영 */
@@ -732,6 +783,7 @@ export class Game {
         this.state.day += 1;
         this.world.setWeather(weatherForDay(this.state.day));
         const fresh = this.progress.rollQuests(this.state.day);
+        if (this.defense) this.defense.onNewDay(this.state.day);
         this.hud.toast(
           fresh ? `Day ${this.state.day} — 새로운 하루 · 의뢰 2건이 새로 왔어요 📋` : `Day ${this.state.day} — 새로운 하루가 시작됐어요`,
           3000
@@ -745,6 +797,13 @@ export class Game {
     }
     this.player.speedScale = this.progress.buffActive && this.progress.buff.kind === 'golden' ? GOLDEN_BUFF.speed : 1;
 
+    // 5단계: 방어전 — 웨이브 · 불청객 진격 · 포탑 사격 · 냥이 헬퍼
+    if (this.defense) {
+      // 시간 배속(10×·60×)은 방어전에도 그대로 적용된다 — 빠르게 감아 볼 때 쓴다
+      this.defense.update(playing ? scaledDt : 0, playing);
+      if (this.defense.waveActive) this.player.speedScale *= this.defense.speedMultiplier;
+    }
+
     const move = this.#inputVector(playing);
     this.player.update(dt, move, this.world.terrain, this.camera);
 
@@ -757,11 +816,24 @@ export class Game {
       this.cartSprite.position.set(this.player.position.x - bx, this.player.position.y + 0.4 + bob, this.player.position.z - bz);
     }
 
-    for (const cat of this.cats) cat.update(dt, this.camera, this.player.position, playing);
-    for (const ditto of this.dittos) ditto.update(dt, this.player.position, this.camera);
+    for (const cat of this.cats) {
+      const chase = this.defense ? this.defense.catTarget(cat.id) : null;
+      cat.update(dt, this.camera, chase || this.player.position, playing);
+    }
+    for (const ditto of this.dittos) ditto.update(dt, this.player.position, this.camera, playing ? scaledDt : 0);
 
     // 채집·리젠·열매 드롭·기력 회복 (모달이 열리면 scaledDt 가 0 이라 시간이 멈춘다)
     if (this.gathering) this.gathering.update(dt, scaledDt, this.player.position, playing);
+
+    // 솜이 서포트 — 따라다닐 때 주변 드롭(열매 등)을 대신 주워 준다
+    if (playing && this.drops && this.gathering) {
+      this.somiPickAcc += dt;
+      if (this.somiPickAcc > 0.35) {
+        this.somiPickAcc = 0;
+        const somi = this.cats.find((c) => c.id === 'somi');
+        if (somi && somi.follow) this.#somiPickup(somi);
+      }
+    }
     if (this.farming) this.farming.update(dt, scaledDt, this.camera);
     if (this.paddy) this.paddy.update(dt, scaledDt, this.camera);
     if (this.bridge) this.bridge.update(dt, this.world.palette ? this.world.palette.night : 0);
@@ -889,6 +961,7 @@ export class Game {
     const p = this.player.position;
     this.fishTarget = null;
 
+
     for (const ditto of this.dittos) {
       const dist = ditto.distanceTo(p);
       ditto.setNear(dist < 3.8);
@@ -938,7 +1011,9 @@ export class Game {
     }
 
     // 다리 건축 지점 — 아직 놓지 않았을 때만 (강둑 양쪽 어느 쪽에서든)
-    if (!this.progress.bridgeBuilt) {
+    // 방어전 중에는 불청객이 우선이라 다른 상호작용은 대상에서 뺀다
+    const inWave = !!(this.defense && this.defense.waveActive);
+    if (!this.progress.bridgeBuilt && !inWave) {
       const dSouth = Math.hypot(BRIDGE.south.x - p.x, BRIDGE.south.z - p.z);
       const dNorth = Math.hypot(BRIDGE.north.x - p.x, BRIDGE.north.z - p.z);
       const dBridge = Math.min(dSouth, dNorth);
@@ -949,8 +1024,27 @@ export class Game {
       }
     }
 
+    // 방어 슬롯 — 부두~광장 오솔길 다섯 자리 [설치/관리]
+    // 방어전 중에는 불청객 쪽이 우선이라 슬롯은 대상에서 뺀다
+    if (!(this.defense && this.defense.waveActive)) {
+      let bestSlot = -1;
+      let bestSlotD = DEFENSE.slotRange;
+      DEFENSE.slots.forEach((slot, i) => {
+        const d = Math.hypot(slot.x - p.x, slot.z - p.z);
+        if (d < bestSlotD) {
+          bestSlotD = d;
+          bestSlot = i;
+        }
+      });
+      if (bestSlot >= 0 && bestSlotD < bestDist) {
+        const slot = DEFENSE.slots[bestSlot];
+        best = { kind: 'defense_slot', index: bestSlot, x: slot.x, z: slot.z };
+        bestDist = bestSlotD;
+      }
+    }
+
     // 복구 부지 — 공방은 창고 메뉴를 연다
-    const site = this.#nearestSite(p, INTERACT.siteRange);
+    const site = inWave ? null : this.#nearestSite(p, INTERACT.siteRange);
     if (site) {
       const dist = Math.hypot(site.x - p.x, site.z - p.z);
       if (dist < bestDist) {
@@ -962,7 +1056,7 @@ export class Game {
     // 부두 끝 낚시 자리 — 복구 전에는 복구 안내를 보여 준다
     const spot = FISHING.spot;
     const fdist = Math.hypot(spot.x - p.x, spot.z - p.z);
-    if (fdist <= spot.range) {
+    if (!inWave && fdist <= spot.range) {
       this.fishTarget = {
         kind: 'fish',
         id: 'dock_fish',
@@ -973,6 +1067,15 @@ export class Game {
       if (fdist < bestDist) {
         best = this.fishTarget;
         bestDist = fdist;
+      }
+    }
+
+    // 5단계: 방어전 중에는 가장 가까운 불청객이 액션 대상 1순위 — 액션 버튼이 새총이 된다
+    if (this.defense && this.defense.waveActive) {
+      const raider = this.defense.nearestRaider(p, 6.5);
+      if (raider) {
+        this.target = { kind: 'raider', raider, x: raider.x, z: raider.z };
+        return;
       }
     }
 
@@ -1012,6 +1115,12 @@ export class Game {
       this.#refreshHud();
       return;
     }
+    if (t.kind === 'raider') {
+      const res = this.defense.fire('sling');
+      if (!res.ok) this.audio.sfxDeny();
+      this.#refreshHud();
+      return;
+    }
     if (t.kind === 'plot') {
       this.#touchPlot(t.index);
       return;
@@ -1022,6 +1131,10 @@ export class Game {
     }
     if (t.kind === 'bridge') {
       this.openBridge();
+      return;
+    }
+    if (t.kind === 'defense_slot') {
+      this.openDefenseSlot(t.index);
       return;
     }
     if (t.kind === 'site') {
@@ -1092,6 +1205,7 @@ export class Game {
       ...this.nodeMeshes,
       ...this.siteMeshes,
       ...this.drops.rayTargets(),
+      ...(this.defense ? this.defense.rayTargets() : []),
     ];
     const hits = this.raycaster.intersectObjects(meshes, true);
     if (!hits.length) return;
@@ -1103,6 +1217,7 @@ export class Game {
       if (data.drop) found = { kind: 'drop', drop: data.drop };
       else if (data.node) found = { kind: 'node', node: data.node };
       else if (data.site) found = { kind: 'site', site: data.site };
+      else if (data.raider) found = { kind: 'raider', raider: data.raider };
       else if (data.actor) found = { kind: 'actor', actor: data.actor };
       obj = obj.parent;
     }
@@ -1110,6 +1225,14 @@ export class Game {
 
     const p = this.player.position;
     const near = (x, z) => Math.hypot(x - p.x, z - p.z);
+
+    if (found.kind === 'raider') {
+      // 불청객을 톡 누르면 그쪽으로 새총을 쏜다
+      const res = this.defense.fire('sling');
+      if (!res.ok) this.hud.toast(res.reason === 'cooldown' ? '새총을 다시 장전하는 중…' : '조금 더 가까이 가서 쏠까요?', 1500);
+      this.#refreshHud();
+      return;
+    }
 
     if (found.kind === 'drop') {
       if (near(found.drop.x, found.drop.z) > INTERACT.nodeRange + 1.6) {
@@ -1171,6 +1294,7 @@ export class Game {
     this.hud.setBuff(this.progress.buffActive ? `✨ ${Math.ceil(this.progress.buff.left)}s` : null);
     this.hud.setAchievements(this.progress.claimableAchievements);
     this.hud.setRipePlots(this.progress.farmPlots.filter((st) => st && st.remain <= 0).length);
+    this.#refreshDefenseHud();
 
     // 낚시 중에는 액션 버튼이 낚시 하나만 가리킨다
     if (this.fishing && this.fishing.active) {
@@ -1182,7 +1306,9 @@ export class Game {
     }
 
     const t = this.target;
-    if (t && t.kind === 'ditto') {
+    if (this.defense && this.defense.waveActive && t && t.kind === 'raider') {
+      this.hud.setAction({ active: true, icon: '🪃', label: '새총 쏘기' });
+    } else if (t && t.kind === 'ditto') {
       this.hud.setAction({
         active: true,
         icon: t.discovered ? '👀' : '🔍',
@@ -1215,6 +1341,13 @@ export class Game {
       else this.hud.setAction({ active: false, icon: '🌾', label: `${Math.ceil(info.st.remain)}초 뒤 수확` });
     } else if (t && t.kind === 'bridge') {
       this.hud.setAction({ active: true, icon: '🌉', label: '다리 놓기' });
+    } else if (t && t.kind === 'defense_slot') {
+      const st = this.defense ? this.defense.structureAt(t.index) : null;
+      this.hud.setAction(
+        st
+          ? { active: true, icon: st.def.icon, label: `${t.index + 1}번 슬롯 관리` }
+          : { active: true, icon: '➕', label: `${t.index + 1}번 슬롯 설치` }
+      );
     } else if (t && t.kind === 'site') {
       const built = !!this.progress.building(t.id).done;
       const openLabel = t.id === 'workshop' ? '공방 열기' : t.id === 'vending' ? '자판기 열기' : `${t.name} 살펴보기`;
@@ -1228,9 +1361,31 @@ export class Game {
     }
   }
 
+  /** 5단계 HUD — 예고 배너 · 웨이브 스트립 · 무기 버튼을 한 번에 맞춘다 */
+  #refreshDefenseHud() {
+    if (!this.hud || !this.defense) return;
+    const d = this.defense;
+    const wave = d.waveState();
+    let banner = null;
+    if (!wave) {
+      const ranToday = this.progress.defense.lastRunDay === this.state.day;
+      const today = isInvasionDay(this.state.day);
+      const until = DEFENSE.periodDays - (this.state.day % DEFENSE.periodDays);
+      const text = today
+        ? ranToday
+          ? '오늘 밤 방어 완료 · 슬롯 관리'
+          : '오늘 밤 수집단 상륙 예정 · 준비하기'
+        : `D-${until} 수집단 상륙 · 방어 준비`;
+      banner = { text, go: !wave };
+    }
+    const weapons = wave
+      ? { ammo: d.ammo, sling: d.slingCd <= 0, balloon: d.balloonCd <= 0 }
+      : null;
+    this.hud.setDefense({ banner, wave, weapons });
+  }
+
   /** 안 읽은 편지 + 아직 안 받은 선물을 한 통으로 센다 */
-  #mailBadgeCount() {
-    let n = 0;
+  #mailBadgeCount() {    let n = 0;
     for (const letter of LETTERS) {
       const unread = !this.progress.isRead(letter.id);
       const giftWaiting = !!letter.gift && !this.progress.isClaimed(letter.id);
@@ -2004,6 +2159,208 @@ export class Game {
     return true;
   }
 
+  /* ── 🛡️ 5단계: 불청객 방어전 ─────────────────────── */
+
+  openDefense() {
+    if (this.mode !== 'play') return;
+    this.#openModal(this.phase5.defense());
+  }
+
+  /** 방어 슬롯 하나 [설치/관리] */
+  openDefenseSlot(index) {
+    if (this.mode !== 'play') return;
+    this.#openModal(this.phase5.slot(index));
+  }
+
+  /** 공방 [방어 제작] */
+  openDefenseCraft() {
+    if (this.mode !== 'play') return;
+    if (!this.progress.building('workshop').done) {
+      this.audio.sfxDeny();
+      this.hud.toast('공방을 먼저 복구해야 방어 설비를 만들 수 있어요 🔨', 2200);
+      return;
+    }
+    this.#openModal(this.phase5.craft());
+  }
+
+  /** 방어 설비 제작 — 재료를 넣고 창고(progress.defense.stock)에 담는다 */
+  craftStructure(kind) {
+    const def = STRUCTURES[kind];
+    if (!def) return false;
+    const inv = this.progress.inventory;
+    const lack = Object.entries(def.cost).filter(([id, n]) => inv.count(id) < n);
+    if (lack.length) {
+      this.audio.sfxDeny();
+      const need = lack.map(([id, n]) => `${ITEMS[id] ? ITEMS[id].name : id} ${n}`).join(' · ');
+      this.hud.toast(`재료가 부족해요 — ${need}`, 2400);
+      if (this.modal.isOpen) this.#openModal(this.phase5.craft());
+      return false;
+    }
+    for (const [id, n] of Object.entries(def.cost)) inv.take(id, n);
+    const d = this.progress.defense;
+    d.stock[kind] = Math.min(9, (d.stock[kind] || 0) + 1);
+    this.audio.sfxBuild();
+    const p = this.player.position;
+    if (this.fx) {
+      this.fx.burst(p.x, p.y + 0.9, p.z, '#ffe3b0', 12, { spread: 1.2, up: 2.0 });
+      this.fx.float(`${def.icon} ${def.name}`, p.x, p.y + 1.9, p.z, '#b2698f');
+    }
+    this.hud.toast(`${def.icon} ${def.name} 제작! 슬롯에서 [설치] 하세요 (창고 ${d.stock[kind]}개)`, 2600);
+    this.save();
+    this.#refreshHud();
+    if (this.modal.isOpen) this.#openModal(this.phase5.craft());
+    return true;
+  }
+
+  /** 슬롯에 설치 — 창고에서 하나 꺼내 세운다 */
+  installStructure(index, kind) {
+    const d = this.progress.defense;
+    const def = STRUCTURES[kind];
+    if (!d || !def) return false;
+    if (this.defense.waveActive) {
+      this.audio.sfxDeny();
+      this.hud.toast('방어전 중에는 슬롯을 바꿀 수 없어요 🛡️', 2000);
+      return false;
+    }
+    if (d.slots[index]) {
+      this.audio.sfxDeny();
+      this.hud.toast('이미 설비가 있는 슬롯이에요 — 먼저 [회수] 해 주세요', 2000);
+      return false;
+    }
+    if ((d.stock[kind] || 0) <= 0) {
+      this.audio.sfxDeny();
+      this.hud.toast(`창고에 ${def.name}이 없어요 — 공방 [방어 제작] 에서 만들어요`, 2400);
+      return false;
+    }
+    d.stock[kind] -= 1;
+    this.defense.placeStructure(index, kind);
+    this.audio.sfxBuild();
+    const slot = DEFENSE.slots[index];
+    if (this.fx) this.fx.burst(slot.x, this.world.terrain.groundY(slot.x, slot.z) + 0.6, slot.z, '#ffe3b0', 12, { spread: 1.2, up: 2.0 });
+    this.hud.toast(`${def.icon} ${def.name} — ${index + 1}번 슬롯에 설치!`, 2200);
+    this.save();
+    this.#refreshHud();
+    if (this.modal.isOpen) this.#openModal(this.phase5.slot(index));
+    return true;
+  }
+
+  /** 슬롯 회수 — 창고로 돌아간다 */
+  removeStructure(index) {
+    if (this.defense.waveActive) {
+      this.audio.sfxDeny();
+      this.hud.toast('방어전 중에는 회수할 수 없어요 🛡️', 2000);
+      return false;
+    }
+    const st = this.defense.structureAt(index);
+    if (!st) return false;
+    const kind = st.kind;
+    const def = STRUCTURES[kind];
+    this.defense.removeStructure(index);
+    const d = this.progress.defense;
+    d.stock[kind] = Math.min(9, (d.stock[kind] || 0) + 1);
+    this.audio.sfxUi();
+    this.hud.toast(`${def.icon} ${def.name}을 회수했어요 — 창고에 담았습니다`, 2000);
+    this.save();
+    this.#refreshHud();
+    if (this.modal.isOpen) this.#openModal(this.phase5.slot(index));
+    return true;
+  }
+
+  /** [지금 방어 시작] — 날짜와 상관없이 바로 웨이브 */
+  startDefenseNow() {
+    if (this.mode !== 'play' || !this.defense) return false;
+    if (this.defense.waveActive) {
+      this.hud.toast('이미 방어전이 진행 중이에요 🛡️', 1800);
+      return false;
+    }
+    if (this.modal.isOpen) this.modal.close();
+    const res = this.defense.startWave(this.state.day, 'manual');
+    if (!res.ok) {
+      this.audio.sfxDeny();
+      return false;
+    }
+    this.audio.sfxRare();
+    this.#refreshHud();
+    return true;
+  }
+
+  /** [📣 메타몽 모으기] */
+  gatherDittos() {
+    if (this.mode !== 'play' || !this.defense) return false;
+    const res = this.defense.gatherDittos();
+    if (!res.ok) {
+      this.audio.sfxDeny();
+      this.hud.toast(res.reason === 'active' ? '방어전이 시작됐어요 — 지금은 모을 수 없어요' : '모을 메타몽이 없어요', 2200);
+      return false;
+    }
+    this.audio.sfxRare();
+    this.hud.toast('📣 메타몽 모으기! 섬 곳곳의 메타몽이 광장으로 달려와요', 2600);
+    this.save();
+    this.#refreshHud();
+    // 모달을 닫아야 달려오는 모습이 보인다(모달이 열려 있으면 섬의 시간이 멈춘다)
+    if (this.modal.isOpen) this.modal.close();
+    return true;
+  }
+
+  /** 무기 발사 — 새총 · 꽃잎 물풍선 */
+  fireWeapon(kind = 'sling') {
+    if (this.mode !== 'play' || !this.defense) return false;
+    if (this.modal.isOpen || this.paused) return false;
+    const res = this.defense.fire(kind);
+    if (!res.ok) {
+      if (res.reason === 'petal') {
+        this.audio.sfxDeny();
+        this.hud.toast('꽃잎이 없어요 — 꽃덤불에서 꽃잎을 모아 올까요? 🌸', 2200);
+      } else if (res.reason === 'none') {
+        this.audio.sfxDeny();
+        this.hud.toast('사거리 안에 불청객이 없어요 🎯', 1600);
+      } else if (res.reason === 'cooldown') {
+        this.audio.sfxUi();
+      } else if (res.reason === 'idle') {
+        this.hud.toast('지금은 방어전 중이 아니에요', 1600);
+      }
+      this.#refreshHud();
+      return false;
+    }
+    if (kind === 'balloon') this.audio.sfxSplash(2);
+    else this.audio.sfxHit('rock');
+    this.#refreshHud();
+    return true;
+  }
+
+  /** 웨이브 종료 — 보상 · 업적 · 결과 화면 */
+  #onDefenseEnd(res) {
+    if (!res) return;
+    const r = res.reward || {};
+    if (res.victory) {
+      this.audio.sfxFanfare();
+      const seed = r.seedCount ? ` · 🌱 희귀 씨앗 ${r.seedCount}` : '';
+      this.hud.toast(`🎉 승리! 수집단을 모두 막아냈어요 — 🪙 ${r.coin} · ⭐ ${r.star}${seed}`, 4000);
+    } else {
+      this.audio.sfxDeny();
+      this.hud.toast(`😿 코인 ${res.stolen}개를 빼앗겼어요 — 건물과 작물은 무사해요`, 3600);
+    }
+    this.save();
+    this.#refreshHud();
+    this.checkAchievements();
+    if (this.mode === 'play') this.#openModal(this.phase5.result(res));
+  }
+
+  /** 솜이 서포트 — 따라다니며 가까운 드롭을 주워 담는다 */
+  #somiPickup(somi) {
+    if (!this.drops || !this.gathering) return;
+    const list = this.drops.items;
+    for (let i = list.length - 1; i >= 0; i--) {
+      const d = list[i];
+      if (Math.hypot(d.x - somi.position.x, d.z - somi.position.z) > 1.5) continue;
+      const took = this.gathering.pickup(d);
+      if (took === false) continue;
+      this.drops.remove(d);
+      if (this.fx) this.fx.float('솜이가 주웠어요 ♥', somi.position.x, somi.position.y + 0.95, somi.position.z, '#e78aa8');
+      this.#refreshHud();
+    }
+  }
+
   /* ── 첫 1분 웰컴 3단 미션 ──────────────────────────── */
 
   #welcomeDone(i) {
@@ -2452,7 +2809,7 @@ export class Game {
     // 노드 상태는 Gathering 이 들고 있다(리젠 카운트다운 포함)
     life.nodes = this.gathering ? this.gathering.toJSON() : {};
     return {
-      version: 5,
+      version: 6,
       savedAt: Date.now(),
       day: this.state.day,
       elapsedSeconds: Math.round(this.state.elapsed * 100) / 100,

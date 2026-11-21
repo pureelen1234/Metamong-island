@@ -3,12 +3,13 @@
  * 저장 데이터: day / elapsed / player / discovered / settings +
  *   stamina / bag / storage / buildings / mailbox / nodes (1단계 생활 시스템)
  *
+ * 저장할 때는 지금 스키마 버전(saveSchema.SAVE_VERSION, 5단계 = 6)을 찍고,
  * 읽을 때는 항상 migrateSave() 를 통과시킨다 — 구버전 세이브도 기본값이
  * 병합된 같은 모양으로 올라오고, 알아볼 수 없으면 null(새 섬)이 된다.
  */
 import { SAVE } from '../config.js';
 import { idbGet, idbPut, idbDelete } from './IndexedDB.js';
-import { migrateSave } from './saveSchema.js';
+import { SAVE_VERSION, migrateSave } from './saveSchema.js';
 
 const LS_KEY = `${SAVE.dbName}:${SAVE.key}`;
 
@@ -48,7 +49,7 @@ export class SaveStore {
 
   async save(state) {
     try {
-      await idbPut(SAVE.key, { ...state, version: 2 });
+      await idbPut(SAVE.key, { ...state, version: SAVE_VERSION });
       this.mode = 'idb';
       return true;
     } catch (err) {

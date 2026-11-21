@@ -61,6 +61,54 @@ export class Ditto {
     this.frameIdx = 0;
     this.frameT = 0;
     this.sprites = [this.billboard.material];
+
+    // ── 5단계: 대피 — 광장 안전 울타리로 달려갔다가 제자리로 돌아온다
+    /** 원래 자리 (대피 후 복귀 지점) */
+    this.home = new THREE.Vector2(def.x, def.z);
+    /** 지금 걸어갈 목적지 (없으면 제자리) */
+    this.evacTarget = null;
+    /** 광장에 도착했는가 — Defense 가 대피 인원을 센다 */
+    this.evacuated = false;
+    /** 대피가 아니라 집으로 돌아가는 중 */
+    this.returning = false;
+    this.walkPhase = 0;
+  }
+
+  /** [📣 메타몽 모으기] — 이 자리로 쪼르르 달려간다 */
+  setEvacTarget(x, z) {
+    this.evacTarget = new THREE.Vector2(x, z);
+    this.returning = false;
+    this.evacuated = false;
+    this.joy = 2.4;
+  }
+
+  /** 집으로 — 광장에서 원래 자리로 돌아간다 */
+  clearEvac() {
+    this.evacTarget = new THREE.Vector2(this.home.x, this.home.y);
+    this.returning = true;
+    this.evacuated = false;
+  }
+
+  /** 목적지로 걸어가기 — 물도 살짝 건너뛰며 간다(메타몽이라 가능한 일) */
+  #walkToTarget(dt) {
+    const t = this.evacTarget;
+    if (!t) return false;
+    const dx = t.x - this.position.x;
+    const dz = t.y - this.position.z;
+    const d = Math.hypot(dx, dz);
+    if (d < 0.14) {
+      const wasEvac = !this.returning;
+      this.evacTarget = null;
+      this.returning = false;
+      if (wasEvac) this.evacuated = true;
+      return false;
+    }
+    const step = Math.min(d, 3.0 * dt);
+    this.position.x += (dx / d) * step;
+    this.position.z += (dz / d) * step;
+    this.position.y = Math.max(this.terrain.groundY(this.position.x, this.position.z), 0.16);
+    this.walkPhase += dt * 11;
+    return true;
   }
 
   distanceTo(pos) {
@@ -85,16 +133,17 @@ export class Ditto {
     this.hop = 1;
   }
 
-  update(dt, playerPos, camera) {
+  update(dt, playerPos, camera, walkDt = dt) {
     this.t += dt;
     if (this.joy > 0) this.joy = Math.max(0, this.joy - dt);
     if (this.reactT > 0) this.reactT = Math.max(0, this.reactT - dt);
+    const walking = this.#walkToTarget(walkDt);
 
     // 프레임 애니메이션
     this.frameT += dt;
     if (this.isBasic) {
-      const set = this.joy > 0 ? BASIC_JOY : this.near || this.reactT > 0 ? BASIC_HAPPY : BASIC_IDLE;
-      const fps = this.joy > 0 ? 7 : 3.2;
+      const set = this.joy > 0 ? BASIC_JOY : this.near || this.reactT > 0 || walking ? BASIC_HAPPY : BASIC_IDLE;
+      const fps = walking ? 9 : this.joy > 0 ? 7 : 3.2;
       if (this.frameT > 1 / fps) {
         this.frameT = 0;
         this.frameIdx = (this.frameIdx + 1) % 4;
@@ -110,7 +159,8 @@ export class Ditto {
     // 숨쉬기·폴짝
     const breathe = 1 + Math.sin(this.t * 1.7) * (this.isBasic ? 0.035 : 0.018);
     if (this.hop > 0) this.hop = Math.max(0, this.hop - dt * 2.2);
-    const lift = this.hop > 0 ? Math.sin((1 - this.hop) * Math.PI) * this.height * 0.22 : 0;
+    let lift = this.hop > 0 ? Math.sin((1 - this.hop) * Math.PI) * this.height * 0.22 : 0;
+    if (walking) lift += Math.abs(Math.sin(this.walkPhase)) * this.height * 0.16;
     const wobble = this.reactT > 0 ? Math.sin(this.t * 26) * 0.06 * this.reactT : 0;
 
     this.group.position.set(this.position.x, this.position.y + lift, this.position.z);

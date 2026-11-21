@@ -227,6 +227,49 @@ export function isOnBridgeDeck(x, z) {
   return Math.abs(x - BRIDGE.x) <= BRIDGE.halfWidth && Math.abs(z - BRIDGE.z) <= BRIDGE.halfSpan;
 }
 
+/**
+ * 5단계 — 불청객(회색 망토 수집단) 방어전의 무대
+ *
+ * · 상륙 지점: 남쪽 부두 앞 바닷가. 회색 망토들이 배에서 내려 길을 따라 광장으로 진격한다.
+ * · 방어 슬롯 5곳: 부두 → 광장 오솔길 양옆에 번갈아 놓인 자리. 여기에 울타리·허수아비·포탑·경보등을 세운다.
+ * · 광장 안전 울타리: 메타몽이 대피하는 광장 가운데. 불청객이 여기까지 닿으면 코인을 챙겨 달아난다.
+ */
+export const DEFENSE = {
+  /** 3일마다(Day 3·6·9…) 밤에 상륙 */
+  periodDays: 3,
+  /** 부두 앞 바닷가 — 불청객이 배에서 내리는 자리 */
+  landing: { x: 0, z: 29.4 },
+  /** 배가 떠 있는 자리(물 위) */
+  boat: { x: 0, z: 38.6 },
+  /** 광장 안전 울타리 — 대피한 메타몽이 모이는 곳 */
+  plaza: { x: 0.6, z: 14.8, r: 3.8 },
+  /** 부두 → 광장 진격로 (레이터가 이 점들을 차례로 향한다) */
+  route: [
+    { x: 0, z: 29.4 },
+    { x: 0, z: 26.6 },
+    { x: 0, z: 23.0 },
+    { x: 0.2, z: 20.2 },
+    { x: 0, z: 17.8 },
+    { x: 0.6, z: 16.2 },
+  ],
+  /** 방어 슬롯 5곳 — 오솔길 양옆에 번갈아. side 는 안내 문구용 */
+  slots: [
+    { id: 'slot_1', x: 0.62, z: 27.3, side: '동쪽' },
+    { id: 'slot_2', x: -0.62, z: 24.8, side: '서쪽' },
+    { id: 'slot_3', x: 0.62, z: 22.4, side: '동쪽' },
+    { id: 'slot_4', x: 0.78, z: 20.9, side: '동쪽' },
+    { id: 'slot_5', x: 0.56, z: 18.4, side: '동쪽' },
+  ],
+  /** 슬롯 [설치/관리] 버튼이 뜨는 거리 */
+  slotRange: 2.2,
+};
+
+/** 오늘 밤 수집단이 오는 날인가 (Day 3·6·9…) */
+export function isInvasionDay(day) {
+  const d = Math.floor(Number(day) || 0);
+  return d > 0 && d % DEFENSE.periodDays === 0;
+}
+
 /** 복구 부지 · 도트 건물 4종 (공방·등대·자판기·부두) — 모두 남쪽 생활권 */
 export const LANDMARKS = [
   // 사각 섬의 남쪽 해변 끝 — 부두 그림자가 물에 반쯤 잠기는 자리(지형 높이 ≈ 0.1)

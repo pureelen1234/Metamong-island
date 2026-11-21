@@ -10,7 +10,7 @@
  */
 import * as THREE from 'three';
 import { h } from './dom.js';
-import { BRIDGE, CATS, FARM, HALF, LANDMARKS, MAILBOX, PADDY, ZONES, riverCenterZ } from '../config.js';
+import { BRIDGE, CATS, DEFENSE, FARM, HALF, LANDMARKS, MAILBOX, PADDY, ZONES, riverCenterZ } from '../config.js';
 import { HEIGHTS, boxDistance, sampleHeight } from '../terrain/Heightmap.js';
 import { ROUTES } from '../world/Path.js';
 
@@ -245,6 +245,40 @@ function hexRgb(hex) {
   return out;
 }
 
+/** 5단계: 방어 슬롯(점선 자리)과 불청객(빨간 점) — 늘 다시 그린다 */
+function drawDefense(ctx, s, game, big = false) {
+  const def = game.defense;
+  if (!def) return;
+  for (let i = 0; i < DEFENSE.slots.length; i++) {
+    const slot = DEFENSE.slots[i];
+    const st = def.structureAt ? def.structureAt(i) : null;
+    const x = proj(slot.x, s);
+    const y = proj(slot.z, s);
+    const r = Math.max(big ? 2.6 : 1.8, s * (big ? 0.014 : 0.018));
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = st ? '#e8c07a' : 'rgba(255, 240, 205, 0.5)';
+    ctx.fill();
+    ctx.lineWidth = Math.max(0.6, s * 0.005);
+    ctx.strokeStyle = st ? '#a9743f' : 'rgba(180, 150, 100, 0.7)';
+    ctx.stroke();
+  }
+  const raiders = def.raiders || [];
+  for (const r of raiders) {
+    if (r.state === 'down' && r.downT > 0.3) continue;
+    const x = proj(r.x, s);
+    const y = proj(r.z, s);
+    const rad = Math.max(big ? 3.4 : 2.5, s * (big ? 0.02 : 0.026));
+    ctx.beginPath();
+    ctx.arc(x, y, rad, 0, Math.PI * 2);
+    ctx.fillStyle = '#e8455f';
+    ctx.fill();
+    ctx.lineWidth = Math.max(0.8, s * 0.007);
+    ctx.strokeStyle = '#ffffff';
+    ctx.stroke();
+  }
+}
+
 export class Minimap {
   /**
    * @param {HTMLElement} root
@@ -301,6 +335,8 @@ export class Minimap {
     const built = !!(g.progress && g.progress.bridgeBuilt);
     drawBridge(ctx, s, built);
     this.lastBridge = built;
+
+    drawDefense(ctx, s, g);
 
     // 솜이 · 옹이
     for (const def of CATS) {
@@ -360,6 +396,7 @@ export class Minimap {
 
     const g = this.game;
     drawBridge(ctx, s, !!g.progress.bridgeBuilt, true);
+    drawDefense(ctx, s, g, true);
 
     // 고양이
     for (const def of CATS) {
@@ -419,6 +456,10 @@ export class Minimap {
       legend.append(row(def.id === 'somi' ? '#f7f1e6' : '#6d5a4a', `🐱 ${def.name}`, cat ? `Lv.${g.progress.catRow(def.id).level}` : ''));
     }
     legend.append(row(COLOR.player, '📍 나', `(${g.player.position.x.toFixed(1)}, ${g.player.position.z.toFixed(1)})`));
+    legend.append(row('#e8c07a', '🛡️ 방어 슬롯', `${g.defense ? g.defense.slotsInfo().filter((s) => s.kind).length : 0}/5곳 설치`));
+    if (g.defense && g.defense.waveActive) {
+      legend.append(row('#e8455f', '🥷 불청객', `${g.defense.raiders.length}명 진격 중`));
+    }
 
     return h(
       'div',

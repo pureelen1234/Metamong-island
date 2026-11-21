@@ -7,9 +7,10 @@
  */
 import { Inventory } from './Inventory.js';
 import { Skills } from './Skills.js';
-import { CATS, FARM, LANDMARKS, PADDY } from '../config.js';
+import { CATS, DEFENSE, FARM, LANDMARKS, PADDY } from '../config.js';
 import { BAG, CART, ITEMS, STAMINA } from './items.js';
 import { ALL_CROP_ORDER, CROPS, FARMING } from './farmData.js';
+import { STRUCTURES, STRUCTURE_ORDER } from './defenseData.js';
 import { ACHIEVEMENTS, achById } from './achievementsData.js';
 import {
   CAT_LEVELS,
@@ -61,6 +62,25 @@ export class Progress {
     this.paddyPlots = new Array(PADDY.cols * PADDY.rows).fill(null);
     /** 첫 1분 웰컴 3단 미션 진행 단계 (0~3) */
     this.welcome = { step: 0 };
+
+    // ── 5단계: 불청객 방어전
+    /** 방어 설비 창고 — 공방에서 만든 것을 슬롯에 세운다 */
+    this.defense = {
+      stock: { fence: 0, scarecrow: 0, turret: 0, lamp: 0 },
+      /** 슬롯 5곳 — null 이거나 { kind, hp } */
+      slots: new Array(DEFENSE.slots.length).fill(null),
+      /** 전적 */
+      wins: 0,
+      losses: 0,
+      runs: 0,
+      lastRunDay: 0,
+      lastResult: '',
+      lastStolen: 0,
+      totalDown: 0,
+      turretHits: 0,
+      perfectEvacs: 0,
+      lastWave: null,
+    };
 
     // ── 2단계 생활 콘텐츠
     /** 섬 코인 */
@@ -760,6 +780,36 @@ export class Progress {
           : null
       ),
       welcome: { step: Math.max(0, Math.min(3, Math.floor(Number(this.welcome && this.welcome.step) || 0))) },
+      // ── 5단계: 방어전
+      defense: this.#defenseJson(),
+    };
+  }
+
+  /** 방어전 상태를 저장 모양으로 (슬롯은 설치물만 남긴다) */
+  #defenseJson() {
+    const d = this.defense || {};
+    const stock = {};
+    for (const kind of STRUCTURE_ORDER) stock[kind] = Math.max(0, Math.floor(Number(d.stock && d.stock[kind]) || 0));
+    const slots = new Array(DEFENSE.slots.length).fill(null);
+    const src = Array.isArray(d.slots) ? d.slots : [];
+    for (let i = 0; i < slots.length; i++) {
+      const slot = src[i];
+      if (!slot || !STRUCTURES[slot.kind]) continue;
+      slots[i] = { kind: slot.kind, hp: Math.max(1, Math.round(Number(slot.hp) || STRUCTURES[slot.kind].hp)) };
+    }
+    return {
+      stock,
+      slots,
+      wins: Math.max(0, Math.floor(Number(d.wins) || 0)),
+      losses: Math.max(0, Math.floor(Number(d.losses) || 0)),
+      runs: Math.max(0, Math.floor(Number(d.runs) || 0)),
+      lastRunDay: Math.max(0, Math.floor(Number(d.lastRunDay) || 0)),
+      lastResult: typeof d.lastResult === 'string' ? d.lastResult : '',
+      lastStolen: Math.max(0, Math.floor(Number(d.lastStolen) || 0)),
+      totalDown: Math.max(0, Math.floor(Number(d.totalDown) || 0)),
+      turretHits: Math.max(0, Math.floor(Number(d.turretHits) || 0)),
+      perfectEvacs: Math.max(0, Math.floor(Number(d.perfectEvacs) || 0)),
+      lastWave: d.lastWave && typeof d.lastWave === 'object' ? { ...d.lastWave } : null,
     };
   }
 
@@ -948,6 +998,34 @@ export class Progress {
 
     const welcome = json.welcome && typeof json.welcome === 'object' ? json.welcome : {};
     this.welcome = { step: int(welcome.step, 0, 3, 0) };
+
+    /* ── 5단계: 방어전 (v5 이전 세이브는 빈 슬롯·0전적으로 시작) ── */
+    const dsrc = json.defense && typeof json.defense === 'object' ? json.defense : {};
+    const dstock = dsrc.stock && typeof dsrc.stock === 'object' ? dsrc.stock : {};
+    this.defense = {
+      stock: {},
+      slots: new Array(DEFENSE.slots.length).fill(null),
+      wins: int(dsrc.wins, 0, 9999, 0),
+      losses: int(dsrc.losses, 0, 9999, 0),
+      runs: int(dsrc.runs, 0, 9999, 0),
+      lastRunDay: int(dsrc.lastRunDay, 0, 3650, 0),
+      lastResult: typeof dsrc.lastResult === 'string' ? dsrc.lastResult : '',
+      lastStolen: int(dsrc.lastStolen, 0, 999999, 0),
+      totalDown: int(dsrc.totalDown, 0, 99999, 0),
+      turretHits: int(dsrc.turretHits, 0, 99999, 0),
+      perfectEvacs: int(dsrc.perfectEvacs, 0, 9999, 0),
+      lastWave: dsrc.lastWave && typeof dsrc.lastWave === 'object' ? { ...dsrc.lastWave } : null,
+    };
+    for (const kind of STRUCTURE_ORDER) this.defense.stock[kind] = int(dstock[kind], 0, 9, 0);
+    const savedSlots = Array.isArray(dsrc.slots) ? dsrc.slots : [];
+    for (let i = 0; i < this.defense.slots.length; i++) {
+      const src = savedSlots[i];
+      if (!src || typeof src !== 'object' || !STRUCTURES[src.kind]) continue;
+      this.defense.slots[i] = {
+        kind: src.kind,
+        hp: int(src.hp, 1, 9999, STRUCTURES[src.kind].hp),
+      };
+    }
 
     this.achievements = { unlocked: [], claimed: [] };
     const ach = json.achievements && typeof json.achievements === 'object' ? json.achievements : {};

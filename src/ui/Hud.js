@@ -123,6 +123,52 @@ export class Hud {
     this.left.append(this.welcome);
     this.lastWelcome = '';
 
+    /* ── 5단계: 방어 예고 배너 + 웨이브 스트립 + 무기 버튼 ───── */
+    this.dfText = h('span', { class: 'df-txt' }, '');
+    this.dfMain = h(
+      'button',
+      { class: 'df-main', type: 'button', 'aria-label': '방어 현황 열기', onclick: () => this.handlers.onDefense?.() },
+      h('span', { class: 'df-ico' }, '🛡️'),
+      this.dfText
+    );
+    this.dfGo = h(
+      'button',
+      { class: 'df-go', type: 'button', 'aria-label': '지금 방어 시작', onclick: () => this.handlers.onDefenseStart?.() },
+      '▶'
+    );
+    this.dfBanner = h('div', { class: 'defense-banner hidden' }, this.dfMain, this.dfGo);
+    this.left.append(this.dfBanner);
+    this.lastBanner = '';
+
+    // 웨이브 중 남은 불청객 · 남은 시간
+    this.dfWaveText = h('span', { class: 'txt' }, '');
+    this.dfWaveBar = h('i');
+    this.dfStrip = h(
+      'div',
+      { class: 'defense-strip hidden' },
+      h('span', { class: 'ico' }, '🛡️'),
+      this.dfWaveText,
+      h('div', { class: 'bar' }, this.dfWaveBar)
+    );
+
+    // 방어전 중에만 나오는 두 개의 무기 버튼 — 오른쪽 액션 버튼 위
+    this.wpAmmo = h('span', { class: 'wp-ammo' }, '5');
+    this.wpSling = h(
+      'button',
+      { class: 'wp', type: 'button', 'aria-label': '새총 발사', onclick: () => this.handlers.onWeapon?.('sling') },
+      h('span', { class: 'wp-ico' }, '🪃'),
+      h('span', { class: 'wp-nm' }, '새총')
+    );
+    this.wpBalloon = h(
+      'button',
+      { class: 'wp balloon', type: 'button', 'aria-label': '꽃잎 물풍선 발사', onclick: () => this.handlers.onWeapon?.('balloon') },
+      h('span', { class: 'wp-ico' }, '🎈'),
+      h('span', { class: 'wp-nm' }, '물풍선'),
+      this.wpAmmo
+    );
+    this.weaponBar = h('div', { class: 'weapon-bar hidden' }, this.wpSling, this.wpBalloon);
+    this.lastWave = '';
+
     // ── 상단 우측 컨트롤
     this.muteBtn = h('button', { class: 'icon-btn', type: 'button', 'aria-label': '음소거 토글', onclick: () => this.handlers.onMute?.() }, '🔊');
     this.pauseBtn = h('button', { class: 'icon-btn', type: 'button', 'aria-label': '일시정지 및 설정', onclick: () => this.handlers.onPause?.() }, '⏸');
@@ -182,7 +228,7 @@ export class Hud {
       { class: 'gl-overlay' },
       h('div', { class: 'box' }, h('h3', {}, '그래픽을 다시 준비하고 있어요'), h('p', {}, '잠깐만 기다려 주세요. 섬은 그대로 있으니 걱정 마세요.'))
     );
-    this.container.append(this.top, this.actionBtn, this.quickbar, this.fishStrip, this.bitePop, this.glOverlay);
+    this.container.append(this.top, this.actionBtn, this.quickbar, this.fishStrip, this.bitePop, this.dfStrip, this.weaponBar, this.glOverlay);
 
     this.lastPill = '';
     this.lastStamina = -1;
@@ -326,9 +372,49 @@ export class Hud {
     }
   }
 
+  /**
+   * 5단계 방어 HUD — 예고 배너 · 웨이브 스트립 · 무기 버튼을 한 번에 맞춘다
+   * @param {{banner?:null|{text:string,go?:boolean}, wave?:null|{left:number,total:number,timer:number,stolen:number}, weapons?:null|{ammo:number,sling:boolean,balloon:boolean}}} info
+   */
+  setDefense(info = {}) {
+    const { banner = null, wave = null, weapons = null } = info;
+
+    const bkey = banner ? `${banner.text}|${banner.go ? 1 : 0}` : '';
+    if (bkey !== this.lastBanner) {
+      this.lastBanner = bkey;
+      this.dfBanner.classList.toggle('hidden', !banner);
+      if (banner) {
+        this.dfText.textContent = banner.text;
+        this.dfGo.classList.toggle('hidden', !banner.go);
+      }
+    }
+
+    const wkey = wave ? `${wave.spawned}/${wave.left}/${wave.total}/${Math.ceil(wave.timer)}/${wave.stolen}` : '';
+    if (wkey !== this.lastWave) {
+      this.lastWave = wkey;
+      this.dfStrip.classList.toggle('hidden', !wave);
+      if (wave) {
+        const done = Math.max(0, wave.total - wave.left);
+        this.dfWaveText.textContent =
+          wave.spawned === 0
+            ? `🌊 수집단 상륙 중… · ${Math.ceil(wave.timer)}초`
+            : `남은 불청객 ${wave.left} · ${Math.ceil(wave.timer)}초`;
+        this.dfWaveBar.style.width = `${Math.min(100, (done / Math.max(1, wave.total)) * 100)}%`;
+        this.dfStrip.classList.toggle('danger', wave.stolen > 0);
+      }
+    }
+
+    this.weaponBar.classList.toggle('hidden', !weapons);
+    if (weapons) {
+      if (this.wpAmmo.textContent !== String(weapons.ammo)) this.wpAmmo.textContent = String(weapons.ammo);
+      this.wpSling.classList.toggle('cool', !weapons.sling);
+      this.wpBalloon.classList.toggle('cool', !weapons.balloon);
+      this.wpBalloon.classList.toggle('empty', weapons.ammo <= 0);
+    }
+  }
+
   /** 황금 정식 버프 남은 시간 칩 */
-  setBuff(text) {
-    if (!text) {
+  setBuff(text) {    if (!text) {
       this.buffChip.classList.add('hidden');
       return;
     }

@@ -217,6 +217,13 @@ export class Panels {
           () => this.game.openCart(),
           !st.done
         ),
+        entry(
+          '🛡️',
+          '방어 제작',
+          st.done ? `울타리·포탑·허수아비·경보등 (창고 ${Object.values(this.game.progress.defense.stock).reduce((a, b) => a + b, 0)}개)` : '공방을 복구하면 열려요',
+          () => this.game.openDefenseCraft(),
+          !st.done
+        ),
         entry('🔨', '건물 복구', '섬의 네 곳과 다리를 되살려요', () => this.game.openBuild('workshop'))
       )
     );

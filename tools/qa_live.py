@@ -9,7 +9,7 @@ from playwright.sync_api import sync_playwright
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from browser_env import STUB  # noqa: F401,E402
-OUT = os.path.abspath(os.path.join(HERE, '..', 'screenshots', 'phase4'))
+OUT = os.path.abspath(os.path.join(HERE, '..', 'screenshots', 'phase5'))
 os.makedirs(OUT, exist_ok=True)
 URL = 'https://pureelen1234.github.io/Metamong-island/'
 
@@ -33,8 +33,13 @@ with sync_playwright() as p:
                    bridge: g.progress.bridgeBuilt, paddy: g.paddy ? g.paddy.plots.length : 0,
                    minimap: !!document.querySelector('.minimap-canvas'), saveVer: g.snapshot().version,
                    welcome: g.progress.welcome.step, cart: g.progress.cartLevel,
+                   defenseSlots: g.defense ? g.defense.slotsInfo().length : 0,
+                   defenseStock: g.progress.defense.stock,
+                   defenseWins: g.progress.defense.wins,
                    letters: document.querySelectorAll('.mail-row').length,
-                   welcomeChip: !!document.querySelector('.welcome-chip') }; }"""
+                   welcomeChip: !!document.querySelector('.welcome-chip'),
+                   defenseBanner: !!document.querySelector('.defense-banner'),
+                   phaseBadge: document.querySelector('.title-badge') ? document.querySelector('.title-badge').textContent : '' }; }"""
     )
     print('live info', json.dumps(info, ensure_ascii=False))
     print('title badge', title_badge)
