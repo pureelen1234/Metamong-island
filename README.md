@@ -647,7 +647,7 @@ python3 tools/qa_live.py                      # 배포된 GitHub Pages 부팅 �
 
 ```bash
 npm run build
-python3 tools/qa_mute.py        # 390×844 · 8개 구간 24체크
+python3 tools/qa_mute.py        # 390×844 · 8개 구간 27체크 · QA_URL=… 로 실서버도
 ```
 - `AudioNode.connect` 를 페이지 스크립트보다 먼저 가로채 **오디오 그래프 전체를 기록** →
   `ctx.destination` 에 들어가는 노드가 컴프레서 하나뿐임(= 마스터를 우회하는 소리 0개)을 런타임으로 확인.
@@ -658,5 +658,5 @@ python3 tools/qa_mute.py        # 390×844 · 8개 구간 24체크
 - `tools/qa_fix.py` 의 BGM 측정 창을 3.2초 → 6.5초로 늘렸습니다(한 마디가 3.6초인 성긴 선율은
   짧은 창에서 첫 음을 놓쳐 "소리 없음"으로 오판). 결과 peak 0.0416 · rms 0.0113.
 
-결과: **qa_mute 24/24 · qa_phase5 105/105(content 63·save 24·regress 18) · 콘솔 에러 0 · 404 0.**
+결과: **qa_mute 27/27 · qa_phase5 105/105(content 63·save 24·regress 18) · 콘솔 에러 0 · 404 0.** — 로컬 빌드와 배포된 실서버(`QA_URL`) 양쪽에서 통과.
 (`qa_fix.py` 의 '평지 높이 편차 1.700' 은 4단계 이전 지형 기준의 옛 체크로, 수정 전 빌드에서도 동일하게 실패합니다 — 강이 생긴 지금 지형과 무관한 항목.)
