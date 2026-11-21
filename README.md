@@ -315,6 +315,21 @@ v1(코어)·v2(1단계)·v3(2단계) 세이브는 로드 시 새 필드를 기�
 ```bash
 npm run build
 node tools/check_layout.mjs                 # 배치 데이터 검증 (브라우저 없이)
-QA_PART=farm python3 tools/qa_phase3.py     # 사각 지형 + 1·2단계 회귀 + 농사 + 미니맵 + 업적
-QA_PART=save python3 tools/qa_phase3.py     # v4 저장/복원 + v3/v2/v1 → v4 마이그레이션
+QA_PART=farm python3 tools/qa_phase3.py     # 사각 지형 + 1·2단계 회귀 + 농사 + 미니맵 + 업적 (70 체크)
+QA_PART=save python3 tools/qa_phase3.py     # v4 저장/복원 + v3/v2/v1 → v4 마이그레이션 (26 체크)
+python3 tools/qa_live.py                    # 배포된 GitHub Pages 부팅 확인
 ```
+
+결과: **96/96 통과 · 콘솔 에러 0 · 404/실패 요청 0**. 캡처: `screenshots/phase3/`.
+
+| 파일 | 내용 |
+| --- | --- |
+| `00_live_deployed.png` | 배포된 사이트의 텃밭 (실서버) |
+| `02_new_island.png` | 사각 섬 + 미니맵이 붙은 HUD |
+| `05_farm_panel.png` · `16_farm_panel_filled.png` | 텃밭 패널(빈 밭 / 자라는 밭) |
+| `05_farm_watered.png` · `08_farm_ripe.png` | 물 준 흙 · 다 자란 밭(반짝임) |
+| `10_vending_sell_crops.png` | 자판기 팔기 탭의 수확물 |
+| `11_map_modal.png` | 확대 지도 + 범례 |
+| `11a_cooking_crops.png` · `11b_upgrade_water.png` · `11c_codex_farm.png` | 농작물 요리 · 물뿌리개 강화 · 도감 농사 탭 |
+| `13_achievements.png` · `14_achievement_claimed.png` | 업적 목록 · 보상 수령 |
+| `18_v3_title.png` · `19_v3_migrated.png` · `20_farm_letter.png` | v3 세이브 마이그레이션 · 텃밭 편지 |

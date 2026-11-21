@@ -342,6 +342,35 @@ def run():
                 page.wait_for_timeout(400)
                 check('업적: 첫 낚시', 'ach_first_fish' in lf['achievements']['unlocked'], lf['achievements']['unlocked'])
 
+                # ── 2단계 회귀: 고양이 돌보기 · 의뢰 보상 · 건축 모달 · 랭크
+                aff_before = life(page)['cats']['somi']['aff']
+                page.evaluate("() => window.__metamong.game.openCat('somi')")
+                page.wait_for_timeout(450)
+                body_btn(page, '쓰다듬기')
+                page.wait_for_timeout(500)
+                lf = life(page)
+                check('고양이 쓰다듬기 회귀', lf['cats']['somi']['aff'] >= aff_before + 4, (aff_before, lf['cats']['somi']['aff']))
+                check('돌보기 EXP 회귀', lf['skills']['care'] > 0, lf['skills'])
+                close_modal(page)
+
+                page.evaluate(
+                    """() => { const g = window.__metamong.game;
+                      for (const q of g.progress.quests.list) q.progress = q.need;
+                      g.openQuest(); }"""
+                )
+                page.wait_for_timeout(450)
+                coins_before = life(page)['coins']
+                page.locator('.quest-row .quest-claim.on').first.click(no_wait_after=True)
+                page.wait_for_timeout(600)
+                lf = life(page)
+                check('일일 의뢰 보상 회귀', lf['coins'] > coins_before and any(q['claimed'] for q in lf['quests']['list']), (coins_before, lf['coins']))
+                close_modal(page)
+
+                page.evaluate("() => window.__metamong.game.openQuick('build')")
+                page.wait_for_timeout(450)
+                check('건축 모달 회귀(4곳)', page.locator('.site-item').count() == 4, page.locator('.site-item').count())
+                close_modal(page)
+
                 # ═══ ② 텃밭 농사 루프 ═══════════════════════════
                 page.evaluate("() => { window.__metamong.game.progress.addCoins(300); }")
                 # 씨앗 구매(자판기 사기 탭과 같은 통로)
