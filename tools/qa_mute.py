@@ -2,13 +2,17 @@
 """음소거·BGM 실측 QA — 390×844 세로 뷰포트.
 
 ① 음소거 버튼 클릭 전/후로 AmbientSound.muted · master.gain · AudioContext.state 를 확인하고,
-   master 뒤 AnalyserNode 로 '실제로 스피커로 나가는 신호'의 피크·RMS 를 잰다(BGM·효과음 각각).
+   마스터 뒤에 붙인 누적 측정기(ScriptProcessor)로 '실제로 흐른 신호'의 피크·RMS 를 잰다
+   (BGM·효과음 6종 각각).
 ② AudioNode.connect 를 가로채 오디오 그래프를 기록해, ctx.destination 에 직결된 노드가
-   컴프레서 하나뿐인지(=마스터 게인을 우회하는 소리가 없는지) 코드+런타임으로 감사한다.
+   컴프레서 하나뿐인지(= 마스터 게인을 우회하는 소리가 없는지) 런타임으로 감사한다.
 ③ 음소거 중 canvas 탭·가시성 복귀(resume 경로)로 소리가 되살아나지 않는지 확인한다.
 ④ 새로고침(이어하기) 후에도 음소거가 유지되는지 확인한다.
-⑤ 새 BGM 의 국면별(아침·낮·노을·밤·방어전) 세기를 재서 '째지 않고 은은한지' 수치로 남긴다.
-사용: python3 tools/qa_mute.py
+⑤ 새 BGM 의 국면별(아침·낮·노을·밤·방어전) 세기와 스펙트럼을 재서 '째지 않고 은은한지' 수치로 남긴다.
+
+사용:
+  python3 tools/qa_mute.py                    # 로컬 dist/ (390×844)
+  QA_URL=https://pureelen1234.github.io/Metamong-island/ python3 tools/qa_mute.py   # 배포된 실서버
 """
 import json
 import os
@@ -60,39 +64,58 @@ if (window.AudioNode) {
 }
 """
 
+# ── 마스터 뒤 누적 측정기 + 분석기. 타이머 스로틀과 무관하게 오디오 렌더 스레드에서 누적한다.
+TAP = """() => {
+  const a = window.__metamong.audio;
+  const ctx = a.ctx;
+  if (!ctx) return { ok: false };
+  if (window.__tap) return { ok: true, reused: true };
+  const sink = ctx.createGain();
+  sink.gain.value = 0;               // destination 으로는 소리가 나가지 않는다
+  const an = ctx.createAnalyser();
+  an.fftSize = 4096;
+  an.smoothingTimeConstant = 0.2;
+  const sp = ctx.createScriptProcessor(4096, 1, 1);   // ≈93ms 마다 콜백
+  window.__acc = { peak: 0, sum: 0, n: 0 };
+  sp.onaudioprocess = (e) => {
+    const d = e.inputBuffer.getChannelData(0);
+    const acc = window.__acc;
+    for (let i = 0; i < d.length; i++) {
+      const v = d[i] < 0 ? -d[i] : d[i];
+      if (v > acc.peak) acc.peak = v;
+      acc.sum += d[i] * d[i];
+      acc.n++;
+    }
+  };
+  a.master.connect(an);
+  an.connect(sp);
+  sp.connect(sink);
+  sink.connect(ctx.destination);
+  window.__tap = { an, sp, sink };
+  return { ok: true };
+}"""
+
 MEASURE = """async (ms) => {
   const a = window.__metamong.audio;
   const ctx = a.ctx;
   if (!ctx) return { error: 'no ctx' };
   if (ctx.state !== 'running' && !a.muted) { try { await ctx.resume(); } catch (e) {} }
-  if (!window.__an) {
-    const an = ctx.createAnalyser();
-    an.fftSize = 2048;
-    a.master.connect(an);          // master → analyser (destination 으로는 가지 않는다)
-    window.__an = an;
-    window.__buf = new Float32Array(an.fftSize);
-  }
-  const an = window.__an, buf = window.__buf;
-  let peak = 0, sum = 0, n = 0;
+  window.__acc = { peak: 0, sum: 0, n: 0 };
   const t0 = performance.now();
   await new Promise((res) => {
     const step = () => {
-      an.getFloatTimeDomainData(buf);
-      for (let i = 0; i < buf.length; i++) {
-        const v = Math.abs(buf[i]);
-        if (v > peak) peak = v;
-        sum += v * v; n++;
-      }
-      if (performance.now() - t0 > ms) res(); else setTimeout(step, 25);
+      if (performance.now() - t0 > ms) res(); else setTimeout(step, 40);
     };
     step();
   });
+  const acc = window.__acc;
   return {
     state: ctx.state,
     muted: a.muted,
     masterGain: +a.master.gain.value.toFixed(4),
-    peak: +peak.toFixed(5),
-    rms: +Math.sqrt(sum / Math.max(1, n)).toFixed(5),
+    peak: +acc.peak.toFixed(5),
+    rms: +Math.sqrt(acc.sum / Math.max(1, acc.n)).toFixed(5),
+    samples: acc.n,
     started: a.started,
     phase: a.phase,
     timer: !!a.timer,
@@ -120,16 +143,66 @@ GRAPH = """() => {
   return {
     total: g.length,
     toDest,
-    // 오실레이터·버퍼가 마스터를 거치지 않고 destination 으로 간 흔적
-    bypass: g.filter((e) => e.dst === 'destination' && !['DynamicsCompressorNode'].includes(e.src)),
+    bypass: g.filter((e) => e.dst === 'destination' && e.src !== 'DynamicsCompressorNode'),
   };
+}"""
+
+SFX = """async (names) => {
+  const a = window.__metamong.audio;
+  const out = {};
+  for (const name of names) {
+    window.__acc = { peak: 0, sum: 0, n: 0 };
+    try { a[name]('wood'); } catch (e) {}
+    const t0 = performance.now();
+    await new Promise((res) => {
+      const step = () => { if (performance.now() - t0 > 700) res(); else setTimeout(step, 30); };
+      step();
+    });
+    out[name] = +window.__acc.peak.toFixed(5);
+  }
+  return out;
+}"""
+
+SPECTRUM = """async (ms) => {
+  const an = window.__tap.an;
+  const ctx = window.__metamong.audio.ctx;
+  const bins = new Float32Array(an.frequencyBinCount);
+  const nyq = ctx.sampleRate / 2;
+  const bands = { '0-500': [0, 500], '500-1k': [500, 1000], '1-2.4k': [1000, 2400], '2.4-4k': [2400, 4000], '4k+': [4000, nyq] };
+  const acc = {};
+  const t0 = performance.now();
+  await new Promise((res) => {
+    const step = () => {
+      an.getFloatFrequencyData(bins);
+      for (const [k, [lo, hi]] of Object.entries(bands)) {
+        let m = -Infinity;
+        for (let i = 0; i < bins.length; i++) {
+          const f = (i / bins.length) * nyq;
+          if (f >= lo && f < hi && bins[i] > m) m = bins[i];
+        }
+        acc[k] = Math.max(acc[k] === undefined ? -Infinity : acc[k], m);
+      }
+      if (performance.now() - t0 > ms) res(); else setTimeout(step, 60);
+    };
+    step();
+  });
+  const out = {};
+  for (const k of Object.keys(bands)) out[k] = +Number(acc[k]).toFixed(1);
+  return out;
 }"""
 
 
 def run():
-    httpd, port = serve_dist.start(os.path.join(ROOT, 'dist'))
-    url = f'http://127.0.0.1:{port}/'
-    print('serving', url)
+    # QA_URL 을 주면 배포된 실서버를 그대로 잰다
+    live = os.environ.get('QA_URL')
+    httpd = None
+    if live:
+        url = live
+        print('live', url)
+    else:
+        httpd, port = serve_dist.start(os.path.join(ROOT, 'dist'))
+        url = f'http://127.0.0.1:{port}/'
+        print('serving', url)
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch(args=['--use-gl=angle', '--enable-unsafe-swiftshader', '--autoplay-policy=no-user-gesture-required'])
@@ -152,13 +225,14 @@ def run():
             page.wait_for_timeout(2500)
             page.mouse.click(195, 700)  # 제스처(오디오 resume)
             page.wait_for_timeout(300)
+            print('  tap:', page.evaluate(TAP))
 
             print('\n[1] 음소거 전 BGM')
-            before = page.evaluate(MEASURE, 2400)
+            before = page.evaluate(MEASURE, 6000)
             print('  ', json.dumps(before, ensure_ascii=False))
             check(before.get('state') == 'running', f"AudioContext state={before.get('state')}")
-            check(before.get('peak', 0) > 0.005, f"음소거 전 BGM 피크 {before.get('peak')} (들리는 소리 있음)")
-            # 마스터 출력이 컴프레서 문턱(0.1) 아래 → 클리핑 없이 은은하게 들리는 대역
+            check(before.get('peak', 0) > 0.01, f"음소거 전 BGM 피크 {before.get('peak')} (들리는 소리 있음)")
+            # 마스터 출력이 컴프레서 문턱(0.1) 아래 → 클리핑 없이 은은한 대역
             check(before.get('peak', 1) < 0.1, f"음소거 전 BGM 피크 {before.get('peak')} (0.1 미만 · 클리핑 없음)")
             page.screenshot(path=os.path.join(OUT, '01_before.png'))
 
@@ -174,7 +248,7 @@ def run():
             check(st1['ariaPressed'] == 'true', f"aria-pressed={st1['ariaPressed']}")
             check(not st1['timer'], '음소거 시 음 스케줄러 타이머 정지')
 
-            after = page.evaluate(MEASURE, 2200)
+            after = page.evaluate(MEASURE, 3000)
             print('  ', json.dumps(after, ensure_ascii=False))
             check(after.get('muted') is True, f"AmbientSound.muted={after.get('muted')}")
             check(after.get('masterGain', 1) == 0, f"master.gain={after.get('masterGain')} (0 기대)")
@@ -183,27 +257,7 @@ def run():
             page.screenshot(path=os.path.join(OUT, '02_muted.png'))
 
             print('\n[3] 음소거 중 효과음')
-            sfx = page.evaluate("""async () => {
-              const a = window.__metamong.audio;
-              const ctx = a.ctx;
-              const an = window.__an, buf = window.__buf;
-              const out = {};
-              for (const name of ['sfxPickup', 'sfxHit', 'sfxFanfare', 'sfxCoin', 'sfxMeow', 'sfxBite']) {
-                let peak = 0;
-                try { a[name]('wood'); } catch (e) {}
-                const t0 = performance.now();
-                await new Promise((res) => {
-                  const step = () => {
-                    an.getFloatTimeDomainData(buf);
-                    for (let i = 0; i < buf.length; i++) peak = Math.max(peak, Math.abs(buf[i]));
-                    if (performance.now() - t0 > 600) res(); else setTimeout(step, 20);
-                  };
-                  step();
-                });
-                out[name] = +peak.toFixed(5);
-              }
-              return out;
-            }""")
+            sfx = page.evaluate(SFX, ['sfxPickup', 'sfxHit', 'sfxFanfare', 'sfxCoin', 'sfxMeow', 'sfxBite'])
             print('  ', json.dumps(sfx, ensure_ascii=False))
             worst = max(sfx.values()) if sfx else 1
             check(worst == 0, f'음소거 중 효과음 최대 피크 {worst} (완전 무음 기대)')
@@ -214,7 +268,7 @@ def run():
             page.evaluate("document.dispatchEvent(new Event('visibilitychange'))")
             page.wait_for_timeout(600)
             revived = page.evaluate(STATE)
-            rv = page.evaluate(MEASURE, 1500)
+            rv = page.evaluate(MEASURE, 2000)
             print('  ', json.dumps(revived, ensure_ascii=False), json.dumps(rv, ensure_ascii=False))
             check(revived['state'] == 'suspended' and rv.get('peak') == 0, ' 탭·복귀 후에도 suspended·무음 유지')
 
@@ -222,61 +276,28 @@ def run():
             page.locator('.hud-controls .icon-btn').first.click(no_wait_after=True)
             page.wait_for_timeout(250)
             st2 = page.evaluate(STATE)
-            unmuted = page.evaluate(MEASURE, 2600)
+            unmuted = page.evaluate(MEASURE, 6000)
             print('  ', json.dumps(st2, ensure_ascii=False))
             print('  ', json.dumps(unmuted, ensure_ascii=False))
             check(st2['muted'] is False, '음소거 해제 상태 반영')
             check(st2['state'] == 'running' and st2['timer'], '해제 시 컨텍스트·스케줄러 재가동')
-            check(unmuted.get('peak', 0) > 0.005, f"해제 후 BGM 피크 {unmuted.get('peak')} (다시 들림)")
+            check(unmuted.get('peak', 0) > 0.01, f"해제 후 BGM 피크 {unmuted.get('peak')} (다시 들림)")
 
-            print('\n[6] 국면별 BGM 세기 (째지 않는지)')
+            print('\n[6] 국면별 BGM 세기·스펙트럼')
             levels = {}
+            specs = {}
             for ph in ['morning', 'day', 'sunset', 'night', 'battle']:
                 page.evaluate(f"window.__metamong.audio.setPhase('{ph}')")
-                page.wait_for_timeout(2600)
-                m = page.evaluate(MEASURE, 2000)
+                page.wait_for_timeout(1200)
+                m = page.evaluate(MEASURE, 6000)
+                s = page.evaluate(SPECTRUM, 1200)
                 levels[ph] = {'peak': m.get('peak'), 'rms': m.get('rms'), 'phase': m.get('phase')}
-                print(f"  · {ph}: peak={m.get('peak')} rms={m.get('rms')}")
+                specs[ph] = s
+                print(f"  · {ph}: peak={m.get('peak')} rms={m.get('rms')} 스펙트럼={json.dumps(s, ensure_ascii=False)}")
             check(all(v['peak'] < 0.1 for v in levels.values()), f'모든 국면 피크 0.1 미만 {levels}')
-            check(all(v['peak'] > 0.002 for v in levels.values()), f'모든 국면에서 소리가 남아 있음 {levels}')
-
-            # 스펙트럼 — 4kHz 위 에너지가 충분히 낮아야 '째지 않는다'
-            spec = page.evaluate("""async () => {
-              const a = window.__metamong.audio;
-              const ctx = a.ctx;
-              const an = ctx.createAnalyser();
-              an.fftSize = 4096;
-              an.smoothingTimeConstant = 0.2;
-              a.master.connect(an);
-              const bins = new Float32Array(an.frequencyBinCount);
-              const nyq = ctx.sampleRate / 2;
-              const bands = { '0-500': [0, 500], '500-1k': [500, 1000], '1-2.4k': [1000, 2400], '2.4-4k': [2400, 4000], '4k+': [4000, nyq] };
-              const acc = {};
-              let n = 0;
-              const t0 = performance.now();
-              await new Promise((res) => {
-                const step = () => {
-                  an.getFloatFrequencyData(bins);
-                  for (const [k, [lo, hi]] of Object.entries(bands)) {
-                    let m = -Infinity;
-                    for (let i = 0; i < bins.length; i++) {
-                      const f = (i / bins.length) * nyq;
-                      if (f >= lo && f < hi && bins[i] > m) m = bins[i];
-                    }
-                    acc[k] = Math.max(acc[k] === undefined ? -Infinity : acc[k], m);
-                  }
-                  n++;
-                  if (performance.now() - t0 > 2500) res(); else setTimeout(step, 30);
-                };
-                step();
-              });
-              a.master.disconnect(an);
-              const out = {};
-              for (const k of Object.keys(bands)) out[k] = +Number(acc[k]).toFixed(1);
-              return out;
-            }""")
-            print('  스펙트럼(dB):', json.dumps(spec, ensure_ascii=False))
-            check(spec.get('4k+', 0) < spec.get('0-500', -100) - 18, f"4kHz 위 에너지가 저역보다 18dB 이상 낮음 {spec}")
+            check(all(v['peak'] > 0.01 for v in levels.values()), f'모든 국면에서 소리가 남아 있음 {levels}')
+            worst_hi = max(sp['4k+'] - max(sp['0-500'], sp['500-1k']) for sp in specs.values())
+            check(worst_hi < -18, f'4kHz 위 에너지가 저역보다 18dB 이상 낮음 (최악 {worst_hi:.1f}dB)')
             page.evaluate("window.__metamong.audio.setPhase('morning')")
 
             print('\n[7] 새로고침(이어하기) 후 음소거 유지')
@@ -304,18 +325,20 @@ def run():
             page.locator('.hud-controls .icon-btn').first.click(no_wait_after=True)
             page.wait_for_timeout(800)
             graph = page.evaluate(GRAPH)
+            # 테스트가 직접 붙인 측정 탭(게인 0)은 제외하고 본다
+            real = [e for e in graph['toDest'] if e['src'] not in ('GainNode',)]
             print('  총 연결', graph['total'], '· destination 직결', graph['toDest'])
-            check(len(graph['toDest']) >= 1, 'destination 에 연결된 출력이 있음')
+            check(len(real) >= 1, '게임의 출력이 destination 에 연결돼 있음')
+            check({e['src'] for e in real} == {'DynamicsCompressorNode'}, f'게임 출력 = {real} (컴프레서만 기대)')
             check(not graph['bypass'], f"컴프레서를 거치지 않는 직결 {graph['bypass']}")
-            dest_srcs = {e['src'] for e in graph['toDest']}
-            check(dest_srcs == {'DynamicsCompressorNode'}, f'destination 입력 = {dest_srcs} (컴프레서만 기대)')
 
             check(not errors, f'페이지 에러 {errors[:3]}')
             browser.close()
     finally:
-        httpd.shutdown()
+        if httpd:
+            httpd.shutdown()
 
-    print('\n로그(경고/에러):', [l for l in logs if l[0] == 'error'][:5])
+    print('\n로그(에러):', [l for l in logs if l[0] == 'error'][:5])
     print('\n── 결과:', 'PASS' if not problems else f'FAIL ({len(problems)})')
     for pr in problems:
         print('  ·', pr)
