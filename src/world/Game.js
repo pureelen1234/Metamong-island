@@ -252,6 +252,8 @@ export class Game {
         if (gains && gains.petal) this.#event('petal', gains.petal);
         this.#refreshHud();
         this.checkAchievements();
+        // 웰컴 3단계(첫 나무 베기)가 베는 즉시 넘어가도록
+        this.#welcomeCheck();
       },
     };
     this.nodeMeshes = this.world.scenery.nodes.map((n) => n.mesh);
