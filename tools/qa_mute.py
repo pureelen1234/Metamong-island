@@ -312,7 +312,12 @@ def run():
                 page.locator('.title-actions .btn.primary').first.click(no_wait_after=True)  # 이어하기
             else:
                 page.locator('.title-actions button').last.click(no_wait_after=True)
-            page.wait_for_timeout(2600)
+            page.wait_for_timeout(1200)
+            # 저장된 설정이 '꺼짐'이면 섬에 들어오는 순간부터 소리가 없어야 한다(첫 음이 새지 않게)
+            entry = page.evaluate(MEASURE, 1500)
+            print('  진입 직후:', json.dumps(entry, ensure_ascii=False))
+            check(entry.get('peak') == 0, f"음소거 세이브로 들어올 때 첫 음이 새지 않음 (피크 {entry.get('peak')})")
+            page.wait_for_timeout(1400)
             st3 = page.evaluate(STATE)
             print('  ', json.dumps(st3, ensure_ascii=False))
             check(st3['muted'] is True and st3['settingMuted'] is True, '새로고침 후에도 음소거 유지')

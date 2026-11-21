@@ -609,8 +609,9 @@ export class Game {
     this.hud.joystick.setEnabled(true);
     this.hud.setMuted(this.state.settings.muted);
 
-    this.audio.start();
+    // 음소거 상태를 먼저 알려 주고 시작해야, 저장된 설정이 '꺼짐'일 때 첫 음이 새어 나오지 않는다
     this.audio.setMuted(this.state.settings.muted);
+    this.audio.start();
     this.audioPhase = this.defense && this.defense.waveActive ? 'battle' : phaseAt(this.state.elapsed).id;
     this.audio.setPhase(this.audioPhase);
 
