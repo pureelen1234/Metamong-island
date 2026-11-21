@@ -151,6 +151,13 @@ canvas#scene {
   background: rgba(255, 255, 255, 0.92);
 }
 
+/* 음소거 중 — 버튼만 봐도 '꺼져 있다'는 걸 알 수 있게 */
+.icon-btn[aria-pressed='true'] {
+  background: #ffeef6;
+  color: #b96a8f;
+  box-shadow: inset 0 0 0 2px rgba(214, 140, 176, 0.45);
+}
+
 /* ── 조이스틱 ─────────────────────────────────────────────── */
 .joystick-zone {
   position: absolute;

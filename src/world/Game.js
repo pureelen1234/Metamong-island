@@ -114,6 +114,8 @@ export class Game {
     this.welcomeAcc = 0;
     this.somiPickAcc = 0;
     this.invasionWarnedDay = 0;
+    this.audioPhase = null; // 지금 BGM 이 어느 국면(아침·낮·노을·밤·방어전)인지
+    this.lastMuteToggle = 0;
     this.cartSprite = null;
     this.fishTarget = null;
     this.nodeMeshes = [];
@@ -397,6 +399,8 @@ export class Game {
         catLevel: (id) => this.progress.catRow(id).level,
         day: () => this.state.day,
         onWaveStart: () => {
+          this.audioPhase = 'battle';
+          this.audio.setPhase('battle');
           this.save();
           this.#refreshHud();
         },
@@ -607,7 +611,8 @@ export class Game {
 
     this.audio.start();
     this.audio.setMuted(this.state.settings.muted);
-    this.audio.setPhase(phaseAt(this.state.elapsed).id);
+    this.audioPhase = this.defense && this.defense.waveActive ? 'battle' : phaseAt(this.state.elapsed).id;
+    this.audio.setPhase(this.audioPhase);
 
     this.world.setWeather(weatherForDay(this.state.day));
     this.#snapCamera();
@@ -797,6 +802,15 @@ export class Game {
           fresh ? `Day ${this.state.day} — 새로운 하루 · 의뢰 2건이 새로 왔어요 📋` : `Day ${this.state.day} — 새로운 하루가 시작됐어요`,
           3000
         );
+      }
+    }
+
+    // BGM 국면 — 하루의 시간대를 따라가고, 방어전 중에는 가벼운 긴장 국면으로 바뀐다
+    if (playing && this.audioPhase) {
+      const want = this.defense && this.defense.waveActive ? 'battle' : phaseAt(this.state.elapsed).id;
+      if (want !== this.audioPhase) {
+        this.audioPhase = want;
+        this.audio.setPhase(want);
       }
     }
 
@@ -1434,10 +1448,20 @@ export class Game {
   }
 
   toggleMute() {
+    // 손가락이 두 번 튕겨 켜자마자 꺼지는 일을 막는다(200ms)
+    const now = performance.now();
+    if (now - this.lastMuteToggle < 200) return this.state.settings.muted;
+    this.lastMuteToggle = now;
+
     this.state.settings.muted = !this.state.settings.muted;
-    this.audio.setMuted(this.state.settings.muted);
-    this.hud.setMuted(this.state.settings.muted);
-    return this.state.settings.muted;
+    const muted = this.state.settings.muted;
+    this.audio.setMuted(muted);
+    this.hud.setMuted(muted);
+    // 버튼이 눌렸다는 걸 눈으로도 확인할 수 있게 — 화면에 바로 알려 준다
+    this.hud.toast(muted ? '🔇 소리를 껐어요' : '🔊 소리를 켰어요', 1400);
+    // 새로고침·다음 실행에도 그대로 유지되도록 바로 저장
+    if (this.mode === 'play') this.save();
+    return muted;
   }
 
   openPause() {
@@ -2355,6 +2379,9 @@ export class Game {
   /** 웨이브 종료 — 보상 · 업적 · 결과 화면 */
   #onDefenseEnd(res) {
     if (!res) return;
+    // 방어전이 끝나면 다시 그 시간대의 평화로운 선율로
+    this.audioPhase = phaseAt(this.state.elapsed).id;
+    this.audio.setPhase(this.audioPhase);
     const r = res.reward || {};
     if (res.victory) {
       this.audio.sfxFanfare();

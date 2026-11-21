@@ -142,7 +142,8 @@ def run():
                     if (v > peak) peak = v;
                     sum += v * v; n++;
                   }
-                  if (performance.now() - t0 > 3200) res();
+                  // 힐링 BGM 은 마디(약 3.6초)마다 첫 음이 가장 크다 — 한 마디 반을 재야 대표 피크가 잡힌다
+                  if (performance.now() - t0 > 6500) res();
                   else setTimeout(step, 30);   // rAF 는 소프트웨어 GL 에서 멈출 수 있다
                 };
                 step();
