@@ -564,12 +564,14 @@ canvas#scene {
   opacity: 0;
   visibility: hidden;
   transition: opacity 0.22s ease, visibility 0.22s ease;
-  pointer-events: auto;
+  /* 닫힌 모달(페이드아웃 중 포함)이 HUD 탭을 삼키지 않게 */
+  pointer-events: none;
 }
 
 .modal.open {
   opacity: 1;
   visibility: visible;
+  pointer-events: auto;
 }
 
 .modal-card {
@@ -924,6 +926,12 @@ canvas#scene {
   display: flex;
   align-items: center;
   gap: 7px;
+}
+
+/* #ui 가 pointer-events:none 이라 상속을 끊어 줘야 버튼이 실제로 눌린다 */
+.hud-stats .icon-btn,
+.hud-stats button {
+  pointer-events: auto;
 }
 
 .stamina {
@@ -2332,13 +2340,28 @@ canvas#scene {
 }
 
 .mini.farm-btn {
-  width: 100%;
   margin-top: auto;
   padding: 6px 4px;
   border-radius: 9px;
   font-size: 10px;
   background: #f4eef8;
   color: #8a7f99;
+}
+
+/* 밭 칸(세로 flex) 안에서는 칸 폭을 꽉 채운다 */
+.farm-cell > .mini.farm-btn {
+  width: 100%;
+}
+
+/* 씨앗 고르기 행(가로 flex) 안에서는 버튼이 폭을 먹지 않게 — 글자가 세로로 찌그러지던 원인 */
+.seed-row > .mini.farm-btn {
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 58px;
+  margin-top: 0;
+  padding: 8px 10px;
+  font-size: 11px;
+  white-space: nowrap;
 }
 
 .mini.farm-btn.on {
@@ -2378,6 +2401,17 @@ canvas#scene {
   width: 26px;
   font-size: 20px;
   text-align: center;
+}
+
+.seed-row .gmain {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.seed-row .gmain .nm,
+.seed-row .gmain .meta {
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }
 
 /* ── 업적 ──────────────────────────────────────────────── */
@@ -2547,8 +2581,25 @@ canvas#scene {
   font-size: 10.5px;
   font-weight: 800;
   color: #7a6c86;
-  pointer-events: none;
+  border: none;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  /* 탭해서 미션 목록을 열 수 있다 */
+  pointer-events: auto;
   animation: welcomeIn 0.34s ease;
+}
+
+.welcome-chip:active {
+  transform: scale(0.97);
+}
+
+.welcome-chip::after {
+  content: '›';
+  font-size: 12px;
+  font-weight: 900;
+  color: #b09abd;
+  margin-left: 1px;
 }
 
 .welcome-chip .w-ico {
@@ -2587,6 +2638,82 @@ canvas#scene {
 @keyframes welcomeIn {
   from { transform: translateY(-6px); opacity: 0; }
   to { transform: none; opacity: 1; }
+}
+
+/* ── 웰컴 3단 미션 모달 ─────────────────────────────────── */
+.welcome-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 8px;
+}
+
+.welcome-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 11px;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: var(--shadow-soft);
+}
+
+.welcome-row.done {
+  opacity: 0.66;
+  background: #f7fbf4;
+}
+
+.welcome-row.cur {
+  box-shadow: 0 0 0 2px #ffd7e6, var(--shadow-soft);
+}
+
+.welcome-row .wico {
+  flex: none;
+  width: 24px;
+  font-size: 17px;
+  text-align: center;
+}
+
+.welcome-row .wmain {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.welcome-row .wmain .nm {
+  font-size: 12px;
+  font-weight: 800;
+  color: #625a72;
+  word-break: keep-all;
+}
+
+.welcome-row .wmain .meta {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #9a90a8;
+  margin-top: 2px;
+  line-height: 1.4;
+  word-break: keep-all;
+}
+
+.welcome-row .wtag {
+  flex: none;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: #f2ecf6;
+  color: #9a90a8;
+  font-size: 10px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.welcome-row.cur .wtag {
+  background: linear-gradient(135deg, #ffe6f0, #ffd0e2);
+  color: #a84f74;
+}
+
+.welcome-row.done .wtag {
+  background: #e4f3dc;
+  color: #5f8a4c;
 }
 
 /* ── 🌾 논 타일 (물 잠긴 흙) ────────────────────────────── */

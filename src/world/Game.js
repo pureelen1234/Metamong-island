@@ -214,11 +214,11 @@ export class Game {
     }
 
     // 시간대 틴트를 받을 스프라이트 머티리얼 목록
+    // (건물 빌보드는 복구 상태 색까지 곱해야 해서 Scenery 가 직접 조명을 받는다)
     this.spriteMaterials = [
       ...this.player.sprites,
       ...this.cats.flatMap((c) => c.sprites),
       ...this.dittos.flatMap((d) => d.sprites),
-      ...this.world.scenery.billboards.map((b) => b.material),
     ];
 
     this.world.setWeather(weatherForDay(this.state.day));
@@ -378,6 +378,7 @@ export class Game {
       onQuick: (id) => this.openQuick(id),
       onMail: () => this.openMailbox(),
       onQuest: () => this.openQuest(),
+      onWelcome: () => this.openWelcome(),
     });
     this.hud.hide();
     this.modal = new Modal(this.uiRoot);
@@ -659,7 +660,7 @@ export class Game {
   #syncBuilt() {
     for (const lm of LANDMARKS) {
       const done = !!this.progress.building(lm.id).done;
-      this.world.scenery.setBuilt(lm.id, done);
+      this.world.scenery.setBuilt(lm.id, done, true);
       if (this.landmarkLabels) this.landmarkLabels.setDone(lm.id, done);
     }
   }
@@ -776,6 +777,7 @@ export class Game {
 
     // 시간대 색을 스프라이트에 그대로 곱한다(밤에는 보랏빛으로 가라앉힘)
     for (const mat of this.spriteMaterials) mat.color.copy(this.world.spriteLight);
+    this.world.scenery.setSpriteLight(this.world.spriteLight);
 
     if (this.mode === 'title') this.#titleCamera(dt);
     else this.#followCamera(dt);
@@ -1213,10 +1215,11 @@ export class Game {
       this.hud.setAction({ active: true, icon: '🌉', label: '다리 놓기' });
     } else if (t && t.kind === 'site') {
       const built = !!this.progress.building(t.id).done;
+      const openLabel = t.id === 'workshop' ? '공방 열기' : t.id === 'vending' ? '자판기 열기' : `${t.name} 살펴보기`;
       this.hud.setAction({
         active: true,
-        icon: t.id === 'workshop' ? '🔨' : t.id === 'vending' && built ? '🥤' : t.icon,
-        label: t.id === 'workshop' ? '공방 열기' : t.id === 'vending' && built ? '자판기 열기' : '복구 보기',
+        icon: t.id === 'workshop' && built ? '🔨' : t.id === 'vending' && built ? '🥤' : built ? '✨' : t.icon,
+        label: built ? openLabel : `${t.name} 복구하기`,
       });
     } else {
       this.hud.setAction({ active: false, icon: '✋', label: '둘러보기' });
@@ -2040,6 +2043,39 @@ export class Game {
     if (!this.hud) return;
     const w = this.progress.welcome || { step: 0 };
     this.hud.setWelcome(w.step, WELCOME.steps);
+  }
+
+  /** 상단 웰컴 칩을 탭했을 때 — 3단 미션 현황판 */
+  openWelcome() {
+    if (this.mode !== 'play') return;
+    const w = this.progress.welcome || { step: 0 };
+    const rows = WELCOME.steps.map((s, i) => {
+      const done = i < w.step;
+      const cur = i === w.step;
+      return h(
+        'div',
+        { class: `welcome-row ${done ? 'done' : cur ? 'cur' : ''}` },
+        h('span', { class: 'wico' }, done ? '✅' : s.icon),
+        h(
+          'div',
+          { class: 'wmain' },
+          h('div', { class: 'nm' }, `${i + 1}. ${s.label}`),
+          h('div', { class: 'meta' }, s.hint || '')
+        ),
+        h('span', { class: 'wtag' }, done ? '완료' : cur ? '지금' : '다음')
+      );
+    });
+    this.#openModal({
+      title: '🎯 섬의 첫걸음',
+      subtitle: `3단계를 마치면 단계마다 🪙 ${WELCOME.reward}`,
+      body: h(
+        'div',
+        {},
+        h('div', { class: 'welcome-list' }, ...rows),
+        h('div', { class: 'hint' }, `지금 ${w.step}/${WELCOME.steps.length} 단계 · 위에서부터 차례로 완료돼요`)
+      ),
+      actions: [{ label: '닫기', kind: 'primary', onClick: () => this.modal.close() }],
+    });
   }
 
   /** 업적 조건 재검사 — 새로 달성한 것이 있으면 토스트 + 저장 */

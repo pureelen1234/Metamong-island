@@ -104,11 +104,22 @@ export class Hud {
       h('div', { class: 'hud-stats' }, this.stamina, this.coinChip, this.mailBtn, this.questBtn, this.cartChip, this.buffChip)
     );
 
-    // 웰컴 미션 — 상단 HUD 바로 아래의 작은 칩 (방해되지 않게 한 줄)
+    // 웰컴 미션 — 상단 HUD 바로 아래의 작은 칩. 탭하면 3단 미션 목록을 연다
     this.welcomeIcon = h('span', { class: 'w-ico' }, '🎯');
     this.welcomeText = h('span', { class: 'w-txt' }, '');
     this.welcomeDots = h('span', { class: 'w-dots' });
-    this.welcome = h('div', { class: 'welcome-chip hidden' }, this.welcomeIcon, this.welcomeText, this.welcomeDots);
+    this.welcome = h(
+      'button',
+      {
+        class: 'welcome-chip hidden',
+        type: 'button',
+        'aria-label': '첫걸음 미션 열기',
+        onclick: () => this.handlers.onWelcome?.(),
+      },
+      this.welcomeIcon,
+      this.welcomeText,
+      this.welcomeDots
+    );
     this.left.append(this.welcome);
     this.lastWelcome = '';
 

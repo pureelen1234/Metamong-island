@@ -20,11 +20,33 @@ const BUILDING_FRAME = { workshop: 'workshop', lighthouse: 'lighthouse', vending
 // workshop 2.8×1.19→폭 3.3 / lighthouse 4.4×0.61→2.7 / vending 1.8×0.68→1.2 / dock 1.7×1.34→2.3
 const BUILDING_COLLIDER = { workshop: 1.2, lighthouse: 0.82, vending: 0.55, dock: 0.9 };
 
+/* 복구 전/후 외형 — 스프라이트는 한 장이라 색·기울기·크기로 '무너진 공사장'을 표현한다 */
+const BROKEN_TINT = new THREE.Color('#8e88a2'); // 탈색된 회보라 — 공사 중
+const BUILT_TINT = new THREE.Color('#ffffff'); // 제 색으로 돌아온 건물
+const BROKEN_SAG = 0.9; // 복구 전에는 살짝 주져앉은 느낌
+const BROKEN_LEAN = 0.055; // 좌우로 기운 각도(rad)
+
 /** 채집 후 남는 그루터기 — 나무는 밑동, 바위는 자갈, 꽃덤불은 흙더미 */
 const STUMP_SIZE = { tree: [1.05, 1.35], rock: [0.8, 0.62], flower: [0.78, 0.56] };
 /** 채집된 나무·바위 스프라이트는 이만큼 줄어들며 사라진다 */
 const STUMP_SCALE = 0.06;
 const STUMP_OPACITY = 0.0;
+
+/** 복구 전 건물 위에 떠 있는 공사 표지판 */
+let markerTex = null;
+function markerTexture() {
+  if (markerTex) return markerTex;
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const ctx = c.getContext('2d');
+  ctx.font = '96px "Noto Color Emoji", "Apple Color Emoji", "Segoe UI Emoji", system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('🚧', 64, 70);
+  markerTex = new THREE.CanvasTexture(c);
+  markerTex.colorSpace = THREE.SRGBColorSpace;
+  return markerTex;
+}
 
 export class Scenery {
   constructor(terrain, atlases) {
@@ -37,6 +59,8 @@ export class Scenery {
     /** @type {Array<object>} 채집 노드 */
     this.nodes = [];
     this.beacon = null;
+    /** 시간대 조명 색 — Game 이 매 프레임 넘겨 준다(건물 색 = 조명 × 복구 상태) */
+    this.spriteLight = new THREE.Color(1, 1, 1);
 
     const buildings = atlases.get('buildings');
     const nature = atlases.get('nature');
@@ -50,7 +74,30 @@ export class Scenery {
       this.billboards.push(bb);
       const site = { ...lm, y, billboard: bb, built: false };
       site.kind = 'site';
+      // 복구 전 모습으로 시작 — 색·높이·기울기를 목표값 쪽으로 매 프레임 보간한다
+      site.tint = BROKEN_TINT.clone();
+      site.tintTarget = BROKEN_TINT.clone();
+      site.sag = BROKEN_SAG;
+      site.sagTarget = BROKEN_SAG;
+      site.lean = BROKEN_LEAN;
+      site.leanTarget = BROKEN_LEAN;
+      bb.material.color.copy(site.tint);
+      bb.mesh.scale.y = site.sag;
+      bb.mesh.rotation.z = site.lean;
       bb.mesh.userData.site = site;
+
+      // 복구 전 표시 — 🚧 가 건물 위에 둥실 떠 있다가, 복구하면 사라진다
+      const mark = new THREE.Sprite(
+        new THREE.SpriteMaterial({ map: markerTexture(), transparent: true, depthWrite: false, toneMapped: false })
+      );
+      mark.scale.set(0.9, 0.9, 1);
+      mark.position.set(lm.x, y + lm.height + 0.42, lm.z);
+      mark.renderOrder = 6;
+      this.group.add(mark);
+      site.marker = mark;
+      site.markerBaseY = mark.position.y;
+      site.markerOpacity = 1;
+      site.markerTarget = 1;
       this.sites.push(site);
       this.colliders.push({ x: lm.x, z: lm.z, r: BUILDING_COLLIDER[lm.id] || 1.0 });
 
@@ -193,11 +240,71 @@ export class Scenery {
 
   /* ── 복구된 건물 ──────────────────────────────────────── */
 
-  setBuilt(id, built = true) {
+  setBuilt(id, built = true, instant = false) {
     const site = this.sites.find((s) => s.id === id);
     if (!site) return;
     site.built = !!built;
+    site.tintTarget.copy(built ? BUILT_TINT : BROKEN_TINT);
+    site.sagTarget = built ? 1 : BROKEN_SAG;
+    site.leanTarget = built ? 0 : BROKEN_LEAN;
+    site.markerTarget = built ? 0 : 1;
+    if (instant) {
+      site.tint.copy(site.tintTarget);
+      site.sag = site.sagTarget;
+      site.lean = site.leanTarget;
+      site.markerOpacity = site.markerTarget;
+      if (site.marker) {
+        site.marker.material.opacity = site.markerOpacity;
+        site.marker.visible = site.markerOpacity > 0.02;
+      }
+      site.billboard.material.color.copy(site.tint);
+      site.billboard.mesh.scale.y = site.sag;
+      site.billboard.mesh.rotation.z = site.lean;
+    }
     if (this.beacon && id === 'lighthouse') this.beacon.enabled = !!built;
+  }
+
+  /** 복구 전/후 외형 보간 + 시간대 조명 곱하기 */
+  #animateSites(dt) {
+    const k = Math.min(1, dt * 3.4);
+    for (const site of this.sites) {
+      const bb = site.billboard;
+      if (!bb) continue;
+      const moving =
+        Math.abs(site.tint.r - site.tintTarget.r) > 0.004 ||
+        Math.abs(site.tint.g - site.tintTarget.g) > 0.004 ||
+        Math.abs(site.tint.b - site.tintTarget.b) > 0.004 ||
+        Math.abs(site.sag - site.sagTarget) > 0.002 ||
+        Math.abs(site.lean - site.leanTarget) > 0.002;
+      if (moving) {
+        site.tint.lerp(site.tintTarget, k);
+        site.sag += (site.sagTarget - site.sag) * k;
+        site.lean += (site.leanTarget - site.lean) * k;
+        bb.mesh.scale.y = site.sag;
+        bb.mesh.rotation.z = site.lean;
+      }
+      // 시간대 색 × 복구 상태 색 — 게임 쪽에서 머티리얼 색을 덮어쓰지 않도록 여기서 합성한다
+      bb.material.color.copy(this.spriteLight).multiply(site.tint);
+
+      // 공사 표지판 — 복구하면 서서히 사라진다
+      const mark = site.marker;
+      if (mark) {
+        if (Math.abs(site.markerOpacity - site.markerTarget) > 0.004) {
+          site.markerOpacity += (site.markerTarget - site.markerOpacity) * Math.min(1, dt * 6);
+        }
+        mark.material.opacity = site.markerOpacity;
+        mark.material.color.copy(this.spriteLight);
+        mark.visible = site.markerOpacity > 0.02;
+        if (mark.visible) {
+          mark.position.y = site.markerBaseY + Math.sin(performance.now() * 0.0022 + site.x) * 0.07;
+        }
+      }
+    }
+  }
+
+  /** Game 이 시간대 조명 색을 넘긴다 */
+  setSpriteLight(color) {
+    if (color) this.spriteLight.copy(color);
   }
 
   #buildBeacon() {
@@ -238,6 +345,7 @@ export class Scenery {
   /** 모든 빌보드가 카메라를 향하도록 + 채집 노드 애니메이션 */
   update(dt, camera, night = 0) {
     if (camera) for (const bb of this.billboards) bb.faceCamera(camera);
+    this.#animateSites(dt);
 
     for (const node of this.nodes) {
       // 타격 흔들림
