@@ -642,9 +642,18 @@ def run():
                 page.wait_for_timeout(300)
 
                 # ── 7. 고양이 돌보기
-                catpos = page.evaluate("() => { const c = window.__metamong.game.cats.find((x) => x.id === 'somi'); return [c.position.x, c.position.z]; }")
-                teleport(page, catpos[0] + 0.9, catpos[1] + 0.9, 700)
-                cat_ok = wait_label(page, '돌보기')
+                # 고양이는 배회하므로, 고양이가 가장 가까운 대상이 되는 자리를 찾아 선다
+                cat_ok = False
+                for ang in (0, 45, 90, 135, 180, 225, 270, 315):
+                    catpos = page.evaluate("() => { const c = window.__metamong.game.cats.find((x) => x.id === 'somi'); return [c.position.x, c.position.z]; }")
+                    import math as _m
+                    px = catpos[0] + _m.cos(_m.radians(ang)) * 0.75
+                    pz = catpos[1] + _m.sin(_m.radians(ang)) * 0.75
+                    teleport(page, px, pz, 320)
+                    kind = page.evaluate("() => { const t = window.__metamong.game.target; return t ? (t.kind || (t.isNode ? 'node' : '')) : null; }")
+                    if kind == 'cat' and wait_label(page, '돌보기', 2000):
+                        cat_ok = True
+                        break
                 check('고양이 액션 라벨', cat_ok, action_label(page))
                 page.evaluate("() => window.__metamong.game.openCat('somi')")
                 page.wait_for_timeout(450)
