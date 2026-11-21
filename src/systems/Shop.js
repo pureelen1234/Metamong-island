@@ -7,7 +7,7 @@
  */
 import { SHOP, SHOP_ORDER, SELL, FISH, FISH_ORDER } from './lifeData.js';
 import { ITEM_ORDER } from './items.js';
-import { CROP_ORDER } from './farmData.js';
+import { ALL_CROP_ORDER } from './farmData.js';
 
 export function sellPrice(id) {
   return Math.max(0, Math.floor(Number(SELL[id]) || 0));
@@ -26,7 +26,7 @@ export function sellableEntries(progress) {
     const unit = sellPrice(id);
     if (n > 0 && unit > 0) rows.push({ id, n, unit, total: n * unit, source: 'fish' });
   }
-  for (const id of CROP_ORDER) {
+  for (const id of ALL_CROP_ORDER) {
     const n = progress.cropCount(id);
     const unit = sellPrice(id);
     if (n > 0 && unit > 0) rows.push({ id, n, unit, total: n * unit, source: 'crop' });

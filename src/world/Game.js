@@ -18,17 +18,22 @@ import { SaveStore } from '../storage/SaveStore.js';
 import { createPost } from '../render/post.js';
 import { makeRamp } from '../render/toon.js';
 import { loadAtlases } from '../sprites/atlas.js';
+import { cartTexture } from '../sprites/icons3d.js';
 import { Progress } from '../systems/Progress.js';
 import { Gathering } from './Gathering.js';
 import { Fishing } from './Fishing.js';
 import { DropField } from './Drops.js';
 import { Fx } from './Fx.js';
-import { BAG, HARVEST, ITEMS, RECIPES, STAMINA } from '../systems/items.js';
+import { BAG, BRIDGE_RECIPE, CART, HARVEST, ITEMS, RECIPES, STAMINA } from '../systems/items.js';
 import { LETTERS } from '../systems/letters.js';
 import { LifePanels } from '../ui/LifePanels.js';
 import { Phase3Panels } from '../ui/Phase3Panels.js';
 import { Minimap } from '../ui/Minimap.js';
 import { Farming } from './Farming.js';
+import { Bridge } from './Bridge.js';
+import { Paddy } from './Paddy.js';
+import { setBridgeBuilt } from '../terrain/Heightmap.js';
+import { Phase4Panels } from '../ui/Phase4Panels.js';
 import { stageOf } from './Farming.js';
 import { cook as cookRecipe } from '../systems/Cooking.js';
 import { buy as buyGoods, sell as sellGoods } from '../systems/Shop.js';
@@ -43,8 +48,9 @@ import {
   itemIcon,
   itemName,
 } from '../systems/lifeData.js';
-import { CROPS, FARMING, SEEDS } from '../systems/farmData.js';
+import { CROPS, FARMING, PADDY_SEED_ORDER, SEEDS } from '../systems/farmData.js';
 import {
+  BRIDGE,
   CAMERA,
   CATS,
   DAY_SECONDS,
@@ -52,8 +58,10 @@ import {
   FARM,
   INTERACT,
   LANDMARKS,
+  PADDY,
   SAVE,
   SPAWN,
+  WELCOME,
   clockLabel,
   phaseAt,
   weatherForDay,
@@ -90,9 +98,14 @@ export class Game {
     this.life = null;
     this.fishing = null;
     this.farming = null;
+    this.paddy = null;
+    this.bridge = null;
     this.phase3 = null;
+    this.phase4 = null;
     this.minimap = null;
     this.achAcc = 0;
+    this.welcomeAcc = 0;
+    this.cartSprite = null;
     this.fishTarget = null;
     this.nodeMeshes = [];
     this.siteMeshes = [];
@@ -306,6 +319,51 @@ export class Game {
       },
     });
     this.scene.add(this.farming.group);
+
+    // ── 4단계: 중앙 강의 다리 + 북쪽 개척권의 논
+    this.bridge = new Bridge(this.world.terrain);
+    this.scene.add(this.bridge.group);
+
+    this.paddy = new Paddy({
+      terrain: this.world.terrain,
+      progress: this.progress,
+      fx: this.fx,
+      audio: this.audio,
+      hooks: {
+        toast: (msg, ms) => this.hud && this.hud.toast(msg, ms),
+        save: () => {
+          if (this.mode === 'play') this.save();
+        },
+        onPlant: () => {
+          this.#gainExp('farm', EXP_GAIN.plant);
+          this.#event('plant', 1, false);
+          this.#welcomeCheck();
+        },
+        onWater: () => this.#gainExp('farm', EXP_GAIN.water),
+        onHarvest: (crop, n) => {
+          this.#gainExp('farm', EXP_GAIN.crop);
+          this.#event('crop', 1, false);
+          this.audio.sfxCoin();
+        },
+        onRipe: (indexes) => {
+          if (!indexes.length) return;
+          this.audio.sfxRare?.();
+          this.hud?.toast(`✨ 논에 벼 ${indexes.length}칸이 다 여물었어요 — [수확] 할까요?`, 2600);
+          this.#refreshHud();
+        },
+      },
+    });
+    this.scene.add(this.paddy.group);
+
+    // 🛒 리어카 — 보유하면 플레이어 뒤를 따라오는 작은 손수레
+    this.cartSprite = new THREE.Sprite(
+      new THREE.SpriteMaterial({ map: cartTexture(), transparent: true, depthWrite: false, toneMapped: false })
+    );
+    this.cartSprite.scale.set(0.72, 0.72, 1);
+    this.cartSprite.visible = false;
+    this.cartSprite.renderOrder = 4;
+    this.scene.add(this.cartSprite);
+    this.spriteMaterials.push(this.cartSprite.material);
   }
 
   #setupPost() {
@@ -327,6 +385,7 @@ export class Game {
     this.panels = new Panels(this);
     this.life = new LifePanels(this);
     this.phase3 = new Phase3Panels(this);
+    this.phase4 = new Phase4Panels(this);
     this.minimap = new Minimap(this.hud.container, this);
     if (this.fishing) this.fishing.hud = this.hud;
   }
@@ -505,6 +564,10 @@ export class Game {
     this.#snapCamera();
     this.#refreshHud();
     if (this.farming) this.farming.syncAll();
+    if (this.paddy) this.paddy.syncAll();
+    this.#syncBridge(true);
+    this.#syncCart();
+    this.#welcomeSync();
     this.checkAchievements();
 
     this.hud.toast(
@@ -527,6 +590,8 @@ export class Game {
     // 생활 시스템도 처음 상태로
     this.progress.reset();
     this.progress.rollQuests(1);
+    this.#syncCart();
+    this.#syncBridge(true);
     if (this.gathering) {
       this.gathering.applySaved({});
       this.gathering.hooks.toast = (msg, ms) => this.hud && this.hud.toast(msg, ms);
@@ -535,6 +600,7 @@ export class Game {
     if (this.fishing) this.fishing.cancel();
     if (this.fx) this.fx.clear();
     if (this.farming) this.farming.syncAll();
+    if (this.paddy) this.paddy.syncAll();
     this.#syncBuilt();
   }
 
@@ -558,6 +624,8 @@ export class Game {
 
     const px = Number(data.player && data.player.x);
     const pz = Number(data.player && data.player.z);
+    // 다리 위에서 저장한 세이브도 같은 자리에 서도록, 걷기 판정 전에 다리 상태를 먼저 반영한다
+    setBridgeBuilt(!!(data.bridgeBuilt || (data.bridge && data.bridge.built)));
     if (Number.isFinite(px) && Number.isFinite(pz) && this.world.terrain.isWalkable(px, pz)) {
       this.player.teleport(px, pz);
     } else {
@@ -580,6 +648,11 @@ export class Game {
     // ── 3단계: 텃밭 상태 · 도감 발견 수
     this.progress.discoveredCount = this.state.discovered.length;
     if (this.farming) this.farming.syncAll();
+
+    // ── 4단계: 다리 · 리어카 · 논 · 웰컴 미션
+    this.#syncBridge(true);
+    this.#syncCart();
+    if (this.paddy) this.paddy.syncAll();
   }
 
   /** 저장된 복구 상태를 3D·이름표에 반영 */
@@ -589,6 +662,20 @@ export class Game {
       this.world.scenery.setBuilt(lm.id, done);
       if (this.landmarkLabels) this.landmarkLabels.setDone(lm.id, done);
     }
+  }
+
+  /** 다리 상태 → Heightmap 걷기 예외 + 3D 데크 */
+  #syncBridge(instant = false) {
+    const built = this.progress.bridgeBuilt;
+    setBridgeBuilt(built);
+    if (this.bridge) this.bridge.setBuilt(built, instant);
+    return built;
+  }
+
+  /** 리어카 상태 → 가방 칸 수 + 따라오는 손수레 */
+  #syncCart() {
+    this.progress.syncCapacity();
+    if (this.cartSprite) this.cartSprite.visible = this.progress.cartLevel > 0;
   }
 
   #snapCamera() {
@@ -657,12 +744,24 @@ export class Game {
 
     const move = this.#inputVector(playing);
     this.player.update(dt, move, this.world.terrain, this.camera);
+
+    // 🛒 리어카가 있으면 플레이어 뒤를 살짝 따라온다
+    if (this.cartSprite && this.cartSprite.visible) {
+      const yaw = this.player.yaw;
+      const bx = Math.sin(yaw) * 0.72 + Math.cos(yaw) * 0.34;
+      const bz = Math.cos(yaw) * 0.72 - Math.sin(yaw) * 0.34;
+      const bob = Math.sin(performance.now() * 0.006) * 0.02;
+      this.cartSprite.position.set(this.player.position.x - bx, this.player.position.y + 0.4 + bob, this.player.position.z - bz);
+    }
+
     for (const cat of this.cats) cat.update(dt, this.camera, this.player.position, playing);
     for (const ditto of this.dittos) ditto.update(dt, this.player.position, this.camera);
 
     // 채집·리젠·열매 드롭·기력 회복 (모달이 열리면 scaledDt 가 0 이라 시간이 멈춘다)
     if (this.gathering) this.gathering.update(dt, scaledDt, this.player.position, playing);
     if (this.farming) this.farming.update(dt, scaledDt, this.camera);
+    if (this.paddy) this.paddy.update(dt, scaledDt, this.camera);
+    if (this.bridge) this.bridge.update(dt, this.world.palette ? this.world.palette.night : 0);
     if (this.fishing && playing) this.fishing.update(dt, this.player.position);
     if (this.fx) this.fx.update(dt, this.camera);
 
@@ -690,6 +789,7 @@ export class Game {
       if (this.hudAcc > 0.14) {
         this.hudAcc = 0;
         this.#refreshHud();
+        this.#welcomeCheck();
       }
       if (this.minimap) this.minimap.update(dt);
     }
@@ -822,6 +922,29 @@ export class Game {
       }
     }
 
+    // 논 칸 — 다리 건너 개척권의 볍씨 자리
+    const paddyPlot = this.paddy ? this.paddy.nearest(p, INTERACT.plotRange) : null;
+    if (paddyPlot) {
+      const dist = Math.hypot(paddyPlot.x - p.x, paddyPlot.z - p.z);
+      if (dist < bestDist) {
+        const info = this.#paddyState(paddyPlot.index);
+        best = { kind: 'paddy', plot: paddyPlot, index: paddyPlot.index, x: paddyPlot.x, z: paddyPlot.z, info };
+        bestDist = dist;
+      }
+    }
+
+    // 다리 건축 지점 — 아직 놓지 않았을 때만 (강둑 양쪽 어느 쪽에서든)
+    if (!this.progress.bridgeBuilt) {
+      const dSouth = Math.hypot(BRIDGE.south.x - p.x, BRIDGE.south.z - p.z);
+      const dNorth = Math.hypot(BRIDGE.north.x - p.x, BRIDGE.north.z - p.z);
+      const dBridge = Math.min(dSouth, dNorth);
+      if (dBridge <= BRIDGE.range + 0.6 && dBridge < bestDist) {
+        const anchor = dSouth <= dNorth ? BRIDGE.south : BRIDGE.north;
+        best = { kind: 'bridge', id: 'bridge', x: anchor.x, z: anchor.z, side: dSouth <= dNorth ? 'south' : 'north' };
+        bestDist = dBridge;
+      }
+    }
+
     // 복구 부지 — 공방은 창고 메뉴를 연다
     const site = this.#nearestSite(p, INTERACT.siteRange);
     if (site) {
@@ -889,6 +1012,14 @@ export class Game {
       this.#touchPlot(t.index);
       return;
     }
+    if (t.kind === 'paddy') {
+      this.#touchPaddy(t.index);
+      return;
+    }
+    if (t.kind === 'bridge') {
+      this.openBridge();
+      return;
+    }
     if (t.kind === 'site') {
       this.#openSite(t);
       return;
@@ -922,6 +1053,7 @@ export class Game {
       );
       this.save();
       this.checkAchievements();
+      this.#welcomeCheck();
     } else {
       this.hud.toast(`${ditto.name} — "·‿·" 이미 도감에 있어요`, 2000);
     }
@@ -1028,8 +1160,9 @@ export class Game {
 
     this.hud.setStamina(this.progress.stamina, STAMINA.max);
     this.hud.setMail(this.#mailBadgeCount());
-    this.hud.setBag(this.progress.inventory.usedSlots(), BAG.slots);
+    this.hud.setBag(this.progress.inventory.usedSlots(), this.progress.inventory.slots);
     this.hud.setCoins(this.progress.coins);
+    this.hud.setCart(this.progress.cartLevel, this.progress.inventory.slots);
     this.hud.setQuests(this.progress.claimableQuests);
     this.hud.setBuff(this.progress.buffActive ? `✨ ${Math.ceil(this.progress.buff.left)}s` : null);
     this.hud.setAchievements(this.progress.claimableAchievements);
@@ -1069,6 +1202,15 @@ export class Game {
       else if (info.st.watered < FARMING.maxWater)
         this.hud.setAction({ active: true, icon: '💧', label: `물주기 ${Math.ceil(info.st.remain)}초` });
       else this.hud.setAction({ active: false, icon: '🌱', label: `${Math.ceil(info.st.remain)}초 뒤 수확` });
+    } else if (t && t.kind === 'paddy') {
+      const info = this.#paddyState(t.index);
+      if (info.state === 'empty') this.hud.setAction({ active: true, icon: '🌾', label: '볍씨 심기' });
+      else if (info.state === 'ripe') this.hud.setAction({ active: true, icon: '🧺', label: '벼 수확하기' });
+      else if (info.st.watered < FARMING.maxWater)
+        this.hud.setAction({ active: true, icon: '💧', label: `물주기 ${Math.ceil(info.st.remain)}초` });
+      else this.hud.setAction({ active: false, icon: '🌾', label: `${Math.ceil(info.st.remain)}초 뒤 수확` });
+    } else if (t && t.kind === 'bridge') {
+      this.hud.setAction({ active: true, icon: '🌉', label: '다리 놓기' });
     } else if (t && t.kind === 'site') {
       const built = !!this.progress.building(t.id).done;
       this.hud.setAction({
@@ -1241,15 +1383,33 @@ export class Game {
         list.append(row);
       }
       const doneCount = LANDMARKS.filter((lm) => this.progress.building(lm.id).done).length;
+      const bst = this.progress.bridgeState();
+      const bReady = Object.entries(BRIDGE_RECIPE).every(([item, need]) => (bst.invested[item] || 0) >= need);
+      const bIn = Object.entries(BRIDGE_RECIPE).reduce((a, [item, need]) => a + Math.min(need, bst.invested[item] || 0), 0);
+      const bTotal = Object.values(BRIDGE_RECIPE).reduce((a, b) => a + b, 0);
+      list.append(
+        h(
+          'button',
+          { class: `site-item as-button ${bst.built ? 'done' : ''}`, type: 'button', onclick: () => this.openBridge() },
+          h('div', { class: 'site-ico' }, bst.built ? '✨' : '🌉'),
+          h(
+            'div',
+            { style: { flex: '1' } },
+            h('div', { class: 'site-name' }, '다리 (강 건너 개척권)'),
+            h('div', { class: 'site-meta' }, bst.built ? '건널 수 있어요' : bReady ? '재료가 모였어요' : `재료 ${bIn}/${bTotal} 투입`)
+          ),
+          h('span', { class: 'hint' }, bst.built ? '완성' : '놓기')
+        )
+      );
       this.#openModal({
         title: '섬 건축',
-        subtitle: `네 곳 중 ${doneCount}곳 복구 완료`,
+        subtitle: `네 곳 중 ${doneCount}곳 복구 · 다리 ${bst.built ? '완성' : '미완성'}`,
         body: h(
           'div',
           {},
           list,
           h('div', { class: 'section-label' }, 'Tip'),
-          h('div', { class: 'hint' }, '건물 앞에서 바로 복구할 수도 있어요. 공방을 복구하면 창고가 열려요.')
+          h('div', { class: 'hint' }, 'Day 를 기다릴 필요 없어요 — 재료만 모이면 Day 1에도 바로 복구합니다. 공방을 복구하면 창고가 열려요.')
         ),
         actions: [{ label: '닫기', kind: 'primary', onClick: () => this.modal.close() }],
       });
@@ -1429,6 +1589,7 @@ export class Game {
     );
     this.save();
     this.#refreshHud();
+    this.#welcomeCheck();
     this.#openModal(this.panels.mailbox(letterId));
     return true;
   }
@@ -1566,7 +1727,7 @@ export class Game {
     if (!this.minimap) return;
     this.#openModal({
       title: '🗺️ 섬 지도',
-      subtitle: '사각 섬 전체 — 물·모래·잔디·길·텃밭',
+      subtitle: '사각 섬 72×72 — 강과 다리, 남쪽 생활권과 북쪽 개척권',
       body: this.minimap.modalBody(),
       actions: [{ label: '닫기', kind: 'primary', onClick: () => this.modal.close() }],
     });
@@ -1634,6 +1795,251 @@ export class Game {
     this.#refreshHud();
     if (this.modal.isOpen) this.#openModal(this.phase3.farm());
     return res.ok;
+  }
+
+  /* ── 4단계: 다리 · 논 · 리어카 · 웰컴 미션 ────────── */
+
+  /** 논 한 칸의 지금 상태 — 액션 라벨·패널이 같이 본다 */
+  #paddyState(index) {
+    const st = this.progress.paddyPlot(index);
+    if (!st) return { state: 'empty', st: null, stage: -1, pct: 0, crop: null };
+    const crop = CROPS[st.crop];
+    const stage = stageOf(st);
+    return {
+      state: st.remain > 0 ? 'grow' : 'ripe',
+      st,
+      stage,
+      crop,
+      pct: Math.round((1 - st.remain / Math.max(1, st.total)) * 100),
+    };
+  }
+
+  /* ── 🌉 다리 ──────────────────────────────────────── */
+
+  openBridge() {
+    if (this.mode !== 'play') return;
+    this.#openModal(this.phase4.bridge());
+  }
+
+  /** 재료를 모자란 만큼 한 번에 넣는다 */
+  investBridge() {
+    const st = this.progress.bridgeState();
+    const inv = this.progress.inventory;
+    let added = 0;
+    for (const [item, need] of Object.entries(BRIDGE_RECIPE)) {
+      const missing = need - (st.invested[item] || 0);
+      if (missing <= 0) continue;
+      const take = inv.take(item, missing);
+      if (take > 0) {
+        st.invested[item] = (st.invested[item] || 0) + take;
+        added += take;
+      }
+    }
+    if (added > 0) {
+      this.audio.sfxBuild();
+      if (this.fx) this.fx.burst(BRIDGE.x, BRIDGE.deckY + 0.7, BRIDGE.z + BRIDGE.halfSpan - 0.6, '#ffe3b0', 12, { spread: 1.6, up: 2.2 });
+      this.save();
+      this.#refreshHud();
+      this.#openModal(this.phase4.bridge());
+    } else {
+      this.audio.sfxDeny();
+      this.hud.toast('넣을 재료가 부족해요 — 통나무와 돌을 모아 올까요? 🪓', 2200);
+    }
+  }
+
+  /** 다리 완성 — 데크가 놓이고 그 위를 걸어 북쪽 개척권으로 건넌다 */
+  completeBridge() {
+    const st = this.progress.bridgeState();
+    const ready = Object.entries(BRIDGE_RECIPE).every(([item, need]) => (st.invested[item] || 0) >= need);
+    if (!ready || st.built) return false;
+
+    st.built = true;
+    st.invested = {};
+    this.#syncBridge(false);
+    this.audio.sfxFanfare();
+    if (this.fx) {
+      this.fx.burst(BRIDGE.x, BRIDGE.deckY + 0.8, BRIDGE.z, '#ffe6a8', 34, { spread: 3.2, up: 4.0, size: 1.3 });
+      this.fx.float('다리 완성!', BRIDGE.x, BRIDGE.deckY + 1.6, BRIDGE.z + 1.4, '#b2698f');
+    }
+    this.hud.toast('🌉 다리가 놓였어요 — 이제 북쪽 숲·채석장·논으로 걸어서 건널 수 있어요!', 3400);
+    this.save();
+    this.#refreshHud();
+    this.checkAchievements();
+    this.#welcomeCheck();
+    this.#openModal(this.phase4.bridge());
+    return true;
+  }
+
+  /* ── 🌾 논 ────────────────────────────────────────── */
+
+  openPaddy() {
+    if (this.mode !== 'play') return;
+    this.#openModal(this.phase4.paddy());
+  }
+
+  openPaddySeedPicker(index) {
+    if (this.mode !== 'play') return;
+    this.#openModal(this.phase4.paddySeedPicker(index));
+  }
+
+  /** 논 한 칸을 눌렀을 때 — 비었으면 볍씨, 다 자랐으면 수확, 아니면 물주기 */
+  #touchPaddy(index) {
+    const info = this.#paddyState(index);
+    if (info.state === 'empty') return this.openPaddySeedPicker(index);
+    if (info.state === 'ripe') return this.harvestPaddy(index);
+    return this.waterPaddy(index);
+  }
+
+  plantPaddy(index, cropId = 'rice') {
+    if (!this.paddy) return false;
+    const plot = this.paddy.plotByIndex(index);
+    const res = this.paddy.plant(plot, cropId);
+    if (!res.ok) {
+      this.audio.sfxDeny();
+      const msg =
+        res.reason === 'seed'
+          ? '볍씨가 없어요 — 자판기 [사기] 탭에서 사 올까요? 🌾'
+          : res.reason === 'occupied'
+            ? '이미 벼가 자라고 있는 논이에요'
+            : '지금은 심을 수 없어요';
+      this.hud.toast(msg, 2200);
+      if (this.modal.isOpen) this.#openModal(this.phase4.paddySeedPicker(index));
+      return false;
+    }
+    this.#refreshHud();
+    if (this.modal.isOpen) this.#openModal(this.phase4.paddy());
+    return true;
+  }
+
+  waterPaddy(index) {
+    if (!this.paddy) return false;
+    const plot = this.paddy.plotByIndex(index);
+    const level = this.progress.toolLevel('water');
+    const res = this.paddy.water(plot, level);
+    if (!res.ok) {
+      this.audio.sfxDeny();
+      const msg =
+        res.reason === 'stamina'
+          ? `기력이 부족해요 — 물주기에 ${res.cost} 필요해요 💪`
+          : res.reason === 'max'
+            ? '물을 줄 만큼 준 논이에요 — 이제 기다리면 여물어요'
+            : '지금은 물을 줄 논이 없어요';
+      this.hud.toast(msg, 2200);
+    } else {
+      this.hud.toast(`💧 논 ${res.watered}칸에 물을 댔어요 — 남은 시간 절반! (기력 -${res.cost})`, 2300);
+    }
+    this.#refreshHud();
+    if (this.modal.isOpen) this.#openModal(this.phase4.paddy());
+    return res.ok;
+  }
+
+  harvestPaddy(index) {
+    if (!this.paddy) return false;
+    const plot = this.paddy.plotByIndex(index);
+    const res = this.paddy.harvest(plot);
+    if (!res.ok) {
+      this.audio.sfxDeny();
+      this.hud.toast(res.reason === 'growing' ? '아직 덜 여물었어요 — 조금만 기다려요 🌾' : '빈 논이에요', 2000);
+    }
+    this.#refreshHud();
+    if (this.modal.isOpen) this.#openModal(this.phase4.paddy());
+    return res.ok;
+  }
+
+  /* ── 🛒 리어카 ────────────────────────────────────── */
+
+  /** 리어카 제작 가능 여부 — 공방 복구 + 재료·코인 */
+  canBuildCart() {
+    if (this.progress.cartLevel >= CART.maxLevel) return { ok: false, reason: 'max', lack: [] };
+    if (!this.progress.building('workshop').done) return { ok: false, reason: 'workshop', lack: [] };
+    const lack = [];
+    for (const [id, need] of Object.entries(CART.cost)) {
+      const have = id === 'coin' ? this.progress.coins : this.progress.inventory.count(id);
+      if (have < need) lack.push({ id, need, have });
+    }
+    return { ok: lack.length === 0, reason: lack.length ? 'lack' : '', lack };
+  }
+
+  openCart() {
+    if (this.mode !== 'play') return;
+    this.#openModal(this.phase4.cart());
+  }
+
+  buildCart() {
+    const check = this.canBuildCart();
+    if (!check.ok) {
+      this.audio.sfxDeny();
+      const msg =
+        check.reason === 'max'
+          ? '이미 리어카가 있어요 🛒'
+          : check.reason === 'workshop'
+            ? '공방을 먼저 복구해야 리어카를 만들 수 있어요 🔨'
+            : '재료나 코인이 부족해요 🪙';
+      this.hud.toast(msg, 2400);
+      if (this.modal.isOpen) this.#openModal(this.phase4.cart());
+      return false;
+    }
+    for (const [id, need] of Object.entries(CART.cost)) {
+      if (id === 'coin') this.progress.spendCoins(need);
+      else this.progress.inventory.take(id, need);
+    }
+    this.progress.cartLevel = 1;
+    this.#syncCart();
+    this.audio.sfxBuild();
+    const p = this.player.position;
+    if (this.fx) {
+      this.fx.burst(p.x, p.y + 0.9, p.z, '#ffe3b0', 20, { spread: 1.6, up: 2.6 });
+      this.fx.float('🛒 리어카 완성', p.x, p.y + 2.0, p.z, '#b2698f');
+    }
+    this.hud.toast(`🛒 리어카 완성 — 가방이 ${BAG.slots}칸 → ${this.progress.inventory.slots}칸으로 늘었어요!`, 3200);
+    this.save();
+    this.#refreshHud();
+    this.checkAchievements();
+    if (this.modal.isOpen) this.#openModal(this.phase4.cart());
+    return true;
+  }
+
+  /* ── 첫 1분 웰컴 3단 미션 ──────────────────────────── */
+
+  #welcomeDone(i) {
+    if (i === 0) return this.progress.mailbox.claimed.length > 0;
+    if (i === 1) return this.state.discovered.length >= 2;
+    if (i === 2) return this.progress.count('tree') >= 1;
+    return true;
+  }
+
+  /** 단계 조건을 확인해 완료분을 순서대로 통과시키고, 단계마다 코인 +15 */
+  #welcomeCheck() {
+    if (this.mode !== 'play') return 0;
+    const w = this.progress.welcome || (this.progress.welcome = { step: 0 });
+    if (w.step >= WELCOME.steps.length) return 0;
+    let passed = 0;
+    while (w.step < WELCOME.steps.length && this.#welcomeDone(w.step)) {
+      w.step += 1;
+      passed += 1;
+      const step = WELCOME.steps[w.step - 1];
+      this.progress.addCoins(WELCOME.reward);
+      this.audio.sfxCoin?.();
+      this.hud.toast(`🎉 ${step.icon} ${step.label} 완료! 코인 +${WELCOME.reward} (${w.step}/${WELCOME.steps.length})`, 2600);
+      const p = this.player.position;
+      if (this.fx) this.fx.float(`+${WELCOME.reward} 🪙`, p.x, p.y + 1.9, p.z, '#b38b3d');
+    }
+    if (passed > 0) {
+      if (w.step >= WELCOME.steps.length) {
+        setTimeout(() => this.hud && this.hud.toast('🌿 첫걸음 완료 — 이제 섬은 마음 가는 대로예요', 3000), 900);
+      }
+      this.#welcomeSync();
+      this.#refreshHud();
+      this.save();
+    }
+    return passed;
+  }
+
+  /** 웰컴 배너를 지금 단계에 맞춘다 */
+  #welcomeSync() {
+    if (!this.hud) return;
+    const w = this.progress.welcome || { step: 0 };
+    this.hud.setWelcome(w.step, WELCOME.steps);
   }
 
   /** 업적 조건 재검사 — 새로 달성한 것이 있으면 토스트 + 저장 */
@@ -2008,7 +2414,7 @@ export class Game {
     // 노드 상태는 Gathering 이 들고 있다(리젠 카운트다운 포함)
     life.nodes = this.gathering ? this.gathering.toJSON() : {};
     return {
-      version: 4,
+      version: 5,
       savedAt: Date.now(),
       day: this.state.day,
       elapsedSeconds: Math.round(this.state.elapsed * 100) / 100,

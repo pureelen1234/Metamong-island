@@ -15,8 +15,20 @@ export const ITEMS = {
 /** 가방·창고·목록에서 늘 같은 순서로 보여 준다 */
 export const ITEM_ORDER = ['log', 'stone', 'petal', 'star', 'berry'];
 
-/** 가방: 8칸, 한 칸에 20개까지 */
-export const BAG = { slots: 8, stack: 20 };
+/** 가방: 기본 8칸, 한 칸에 20개까지 — 리어카를 만들면 16칸으로 늘어난다 */
+export const BAG = { slots: 8, cartSlots: 16, stack: 20 };
+
+/** 🛒 리어카 — 공방에서 만드는 운반 도구 (가방 칸 2배) */
+export const CART = {
+  id: 'cart',
+  name: '리어카',
+  icon: '🛒',
+  cost: { log: 8, stone: 5, coin: 60 },
+  /** 리어카 1대당 늘어나는 가방 칸 */
+  slotsPerLevel: 8,
+  maxLevel: 1,
+  desc: '바퀴 달린 작은 손수레. 짊어지고 다니는 가방이 두 배로 넓어진다.',
+};
 
 /** 창고: 재료별 최대 보관량(사실상 무제한이지만 폭주를 막는 상한) */
 export const STORAGE_CAP = 999;
@@ -32,12 +44,12 @@ export const STAMINA = {
   regenPerSecond: 1 / 6,
 };
 
-/** 4대 건물 복구 레시피 (LANDMARKS id 와 1:1) */
+/** 4대 건물 복구 레시피 (LANDMARKS id 와 1:1) — 4단계: Day 잠금 없이 재료만 모으면 바로 */
 export const RECIPES = {
-  dock: { log: 6, stone: 2 },
-  workshop: { log: 8, stone: 6 },
-  vending: { stone: 4, petal: 5, star: 2 },
-  lighthouse: { log: 12, stone: 10, star: 5 },
+  dock: { log: 3, stone: 2 },
+  workshop: { log: 4, stone: 3 },
+  vending: { log: 4, stone: 4 },
+  lighthouse: { log: 6, stone: 5 },
 };
 
 /** 건물별 한 줄 설명 — 복구 모달에서 재료와 함께 보여 준다 */
@@ -47,6 +59,9 @@ export const BUILD_NOTES = {
   vending: '메타몽 자판기예요. 복구하면 밤에 은은하게 빛나요.',
   lighthouse: '복구하면 밤마다 따뜻한 불이 켜져요. 섬의 마지막 등불이에요.',
 };
+
+/** 강을 건너는 다리 — 통나무·돌만 모으면 Day 1에도 바로 놓을 수 있다 */
+export const BRIDGE_RECIPE = { log: 6, stone: 4 };
 
 /** 채집 대상 분류 — 프레임 이름으로 종류를 정한다 */
 export const HARVEST = {

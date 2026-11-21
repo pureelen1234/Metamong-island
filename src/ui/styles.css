@@ -2513,3 +2513,102 @@ canvas#scene {
     top: calc(var(--safe-top) + 58px);
   }
 }
+
+/* ─────────────────────────────────────────────────────────────
+   4단계 — 중앙 강/다리 · 논 · 리어카 · 웰컴 3단 미션
+   ───────────────────────────────────────────────────────────── */
+
+/* ── 🛒 리어카 칩 (HUD 통계 줄) ─────────────────────────── */
+.cart-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #fff1da, #ffe0b6);
+  box-shadow: var(--shadow-soft);
+  font-size: 10.5px;
+  font-weight: 900;
+  color: #96672f;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* ── 첫 1분 웰컴 3단 미션 — 상단 HUD 바로 아래의 작은 칩 ── */
+.welcome-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 232px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: var(--shadow-soft);
+  font-size: 10.5px;
+  font-weight: 800;
+  color: #7a6c86;
+  pointer-events: none;
+  animation: welcomeIn 0.34s ease;
+}
+
+.welcome-chip .w-ico {
+  font-size: 12px;
+  line-height: 1;
+}
+
+.welcome-chip .w-txt {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.welcome-chip .w-dots {
+  display: inline-flex;
+  gap: 3px;
+  margin-left: 2px;
+}
+
+.welcome-chip .w-dots i {
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(190, 175, 210, 0.62);
+}
+
+.welcome-chip .w-dots i.on {
+  background: #9ed08a;
+}
+
+.welcome-chip .w-dots i.cur {
+  background: #ff8fb9;
+  box-shadow: 0 0 0 2px rgba(255, 143, 185, 0.25);
+}
+
+@keyframes welcomeIn {
+  from { transform: translateY(-6px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+/* ── 🌾 논 타일 (물 잠긴 흙) ────────────────────────────── */
+.paddy-grid {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.farm-cell.paddy {
+  background: linear-gradient(160deg, #f4fbfc, #e6f4f6);
+}
+
+.farm-cell.paddy.ripe {
+  background: linear-gradient(150deg, #fffaf0, #eef8f2);
+  box-shadow: 0 0 0 2px #ffe0a8, var(--shadow-soft);
+}
+
+.farm-cell.paddy.empty {
+  background: rgba(238, 248, 250, 0.8);
+  border-color: rgba(170, 220, 226, 0.9);
+}
+
+/* ── 좁은 화면에서 웰컴 칩이 지도를 밀지 않게 ───────────── */
+@media (max-width: 360px) {
+  .welcome-chip { max-width: 196px; font-size: 10px; }
+}

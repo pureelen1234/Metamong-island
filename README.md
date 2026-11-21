@@ -1,4 +1,4 @@
-# 🏝️ 어설픈 메타몽 섬 — Phase 1 (HD-2D 도트 · 20분 루프 MVP)
+# 🏝️ 어설픈 메타몽 섬 — Phase 4 (HD-2D 도트 · 72×72 섬 · 20분 루프)
 
 보경 님을 위한 몽글몽글 파스텔 힐링 아일랜드. 기획서 GDD v1.6의 **Phase 1**을 모바일 웹(PWA)로 구현한 빌드입니다.
 
@@ -333,3 +333,105 @@ python3 tools/qa_live.py                    # 배포된 GitHub Pages 부팅 확�
 | `11a_cooking_crops.png` · `11b_upgrade_water.png` · `11c_codex_farm.png` | 농작물 요리 · 물뿌리개 강화 · 도감 농사 탭 |
 | `13_achievements.png` · `14_achievement_claimed.png` | 업적 목록 · 보상 수령 |
 | `18_v3_title.png` · `19_v3_migrated.png` · `20_farm_letter.png` | v3 세이브 마이그레이션 · 텃밭 편지 |
+
+---
+
+# 4단계 — 72×72 맵 확장 · 중앙 강/다리 · 숲/채석장/논 · 리어카 · 초반 재미 (2026-11-21)
+
+## 1. 맵 확장 + 중앙 강/개울 — `src/config.js` · `src/terrain/Heightmap.js` · `src/world/Path.js`
+
+- 그리드 `48 → 72`(`GRID = 72`, `HALF = 36`). 평지 반폭 `LAND_BOARD = 28.8`, 모서리 둥글림 6.8, 해안 경사 3.6(남쪽 ×1.75).
+- 섬 가운데를 가로지르는 **완만한 곡선의 강/개울**: 중심선 `riverCenterZ(x) = -9 + 2.4·sin(0.11x + 0.35) + 0.9·sin(0.24x − 1.1)`,
+  물길 반폭 1.5 · 둑 경사 2.4 · 깊이 1.25. 물 높이(0)보다 바닥이 낮아 **걷기 불가** → 남쪽 생활권 / 북쪽 개척권이 갈립니다.
+- 물길은 동서로 섬 밖까지 이어져 **돌아갈 길이 없습니다.** 유일한 통로가 다리입니다.
+- 길(`ROUTES`)은 11개 노선: 남쪽(부두·공방·자판기·등대·텃밭·꽃밭·과수원·다리 남단) + 북쪽(다리 북단 → 논·숲·채석장).
+  길은 강을 건너지 않고 양쪽 강둑에서 끊깁니다(다리 데크는 다리 메시가 담당).
+
+## 2. 다리 건축 — `src/config.js`(`BRIDGE`) · `src/world/Bridge.js` · `Heightmap.isWalkableAt`
+
+- 강 중앙 길목 `x = 0, z = -9`, 데크 폭 2.9(x) · 길이 8.0(z) · 높이 0.68.
+- **미완성**: 강 양쪽에 박아 둔 말뚝 4개 + 삐뚤빼뚤한 널 3장 + 안내판 + 은은한 빛(찾기 쉽게).
+- 강가에서 `[다리 놓기]` → 재료 **통나무 6 · 돌 4**(Day 제한 없음) → `[재료 투입]` → `[다리 놓기]` → 데크가 아래에서 올라오며 완성.
+- 걷기: `isWalkableAt` 이 완성된 다리의 데크 사각형만 예외로 열고(`setBridgeBuilt`), `Terrain.groundY` 가 데크 높이를 돌려줍니다.
+  세이브에 다리 위에서 저장해도 로드 시 먼저 다리 상태를 반영해 같은 자리에 섭니다. 업적 **🌉 강을 건너서** 추가.
+
+## 3. 북쪽 개척권 — 숲 · 채석장 · 논
+
+| 구역 | 자리 | 내용 |
+| --- | --- | --- |
+| 🌲 빼곡한 숲 | 서북 ~ 중앙북 (x −23~−7, z −16~−25) | 나무 21그루 군락 — 통나무·꽃잎 수급 |
+| 🪨 채석장 | 동북 (x 8~21, z −13~−23) | 바위 28개 군락 — 돌(+별조각 드롭) 수급 |
+| 🌾 논 | 중앙북 (x −5.4~−1.4, z −20~−18) | 물 잠긴 **3×2** 논 타일 — 볍씨(🪙20) → 45초 → 쌀 2~3개 → 개당 🪙28 |
+
+- 논은 `src/world/Paddy.js` + `progress.paddyPlots`. 흙이 물에 잠긴 타일 + 얇은 물판 + 논두렁 테두리, 벼는 **씨앗 → 새싹 → 자라는 중 → 황금 이삭** 4단계 도트(`farmArt.cropTexture('rice', stage)`).
+- 물주기는 텃밭과 같은 규칙(남은 시간 50%, 작물당 2회)이고 물뿌리개 레벨로 **1칸 → 한 줄 3칸 → 6칸**.
+- 텃밭 3×3 에는 볍씨를 심을 수 없고(`CROPS.rice.paddyOnly`), 논에는 다른 작물을 심을 수 없습니다(`plantIn(..., paddy)`).
+- 공방 요리 **🍙 고소한 주먹밥**(쌀2 + 열매1, 기력 +80) 추가.
+- **메타몽 분산 배치** — 남쪽 4마리(광장·꽃밭·과수원), 북쪽 3마리(숲·채석장·논 둑). 스폰 한 화면에 몰리지 않습니다.
+
+## 4. 🛒 리어카 — `src/systems/items.js`(`CART`) · `Inventory.capacity` · `Progress.cartLevel`
+
+- 공방 → `🛒 리어카 만들기`. 재료 **통나무 8 · 돌 5 · 코인 60**(공방 복구 필요).
+- 완성하면 **가방 8칸 → 16칸**(`Inventory.setCapacity`). HUD 가방 배지가 `0/16` 으로, 통계 줄에 `🛒 16칸` 칩이 붙고,
+  3D 로 플레이어 뒤를 작은 손수레(도트 스프라이트)가 따라옵니다. 업적 **🛒 손수레의 날** 추가.
+
+## 5. 초반 재미 4종
+
+1. **첫 1분 웰컴 3단 미션** — 상단 HUD 아래 작은 칩. `① 우체통 선물 챙기기 → ② 메타몽 2마리 찾기 → ③ 첫 나무 베기`,
+   단계마다 **코인 +15** 와 축하 토스트, 모두 끝나면 배너가 사라집니다(`progress.welcome.step`, `Hud.setWelcome`).
+2. **Day 잠금 제거** — 부두 통나무3+돌2 · 공방 4+3 · 자판기 4+4 · 등대 6+5. 이름표의 `5일차 복구` 문구를 `복구 전` 으로,
+   타이틀은 `PHASE 4 · HD-2D 도트 / GDD v1.7 · Phase 4 · 72×72 섬`.
+3. **채집 타격감 & 럭키 드롭** — 한 번 두드릴 때마다 **기본 재료 1개**(통나무/돌/꽃잎)가 바로 들어오고 `+1 통나무` 가 둥둥 뜹니다.
+   파편 파티클은 9 → 11개, 흔들림은 기존 `Scenery.pop`. **9% 확률 럭키 드롭** — 숨은 섬 코인 +5 또는 황금 열매(열매+1, 금빛 파티클).
+4. **미니맵 연동** — 72×72 지형 + 강(안쪽 물은 강빛) + 강 중심선 + **다리(미완성 점선 ↔ 완성 널빤지)** + 숲/채석장/논 구역.
+   확대 지도 범례에 다리·논·숲·채석장이 추가되고, 눌러서 상태를 바로 확인할 수 있습니다.
+
+## 6. 세이브 v5 · 검증 · 배포
+
+`saveSchema.SAVE_VERSION = 5`. 추가 필드 `bridge · bridgeBuilt · cartLevel · bagCapacity · paddyPlots · welcome`.
+v1~v4 세이브는 로드 시 새 필드를 기본값(다리 없음·리어카 없음·빈 논 6칸)으로 채우고 기존 진행을 그대로 승계합니다.
+(이미 조건을 채운 v4 세이브는 웰컴 단계가 소급 통과하며 코인 +15×n 이 한 번 붙습니다.)
+
+```bash
+npm run build
+node tools/check_layout.mjs                  # 배치 + 강/다리 + 개척권 분산 검증 (브라우저 없이)
+QA_PART=content python3 tools/qa_phase4.py   # 맵·웰컴·타격감·즉시 복구·다리·숲/채석장·논·리어카 (60 체크)
+QA_PART=regress python3 tools/qa_phase4.py   # 1·2·3단계 회귀 + 지도 + 업적 (14 체크)
+QA_PART=save    python3 tools/qa_phase4.py   # v5 저장/복원 + v4·v3 → v5 (23 체크)
+python3 tools/qa_live.py                     # 배포된 GitHub Pages 부팅 확인
+```
+
+결과: **97/97 통과 · 콘솔 에러 0 · 404/실패 요청 0**. 캡처: `screenshots/phase4/`.
+
+| 파일 | 내용 |
+| --- | --- |
+| `01_title.png` · `02_new_island.png` | Phase 4 타이틀 · 72×72 새 섬 + 웰컴 배너 |
+| `05_lucky_hit.png` | 타격 `+1 통나무` · `🪙 +5 숨은 동전` 플로팅 |
+| `06_bridge_panel.png` · `07_bridge_built.png` | 다리 건축 패널 · 완성된 널빤지 데크 |
+| `08_crossed_bridge.png` | 다리를 걸어 북쪽 개척권 진입 |
+| `09_north_forest.png` · `10_quarry.png` | 빼곡한 숲 · 채석장 군락 |
+| `11_paddy_seed_picker.png` · `12_paddy_watered.png` · `13_paddy_harvested.png` | 논 볍씨 심기 · 물주기 · 수확 |
+| `14_riceball.png` | 고소한 주먹밥 요리 |
+| `15_cart_panel.png` · `16_cart_equipped.png` | 리어카 제작 · 가방 16칸 + 따라오는 손수레 |
+| `18_map_modal.png` | 72×72 확대 지도(강·다리·숲·채석장·논) |
+| `19_achievements.png` · `20_reloaded.png` | 업적 14종 · v5 복원 |
+| `21_v4_title.png` · `22_v4_migrated.png` · `23_v3_migrated.png` | v4/v3 → v5 마이그레이션 |
+
+### 대표 캡처 (세션 새로 열어 촬영)
+
+소프트웨어 렌더러 특성상 한 세션에서 오래 조작하면 GPU 프로세스가 죽어 캔버스가 검게 남습니다(3단계 캡처에서도 동일).
+그래서 대표 컷은 `tools/shots_phase4.py` 로 **세션마다 새로 열어** 찍었습니다 — `screenshots/phase4/final_*.png`.
+
+| 파일 | 내용 |
+| --- | --- |
+| `final_01_title.png` · `final_02_spawn_welcome.png` | Phase 4 타이틀 · 새 섬 + 웰컴 배너 |
+| `final_03_bridge_site.png` · `final_04_map_unbuilt.png` | 다리 건축 전(말뚝) · 지도에 점선 다리 |
+| `final_05_bridge_built.png` · `final_06_north_view.png` · `final_07_map_built.png` | 완성된 데크 · 건넌 뒤 · 지도에 널빤지 다리 |
+| `final_08_forest.png` · `final_09_quarry.png` · `final_10_paddy.png` · `final_11_paddy_panel.png` | 숲 · 채석장 · 논 3단계 · 논 패널 |
+| `final_12_workshop_cart.png` · `final_13_cart_panel.png` · `final_14_cart_equipped.png` · `final_15_bag_16.png` | 공방 메뉴 · 리어카 패널 · 16칸 + 따라오는 손수레 · 가방 패널 |
+| `final_16_achievements.png` | 업적 14종 |
+
+### QA 환경 메모
+
+이 작업 환경의 헤드리스 크로미움은 접근성 라이브러리(`libatk-1.0` · `libatk-bridge-2.0` · `libatspi`)가 없어 뜨지 않습니다.
+`tools/atk_stub/` 에 최소 스텁 `.so` 를 두고 `tools/browser_env.py` 가 `LD_LIBRARY_PATH` 로 먼저 찾게 합니다(헤드리스는 ATK 를 호출하지 않음).

@@ -7,9 +7,9 @@
  */
 import { Inventory } from './Inventory.js';
 import { Skills } from './Skills.js';
-import { CATS, FARM, LANDMARKS } from '../config.js';
-import { ITEMS, STAMINA } from './items.js';
-import { CROPS, CROP_ORDER, FARMING } from './farmData.js';
+import { CATS, FARM, LANDMARKS, PADDY } from '../config.js';
+import { BAG, CART, ITEMS, STAMINA } from './items.js';
+import { ALL_CROP_ORDER, CROPS, FARMING } from './farmData.js';
 import { ACHIEVEMENTS, achById } from './achievementsData.js';
 import {
   CAT_LEVELS,
@@ -51,6 +51,16 @@ export class Progress {
     this.mailbox = { read: [], claimed: [] };
     /** 채집 오브젝트 상태: key → { left: 남은 타격, respawn: 남은 초 } */
     this.nodes = {};
+
+    // ── 4단계: 다리 · 리어카 · 논 · 웰컴 미션
+    /** 강을 건너는 다리 — { built, invested } */
+    this.bridge = { built: false, invested: {} };
+    /** 🛒 리어카 레벨 (0 = 없음, 1 = 가방 16칸) */
+    this.cartLevel = 0;
+    /** 논 3×2 타일 — null(빈 논) 또는 { crop, remain, total, watered, wet } */
+    this.paddyPlots = new Array(PADDY.cols * PADDY.rows).fill(null);
+    /** 첫 1분 웰컴 3단 미션 진행 단계 (0~3) */
+    this.welcome = { step: 0 };
 
     // ── 2단계 생활 콘텐츠
     /** 섬 코인 */
@@ -98,6 +108,8 @@ export class Progress {
       plant: 0,
       water: 0,
       crop: 0,
+      /** 4단계: 럭키 드롭(숨은 섬 코인·황금 열매) 횟수 */
+      lucky: 0,
     };
     /** 업적 — 달성한 id 목록 · 보상을 받은 id 목록 */
     this.achievements = { unlocked: [], claimed: [] };
@@ -129,6 +141,40 @@ export class Progress {
   investedTotal(id) {
     const inv = this.building(id).invested;
     return Object.values(inv).reduce((a, b) => a + (Number(b) || 0), 0);
+  }
+
+  /* ── 다리 (강 건너 개척권) ────────────────────────────── */
+
+  /** 다리 건축 상태 — 재료 투입량과 완공 여부 */
+  bridgeState() {
+    if (!this.bridge || typeof this.bridge !== 'object') this.bridge = { built: false, invested: {} };
+    if (!this.bridge.invested || typeof this.bridge.invested !== 'object') this.bridge.invested = {};
+    return this.bridge;
+  }
+
+  get bridgeBuilt() {
+    return !!this.bridgeState().built;
+  }
+
+  /** 다리에 지금까지 투입한 총량 */
+  bridgeInvestedTotal() {
+    const inv = this.bridgeState().invested;
+    return Object.values(inv).reduce((a, b) => a + (Number(b) || 0), 0);
+  }
+
+  /* ── 🛒 리어카 (가방 칸 확장) ────────────────────────── */
+
+  /** 지금 가방 칸 수 — 기본 8 + 리어카 8×레벨 */
+  get bagCapacity() {
+    const lv = Math.max(0, Math.min(CART.maxLevel, Math.floor(Number(this.cartLevel) || 0)));
+    return Math.min(24, BAG.slots + CART.slotsPerLevel * lv);
+  }
+
+  /** 리어카 상태를 인벤토리 칸 수에 반영 */
+  syncCapacity() {
+    const cap = this.bagCapacity;
+    if (this.inventory.slots !== cap) this.inventory.setCapacity(cap);
+    return cap;
   }
 
   /* ── 편지 ─────────────────────────────────────────────── */
@@ -316,7 +362,7 @@ export class Progress {
 
   /** 바구니에 담긴 작물 종류 수(도감용) */
   cropKinds() {
-    return CROP_ORDER.filter((id) => this.cropCount(id) > 0).length;
+    return ALL_CROP_ORDER.filter((id) => this.cropCount(id) > 0).length;
   }
 
   /* ── 씨앗 ──────────────────────────────────────────────── */
@@ -402,29 +448,32 @@ export class Progress {
     return { ok: true, row, stored };
   }
 
-  /* ── 텃밭 ──────────────────────────────────────────────── */
+  /* ── 텃밭(남쪽 3×3) · 논(북쪽 3×2) 공통 타일 규칙 ──────── */
 
-  plot(index) {
-    const p = this.farmPlots[index];
+  /** 타일 하나의 상태 (빈 타일이면 null) */
+  tileAt(list, index) {
+    const p = list[index];
     return p && p.crop ? p : null;
   }
 
-  /** 씨앗 심기 — @returns {{ok:boolean, reason?:string}} */
-  plantSeed(index, cropId) {
+  /** 씨앗 심기 — paddy=true 면 논(볍씨 전용) 규칙 */
+  plantIn(list, index, cropId, paddy = false) {
     const crop = CROPS[cropId];
     if (!crop) return { ok: false, reason: 'crop' };
-    if (index < 0 || index >= this.farmPlots.length) return { ok: false, reason: 'index' };
-    if (this.plot(index)) return { ok: false, reason: 'occupied' };
+    if (paddy && !crop.paddyOnly) return { ok: false, reason: 'paddy' };
+    if (!paddy && crop.paddyOnly) return { ok: false, reason: 'farm' };
+    if (index < 0 || index >= list.length) return { ok: false, reason: 'index' };
+    if (this.tileAt(list, index)) return { ok: false, reason: 'occupied' };
     if (this.supply(crop.seedId) <= 0) return { ok: false, reason: 'seed' };
     this.takeSupply(crop.seedId, 1);
-    this.farmPlots[index] = { crop: cropId, remain: crop.grow, total: crop.grow, watered: 0, wet: 0 };
+    list[index] = { crop: cropId, remain: crop.grow, total: crop.grow, watered: 0, wet: 0 };
     this.bump('plant', 1);
     return { ok: true, crop };
   }
 
-  /** 물주기 — 남은 시간을 절반으로. @returns {{ok:boolean, remain?:number, reason?:string}} */
-  waterPlot(index) {
-    const plot = this.plot(index);
+  /** 물주기 — 남은 시간을 절반으로 */
+  waterIn(list, index) {
+    const plot = this.tileAt(list, index);
     if (!plot) return { ok: false, reason: 'empty' };
     if (plot.remain <= 0) return { ok: false, reason: 'ripe' };
     if (plot.watered >= FARMING.maxWater) return { ok: false, reason: 'max' };
@@ -435,12 +484,12 @@ export class Progress {
     return { ok: true, remain: plot.remain, watered: plot.watered };
   }
 
-  /** 성장 틱 — @returns {number[]} 이번에 다 자란 칸 인덱스 */
-  tickFarm(dt) {
+  /** 성장 틱 — 다 자란 타일 인덱스 목록 */
+  tickIn(list, dt) {
     const ripe = [];
     const step = Math.max(0, Number(dt) || 0);
-    for (let i = 0; i < this.farmPlots.length; i++) {
-      const plot = this.farmPlots[i];
+    for (let i = 0; i < list.length; i++) {
+      const plot = list[i];
       if (!plot || !plot.crop) continue;
       if (plot.wet > 0) plot.wet = Math.max(0, plot.wet - step);
       if (plot.remain <= 0) continue;
@@ -450,18 +499,66 @@ export class Progress {
     return ripe;
   }
 
-  /** 수확 — 바구니에 담고 밭을 비운다 */
-  harvestPlot(index) {
-    const plot = this.plot(index);
+  /** 수확 — 바구니(progress.crops)에 담고 타일을 비운다 */
+  harvestIn(list, index) {
+    const plot = this.tileAt(list, index);
     if (!plot) return { ok: false, reason: 'empty' };
     if (plot.remain > 0) return { ok: false, reason: 'growing' };
     const crop = CROPS[plot.crop];
     const [lo, hi] = crop.yield;
     const n = lo + Math.floor(Math.random() * (hi - lo + 1));
     this.addCrop(crop.id, n);
-    this.farmPlots[index] = null;
+    list[index] = null;
     this.bump('crop', 1);
     return { ok: true, crop, n, total: this.cropCount(crop.id) };
+  }
+
+  /* ── 텃밭 (남쪽 3×3) ────────────────────────────────── */
+
+  plot(index) {
+    return this.tileAt(this.farmPlots, index);
+  }
+
+  /** 씨앗 심기 — @returns {{ok:boolean, reason?:string}} */
+  plantSeed(index, cropId) {
+    return this.plantIn(this.farmPlots, index, cropId, false);
+  }
+
+  /** 물주기 — 남은 시간을 절반으로. @returns {{ok:boolean, remain?:number, reason?:string}} */
+  waterPlot(index) {
+    return this.waterIn(this.farmPlots, index);
+  }
+
+  /** 성장 틱 — @returns {number[]} 이번에 다 자란 칸 인덱스 */
+  tickFarm(dt) {
+    return this.tickIn(this.farmPlots, dt);
+  }
+
+  /** 수확 — 바구니에 담고 밭을 비운다 */
+  harvestPlot(index) {
+    return this.harvestIn(this.farmPlots, index);
+  }
+
+  /* ── 논 (북쪽 3×2 · 볍씨) ───────────────────────────── */
+
+  paddyPlot(index) {
+    return this.tileAt(this.paddyPlots, index);
+  }
+
+  plantPaddy(index, cropId = 'rice') {
+    return this.plantIn(this.paddyPlots, index, cropId, true);
+  }
+
+  waterPaddy(index) {
+    return this.waterIn(this.paddyPlots, index);
+  }
+
+  tickPaddy(dt) {
+    return this.tickIn(this.paddyPlots, dt);
+  }
+
+  harvestPaddy(index) {
+    return this.harvestIn(this.paddyPlots, index);
   }
 
   /* ── 고양이 호감도 ───────────────────────────────────── */
@@ -646,6 +743,23 @@ export class Progress {
       ),
       counters: { ...this.counters },
       achievements: { unlocked: [...this.achievements.unlocked], claimed: [...this.achievements.claimed] },
+      // ── 4단계
+      bridge: { built: !!this.bridgeState().built, invested: { ...this.bridgeState().invested } },
+      bridgeBuilt: !!this.bridgeState().built,
+      cartLevel: this.cartLevel,
+      bagCapacity: this.bagCapacity,
+      paddyPlots: this.paddyPlots.map((p) =>
+        p && p.crop
+          ? {
+              crop: p.crop,
+              remain: Math.round(Math.max(0, p.remain) * 100) / 100,
+              total: Math.round(p.total * 100) / 100,
+              watered: Math.max(0, Math.floor(p.watered || 0)),
+              wet: Math.round(Math.max(0, p.wet || 0) * 10) / 10,
+            }
+          : null
+      ),
+      welcome: { step: Math.max(0, Math.min(3, Math.floor(Number(this.welcome && this.welcome.step) || 0))) },
     };
   }
 
@@ -654,7 +768,9 @@ export class Progress {
     if (!json || typeof json !== 'object') return this;
 
     this.stamina = clamp(json.stamina, 0, STAMINA.max, STAMINA.max);
-    this.inventory.load({ bag: json.bag, storage: json.storage });
+    // 리어카 레벨을 먼저 읽어야 가방 칸 수가 맞춰진다
+    this.cartLevel = int(json.cartLevel, 0, CART.maxLevel, 0);
+    this.inventory.load({ bag: json.bag, storage: json.storage }, this.bagCapacity);
 
     const b = json.buildings && typeof json.buildings === 'object' ? json.buildings : {};
     for (const lm of LANDMARKS) {
@@ -801,6 +917,37 @@ export class Progress {
     }
 
     for (const key of Object.keys(this.counters)) this.counters[key] = int(json.counters && json.counters[key], 0, 999999, 0);
+
+    /* ── 4단계 (v4 세이브에는 없으므로 기본값 그대로) ─────── */
+    this.bridge = { built: false, invested: {} };
+    const br = json.bridge && typeof json.bridge === 'object' ? json.bridge : {};
+    this.bridge.built = !!json.bridgeBuilt || !!br.built;
+    const brInv = br.invested && typeof br.invested === 'object' ? br.invested : {};
+    for (const [id, raw] of Object.entries(brInv)) {
+      if (!ITEMS[id]) continue;
+      const n = Math.floor(Number(raw));
+      if (Number.isFinite(n) && n > 0) this.bridge.invested[id] = n;
+    }
+
+    this.paddyPlots = new Array(PADDY.cols * PADDY.rows).fill(null);
+    const savedPaddy = Array.isArray(json.paddyPlots) ? json.paddyPlots : [];
+    for (let i = 0; i < this.paddyPlots.length; i++) {
+      const src = savedPaddy[i];
+      if (!src || typeof src !== 'object') continue;
+      const crop = CROPS[src.crop];
+      if (!crop || !crop.paddyOnly) continue;
+      const total = clamp(src.total, 1, 600, crop.grow);
+      this.paddyPlots[i] = {
+        crop: crop.id,
+        total,
+        remain: clamp(src.remain, 0, total, total),
+        watered: int(src.watered, 0, FARMING.maxWater, 0),
+        wet: clamp(src.wet, 0, FARMING.wetSeconds, 0),
+      };
+    }
+
+    const welcome = json.welcome && typeof json.welcome === 'object' ? json.welcome : {};
+    this.welcome = { step: int(welcome.step, 0, 3, 0) };
 
     this.achievements = { unlocked: [], claimed: [] };
     const ach = json.achievements && typeof json.achievements === 'object' ? json.achievements : {};

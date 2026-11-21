@@ -9,6 +9,12 @@ import { HARVEST, ITEMS, STAMINA, gainsLabel, rollDrops } from '../systems/items
 
 const HIT_COOLDOWN = 0.12;
 
+/** 두드릴 때마다 바로 손에 들어오는 기본 재료 — 타격감의 핵심 */
+const BASE_ITEM = { tree: 'log', rock: 'stone', flower: 'petal' };
+
+/** 확률적 럭키 드롭 — 숨은 섬 코인 +5 또는 황금 열매 */
+const LUCKY = { chance: 0.09, coinChance: 0.6, coin: 5 };
+
 export class Gathering {
   constructor({ scenery, progress, drops, fx, audio }) {
     this.scenery = scenery;
@@ -119,12 +125,16 @@ export class Gathering {
     // 강화한 도구는 한 번에 두 번 분량을 깎는다
     node.hitsLeft = Math.max(0, node.hitsLeft - 1 - this.progress.hitsBonus(node.kind));
     this.scenery.pop(node);
-    this.fx.burst(node.x, node.y + node.height * 0.42, node.z, this.#tint(node), 9);
+    this.fx.burst(node.x, node.y + node.height * 0.42, node.z, this.#tint(node), 11, { spread: 1.1, up: 2.0 });
     this.audio.sfxHit(node.kind);
     this.hooks.onHit?.(node.kind, cost);
 
+    // ── 타격 한 번에 기본 재료 1개가 바로 나온다 (`+통나무 1` 둥둥)
+    const base = BASE_ITEM[node.kind];
+    if (base) this.#grant(base, 1, node, node.y + node.height * 0.95);
+    this.#lucky(node);
+
     if (node.hitsLeft > 0) {
-      this.fx.float('툭!', node.x, node.y + node.height * 0.95, node.z, '#fff2e2');
       return { ok: true, harvest: false };
     }
 
@@ -168,6 +178,48 @@ export class Gathering {
     if (node.kind === 'tree') return node.frame.startsWith('cherry') ? '#ffc2d8' : '#9ed08a';
     if (node.kind === 'rock') return '#c8c8dc';
     return '#ffb9d5';
+  }
+
+  /**
+   * 가방에 넣고 `+1 통나무` 를 머리 위에 띄운다. 가방이 가득 차면 발밑에 내려놓는다.
+   * @returns {number} 실제로 담은 수량
+   */
+  #grant(itemId, n, node, y) {
+    const item = ITEMS[itemId];
+    if (!item) return 0;
+    const leftover = this.inventory.add(itemId, n);
+    const got = n - leftover;
+    if (got > 0) this.fx.float(`+${got} ${item.name}`, node.x, y, node.z, '#5f5470');
+    if (leftover > 0) {
+      const spot = this.#freeSpotNear(node.x, node.z);
+      this.drops.spawn(itemId, leftover, spot.x, spot.z);
+      if (this.time - this.fullWarnAt > 6) {
+        this.fullWarnAt = this.time;
+        this.hooks.toast?.(`가방이 가득 — ${item.name} ${leftover}개를 바닥에 내려놨어요`, 2400);
+      }
+    }
+    return got;
+  }
+
+  /** 럭키 드롭 — 가끔 숨은 섬 코인(+5)이나 황금 열매가 톡 튀어나온다 */
+  #lucky(node) {
+    if (Math.random() >= LUCKY.chance) return;
+    this.progress.bump('lucky', 1);
+    const y = node.y + node.height * 0.75;
+    if (Math.random() < LUCKY.coinChance) {
+      this.progress.addCoins(LUCKY.coin);
+      this.audio.sfxCoin?.();
+      this.fx.burst(node.x, y, node.z, '#ffd464', 12, { spread: 1.2, up: 2.2 });
+      this.fx.float(`🪙 +${LUCKY.coin} 숨은 동전`, node.x, y + 0.3, node.z, '#b38b3d');
+      this.hooks.toast?.('럭키! 나무 밑에서 숨은 섬 코인을 주웠어요 🪙 +5', 2000);
+      this.hooks.onPickup?.('coin', LUCKY.coin);
+      return;
+    }
+    this.#grant('berry', 1, node, y + 1.5);
+    this.audio.sfxRare?.();
+    this.fx.burst(node.x, y, node.z, '#ffe08a', 14, { spread: 1.3, up: 2.4 });
+    this.fx.float('🌟 황금 열매', node.x, y + 0.55, node.z, '#b2698f');
+    this.hooks.toast?.('럭키! 황금 열매가 톡 떨어졌어요 🌟', 2000);
   }
 
   #freeSpotNear(x, z) {

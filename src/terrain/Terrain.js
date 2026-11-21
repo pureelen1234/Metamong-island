@@ -5,7 +5,7 @@
  */
 import * as THREE from 'three';
 import { GRID, TILE, HALF, WATER_LEVEL } from '../config.js';
-import { sampleHeight, slopeAt, isWalkableAt } from './Heightmap.js';
+import { sampleHeight, slopeAt, isWalkableAt, bridgeDeckY } from './Heightmap.js';
 import { valueNoise } from './Noise.js';
 import { toonMaterial } from '../render/toon.js';
 
@@ -99,8 +99,10 @@ export class Terrain {
     return isWalkableAt(this.heights, x, z);
   }
 
-  /** 지면 위 y (물 위로는 올라가지 않게) */
+  /** 지면 위 y (물 위로는 올라가지 않게, 완성된 다리 위는 데크 높이) */
   groundY(x, z) {
+    const deck = bridgeDeckY(x, z);
+    if (deck !== null) return deck;
     return Math.max(this.sampleHeight(x, z), WATER_LEVEL + 0.02);
   }
 

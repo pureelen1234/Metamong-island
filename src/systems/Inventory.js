@@ -1,19 +1,59 @@
 /**
- * Inventory.js — 가방(8칸 · 칸당 20개)과 공방 창고(재료별 누적)
+ * Inventory.js — 가방(기본 8칸 · 칸당 20개)과 공방 창고(재료별 누적)
  *
  * 가방은 "칸" 배열이다. 같은 재료는 한 칸에 20개까지 쌓이고, 20개를 넘으면
  * 새 칸을 쓰려 한다. 새 칸도 없으면 남는 수량(leftover)을 돌려주고, 부르는 쪽이
  * 바닥에 내려놓거나 안내 문구를 띄운다 — 조용히 사라지는 재료는 만들지 않는다.
+ *
+ * 4단계: 칸 수가 고정이 아니라 `capacity` 다. 공방에서 🛒 리어카를 만들면
+ * 8칸 → 16칸으로 늘어나고(setCapacity), 세이브에는 쓰고 있는 칸만 저장된다.
  */
 import { BAG, ITEMS, ITEM_ORDER, STORAGE_CAP } from './items.js';
 
 const validId = (id) => typeof id === 'string' && !!ITEMS[id];
 
+/** 허용 범위(8~24칸)로 자른 칸 수 */
+function clampCapacity(n) {
+  const v = Math.floor(Number(n));
+  if (!Number.isFinite(v)) return BAG.slots;
+  return Math.max(BAG.slots, Math.min(24, v));
+}
+
 export class Inventory {
-  constructor(json) {
-    this.bag = new Array(BAG.slots).fill(null);
+  constructor(json, slots = BAG.slots) {
+    this.capacity = clampCapacity(slots);
+    this.bag = new Array(this.capacity).fill(null);
     this.storage = {};
-    if (json) this.load(json);
+    if (json) this.load(json, this.capacity);
+  }
+
+  /** 지금 가방 칸 수 */
+  get slots() {
+    return this.capacity;
+  }
+
+  /**
+   * 칸 수를 바꾼다(리어카). 늘릴 때 기존 칸은 그대로 두고 뒤에 빈 칸을 붙인다.
+   * 줄일 때는 뒤쪽 칸에 남은 재료를 버리지 않고 돌려준다.
+   * @returns {Array<{id:string,n:number}>} 자리가 없어 넘친 재료
+   */
+  setCapacity(n) {
+    const next = clampCapacity(n);
+    const spill = [];
+    if (next === this.capacity) return spill;
+    const old = this.bag;
+    const out = new Array(next).fill(null);
+    for (let i = 0; i < Math.min(old.length, next); i++) out[i] = old[i];
+    if (old.length > next) {
+      for (let i = next; i < old.length; i++) {
+        const slot = old[i];
+        if (slot && slot.n > 0) spill.push({ id: slot.id, n: slot.n });
+      }
+    }
+    this.capacity = next;
+    this.bag = out;
+    for (const s of spill) this.add(s.id, s.n);
+    return spill;
   }
 
   /* ── 읽기 ─────────────────────────────────────────────── */
@@ -149,19 +189,21 @@ export class Inventory {
 
   toJSON() {
     return {
+      capacity: this.capacity,
       bag: this.bag.map((s) => (s && s.n > 0 ? { id: s.id, n: Math.min(BAG.stack, Math.floor(s.n)) } : null)),
       storage: { ...this.storage },
     };
   }
 
   /** 구버전/깨진 세이브도 조용히 받아들인다 */
-  load(json) {
-    this.bag = new Array(BAG.slots).fill(null);
+  load(json, slots = this.capacity) {
+    this.capacity = clampCapacity(slots);
+    this.bag = new Array(this.capacity).fill(null);
     this.storage = {};
     if (!json || typeof json !== 'object') return this;
 
     const bag = Array.isArray(json.bag) ? json.bag : [];
-    bag.slice(0, BAG.slots).forEach((entry, i) => {
+    bag.slice(0, this.capacity).forEach((entry, i) => {
       if (!entry || typeof entry !== 'object') return;
       if (!validId(entry.id)) return;
       const n = Math.floor(Number(entry.n));

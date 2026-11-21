@@ -1,31 +1,40 @@
 /**
- * Minimap.js — 실시간 사각 섬 미니맵
+ * Minimap.js — 실시간 72×72 사각 섬 미니맵
  *
  * · HUD 우측 상단의 작은 네모 지도(104px) — 390×844 세로 화면에서 조이스틱·액션 버튼·
  *   퀵메뉴·토스트와 겹치지 않는 자리에 놓는다.
- * · 지형은 Heightmap 의 높이를 그대로 훑어 물/모래/잔디를 칠하고, 길·텃밭·4대 건물·
- *   우체통은 한 번만 그려 캐시한다(정적). 매 프레임 다시 그리는 것은 내 위치와 고양이뿐.
+ * · 지형은 Heightmap 의 높이를 그대로 훑어 물/모래/잔디를 칠하고, 길·텃밭·논·4대 건물·
+ *   우체통은 한 번만 그려 캐시한다(정적). 매 프레임 다시 그리는 것은 내 위치·고양이·
+ *   그리고 **다리 상태**(미완성 점선 ↔ 완성 널빤지)뿐.
  * · 지도를 톡 누르면 확대 지도 + 범례 모달이 열린다.
  */
 import * as THREE from 'three';
 import { h } from './dom.js';
-import { CATS, FARM, HALF, LANDMARKS, ZONES } from '../config.js';
-import { HEIGHTS, sampleHeight } from '../terrain/Heightmap.js';
+import { BRIDGE, CATS, FARM, HALF, LANDMARKS, MAILBOX, PADDY, ZONES, riverCenterZ } from '../config.js';
+import { HEIGHTS, boxDistance, sampleHeight } from '../terrain/Heightmap.js';
 import { ROUTES } from '../world/Path.js';
 
 /** 월드 좌표 → 지도 픽셀 */
 const proj = (v, size) => ((v + HALF) / (HALF * 2)) * size;
+const scale = (v, size) => (v / (HALF * 2)) * size;
 
 const COLOR = {
   deep: '#5fc4d8',
   shallow: '#8fe0e4',
+  river: '#6fd2dd',
   wetSand: '#f6e2b6',
   sand: '#ffe6b8',
   grass: '#a9e08c',
   grassDeep: '#8ed577',
+  forest: 'rgba(88,154,92,0.58)',
+  quarry: 'rgba(203,190,168,0.6)',
   path: '#f2dcb2',
   farm: '#9a6d43',
   farmEdge: '#c39a68',
+  paddy: '#7fc7c9',
+  paddyEdge: '#a9865d',
+  bridgeWood: '#c08a52',
+  bridgeSite: '#c8a06a',
   mailbox: '#ff8fa6',
   player: '#ff5f92',
 };
@@ -37,7 +46,7 @@ export function buildMapBase(size) {
   c.height = size;
   const ctx = c.getContext('2d');
 
-  // ① 물 → 모래 → 잔디 (높이 그대로)
+  // ① 물 → 모래 → 잔디 (높이 그대로, 섬 안쪽 물은 강빛으로)
   const img = ctx.createImageData(size, size);
   const px = img.data;
   for (let y = 0; y < size; y++) {
@@ -45,9 +54,10 @@ export function buildMapBase(size) {
       const wx = (x / size) * HALF * 2 - HALF;
       const wz = (y / size) * HALF * 2 - HALF;
       const hgt = sampleHeight(HEIGHTS, wx, wz);
+      const inland = boxDistance(wx, wz) < -1.2;
       let col;
-      if (hgt < -0.35) col = COLOR.deep;
-      else if (hgt < 0.06) col = COLOR.shallow;
+      if (hgt < -0.35) col = inland ? COLOR.river : COLOR.deep;
+      else if (hgt < 0.06) col = inland ? COLOR.river : COLOR.shallow;
       else if (hgt < 0.28) col = COLOR.wetSand;
       else if (hgt < 0.52) col = COLOR.sand;
       else if (hgt < 0.66) col = COLOR.grass;
@@ -64,7 +74,7 @@ export function buildMapBase(size) {
 
   // ② 길 — 흙길 리본
   ctx.strokeStyle = COLOR.path;
-  ctx.lineWidth = Math.max(1.4, size * 0.016);
+  ctx.lineWidth = Math.max(1.4, size * 0.014);
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
   for (const route of ROUTES) {
@@ -74,7 +84,7 @@ export function buildMapBase(size) {
       'catmullrom',
       0.5
     );
-    const pts = curve.getSpacedPoints(28);
+    const pts = curve.getSpacedPoints(30);
     ctx.beginPath();
     pts.forEach((p, i) => {
       const x = proj(p.x, size);
@@ -85,14 +95,14 @@ export function buildMapBase(size) {
     ctx.stroke();
   }
 
-  // ③ 북서 텃밭 — 흙 사각형 + 3×3 칸
-  const tile = (FARM.tile / (HALF * 2)) * size;
-  const pitch = (FARM.pitch / (HALF * 2)) * size;
+  // ③ 남서 텃밭 — 흙 사각형 + 3×3 칸
+  const tile = scale(FARM.tile, size);
   ctx.fillStyle = COLOR.farmEdge;
   const bx = proj(FARM.x - (FARM.cols * FARM.pitch) / 2, size);
   const bz = proj(FARM.z - (FARM.rows * FARM.pitch) / 2, size);
-  const bw = (FARM.cols * FARM.pitch * size) / (HALF * 2);
-  ctx.fillRect(bx, bz, bw, bw);
+  const bw = scale(FARM.cols * FARM.pitch, size);
+  const bh = scale(FARM.rows * FARM.pitch, size);
+  ctx.fillRect(bx, bz, bw, bh);
   ctx.fillStyle = COLOR.farm;
   for (let r = 0; r < FARM.rows; r++) {
     for (let cc = 0; cc < FARM.cols; cc++) {
@@ -102,20 +112,47 @@ export function buildMapBase(size) {
     }
   }
 
-  // ④ 과수원 · 꽃밭 — 구역 점
+  // ④ 북쪽 논 — 물 잠긴 3×2 타일 + 논두렁
+  const ptile = scale(PADDY.tile, size);
+  const pbx = proj(PADDY.x - (PADDY.cols * PADDY.pitch) / 2, size);
+  const pbz = proj(PADDY.z - (PADDY.rows * PADDY.pitch) / 2, size);
+  ctx.fillStyle = COLOR.paddyEdge;
+  ctx.fillRect(pbx, pbz, scale(PADDY.cols * PADDY.pitch, size), scale(PADDY.rows * PADDY.pitch, size));
+  ctx.fillStyle = COLOR.paddy;
+  for (let r = 0; r < PADDY.rows; r++) {
+    for (let cc = 0; cc < PADDY.cols; cc++) {
+      const x = proj(PADDY.x + (cc - (PADDY.cols - 1) / 2) * PADDY.pitch, size) - ptile / 2;
+      const z = proj(PADDY.z + (r - (PADDY.rows - 1) / 2) * PADDY.pitch, size) - ptile / 2;
+      ctx.fillRect(x, z, Math.max(1.6, ptile), Math.max(1.6, ptile));
+    }
+  }
+
+  // ⑤ 구역 점 — 숲·채석장(개척권) + 과수원·꽃밭(생활권)
   for (const z of ZONES) {
-    if (z.id !== 'orchard' && z.id !== 'garden') continue;
-    ctx.fillStyle = z.id === 'orchard' ? 'rgba(120,190,110,0.55)' : 'rgba(255,183,214,0.6)';
+    if (z.id === 'farm' || z.id === 'paddy' || z.id === 'beach') continue;
+    ctx.fillStyle =
+      z.id === 'orchard' ? 'rgba(120,190,110,0.5)' : z.id === 'garden' ? 'rgba(255,183,214,0.55)' : z.id === 'forest' ? COLOR.forest : COLOR.quarry;
     ctx.beginPath();
-    ctx.arc(proj(z.x, size), proj(z.z, size), Math.max(4, (z.r / (HALF * 2)) * size), 0, Math.PI * 2);
+    ctx.arc(proj(z.x, size), proj(z.z, size), Math.max(4, scale(z.r, size)), 0, Math.PI * 2);
     ctx.fill();
   }
 
-  // ⑤ 4대 건물 — 흰 테두리 원 + 이모지 글리프
+  // ⑥ 강 중심선을 살짝 밝게 — 개울이 어디로 흐르는지 한눈에
+  ctx.strokeStyle = 'rgba(150,235,240,0.55)';
+  ctx.lineWidth = Math.max(1.2, size * 0.012);
+  ctx.beginPath();
+  for (let x = -HALF; x <= HALF; x += 1.5) {
+    const y = proj(riverCenterZ(x), size);
+    if (x === -HALF) ctx.moveTo(proj(x, size), y);
+    else ctx.lineTo(proj(x, size), y);
+  }
+  ctx.stroke();
+
+  // ⑦ 4대 건물 — 흰 테두리 원 + 이모지 글리프
   for (const lm of LANDMARKS) {
     const x = proj(lm.x, size);
     const y = proj(lm.z, size);
-    const r = Math.max(4.2, size * 0.045);
+    const r = Math.max(4.2, size * 0.042);
     ctx.beginPath();
     ctx.arc(x, y, r, 0, Math.PI * 2);
     ctx.fillStyle = '#ffffff';
@@ -130,10 +167,9 @@ export function buildMapBase(size) {
     ctx.fillText(lm.icon, x, y + r * 0.06);
   }
 
-  // ⑥ 우체통 (우체통 메타몽 자리)
-  const mail = { x: 2.6, z: 11.6 };
+  // ⑧ 우체통 (우체통 메타몽 자리)
   ctx.beginPath();
-  ctx.arc(proj(mail.x, size), proj(mail.z, size), Math.max(2.6, size * 0.028), 0, Math.PI * 2);
+  ctx.arc(proj(MAILBOX.x, size), proj(MAILBOX.z, size), Math.max(2.6, size * 0.026), 0, Math.PI * 2);
   ctx.fillStyle = COLOR.mailbox;
   ctx.fill();
   ctx.strokeStyle = '#fff';
@@ -141,6 +177,63 @@ export function buildMapBase(size) {
   ctx.stroke();
 
   return c;
+}
+
+/** 다리 — 미완성은 점선 말뚝, 완성은 널빤지 띠 (상태가 바뀌므로 매번 그린다) */
+function drawBridge(ctx, s, built, big = false) {
+  const x0 = proj(BRIDGE.x - BRIDGE.halfWidth, s);
+  const x1 = proj(BRIDGE.x + BRIDGE.halfWidth, s);
+  const z0 = proj(BRIDGE.z - BRIDGE.halfSpan, s);
+  const z1 = proj(BRIDGE.z + BRIDGE.halfSpan, s);
+  const w = Math.max(2, x1 - x0);
+
+  if (built) {
+    ctx.fillStyle = COLOR.bridgeWood;
+    ctx.fillRect(x0, z0, w, z1 - z0);
+    ctx.strokeStyle = '#8f6236';
+    ctx.lineWidth = Math.max(0.8, s * 0.004);
+    for (let z = z0; z <= z1; z += Math.max(2.5, (z1 - z0) / 8)) {
+      ctx.beginPath();
+      ctx.moveTo(x0, z);
+      ctx.lineTo(x0 + w, z);
+      ctx.stroke();
+    }
+  } else {
+    ctx.save();
+    ctx.setLineDash([Math.max(2, s * 0.012), Math.max(2, s * 0.01)]);
+    ctx.strokeStyle = COLOR.bridgeSite;
+    ctx.lineWidth = Math.max(1.6, s * 0.014);
+    ctx.beginPath();
+    ctx.moveTo((x0 + x1) / 2, z0);
+    ctx.lineTo((x0 + x1) / 2, z1);
+    ctx.stroke();
+    ctx.restore();
+  }
+  if (big) {
+    // 확대 지도에서는 이모지 글리프에 기대지 않고 작은 다리 표시를 직접 그린다
+    const cx = (x0 + x1) / 2;
+    const cz = (z0 + z1) / 2;
+    const w2 = Math.max(6, s * 0.05);
+    const h2 = Math.max(10, s * 0.075);
+    ctx.fillStyle = built ? COLOR.bridgeWood : 'rgba(255,246,228,0.72)';
+    ctx.strokeStyle = built ? '#8f6236' : COLOR.bridgeSite;
+    ctx.lineWidth = Math.max(1.4, s * 0.006);
+    if (!built) ctx.setLineDash([Math.max(2, s * 0.008), Math.max(2, s * 0.007)]);
+    ctx.beginPath();
+    ctx.rect(cx - w2 / 2, cz - h2 / 2, w2, h2);
+    ctx.fill();
+    ctx.stroke();
+    if (built) {
+      ctx.beginPath();
+      for (let i = 1; i < 4; i++) {
+        const zz = cz - h2 / 2 + (h2 / 4) * i;
+        ctx.moveTo(cx - w2 / 2, zz);
+        ctx.lineTo(cx + w2 / 2, zz);
+      }
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
+  }
 }
 
 let hexCache = new Map();
@@ -192,10 +285,11 @@ export class Minimap {
 
     this.base = buildMapBase(size * this.dpr);
     this.ctx = this.canvas.getContext('2d');
+    this.lastBridge = null;
     this.draw();
   }
 
-  /** 정적 배경 + 움직이는 점(내 위치·고양이) */
+  /** 정적 배경 + 움직이는 점(내 위치·고양이) + 다리 상태 */
   draw() {
     const g = this.game;
     if (!g || !g.player) return;
@@ -204,13 +298,17 @@ export class Minimap {
     ctx.clearRect(0, 0, s, s);
     ctx.drawImage(this.base, 0, 0, s, s);
 
+    const built = !!(g.progress && g.progress.bridgeBuilt);
+    drawBridge(ctx, s, built);
+    this.lastBridge = built;
+
     // 솜이 · 옹이
     for (const def of CATS) {
       const cat = g.cats ? g.cats.find((c) => c.id === def.id) : null;
       const x = proj(cat ? cat.position.x : def.x, s);
       const y = proj(cat ? cat.position.z : def.z, s);
       ctx.beginPath();
-      ctx.arc(x, y, Math.max(2.2, s * 0.028), 0, Math.PI * 2);
+      ctx.arc(x, y, Math.max(2.2, s * 0.026), 0, Math.PI * 2);
       ctx.fillStyle = def.id === 'somi' ? '#f7f1e6' : '#6d5a4a';
       ctx.fill();
       ctx.lineWidth = Math.max(0.8, s * 0.007);
@@ -224,7 +322,7 @@ export class Minimap {
     const yaw = g.player.yaw || 0;
     const dirx = Math.sin(yaw);
     const diry = Math.cos(yaw);
-    const r = Math.max(3.4, s * 0.045);
+    const r = Math.max(3.4, s * 0.042);
     ctx.save();
     ctx.translate(px, py);
     ctx.rotate(Math.atan2(diry, dirx) + Math.PI / 2);
@@ -261,6 +359,8 @@ export class Minimap {
     ctx.drawImage(buildMapBase(s), 0, 0, s, s);
 
     const g = this.game;
+    drawBridge(ctx, s, !!g.progress.bridgeBuilt, true);
+
     // 고양이
     for (const def of CATS) {
       const cat = g.cats ? g.cats.find((c) => c.id === def.id) : null;
@@ -278,7 +378,7 @@ export class Minimap {
     const px = proj(g.player.position.x, s);
     const py = proj(g.player.position.z, s);
     const yaw = g.player.yaw || 0;
-    const r = Math.max(6, s * 0.022);
+    const r = Math.max(6, s * 0.02);
     ctx.save();
     ctx.translate(px, py);
     ctx.rotate(Math.atan2(Math.cos(yaw), Math.sin(yaw)) + Math.PI / 2);
@@ -308,8 +408,12 @@ export class Minimap {
       const done = !!g.progress.building(lm.id).done;
       legend.append(row('#ffffff', `${lm.icon} ${lm.name}`, done ? '복구 완료' : '복구 전'));
     }
+    legend.append(row(COLOR.bridgeWood, '🌉 다리', g.progress.bridgeBuilt ? '건널 수 있어요' : '재료를 모아 놓기'));
     legend.append(row(COLOR.mailbox, '📬 우체통', '편지·의뢰 보상'));
-    legend.append(row(COLOR.farm, '🌱 텃밭', `3×3 경작지 · ${g.progress.farmPlots.filter(Boolean).length}칸 심음`));
+    legend.append(row(COLOR.farm, '🌱 텃밭', `3×3 · ${g.progress.farmPlots.filter(Boolean).length}칸 심음`));
+    legend.append(row(COLOR.paddy, '🌾 논', `3×2 · ${g.progress.paddyPlots.filter(Boolean).length}칸 심음`));
+    legend.append(row(COLOR.forest, '🌲 빼곡한 숲', '통나무 군락'));
+    legend.append(row(COLOR.quarry, '🪨 채석장', '돌·별조각 군락'));
     for (const def of CATS) {
       const cat = g.cats ? g.cats.find((c) => c.id === def.id) : null;
       legend.append(row(def.id === 'somi' ? '#f7f1e6' : '#6d5a4a', `🐱 ${def.name}`, cat ? `Lv.${g.progress.catRow(def.id).level}` : ''));
@@ -320,10 +424,13 @@ export class Minimap {
       'div',
       { class: 'map-modal' },
       h('div', { class: 'map-canvas-wrap' }, canvas),
-      h('div', { class: 'hint' }, '지도는 섬 전체(48×48)를 담아요. 물·모래·잔디·길·텃밭이 실제 지형 그대로이고, 내 화살표가 바라보는 방향을 가리켜요.'),
+      h(
+        'div',
+        { class: 'hint' },
+        '지도는 섬 전체(72×72)를 담아요. 가운데 강이 남쪽 생활권과 북쪽 개척권을 나누고, 다리를 놓으면 건너갈 수 있어요.'
+      ),
       h('div', { class: 'section-label' }, '범례'),
       legend
     );
   }
 }
-

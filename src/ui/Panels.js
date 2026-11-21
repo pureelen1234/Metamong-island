@@ -24,7 +24,7 @@ export class Panels {
   bag() {
     const inv = this.game.progress.inventory;
     const grid = h('div', { class: 'bag-grid' });
-    for (let i = 0; i < BAG.slots; i++) {
+    for (let i = 0; i < inv.slots; i++) {
       const slot = inv.bag[i];
       const cell = h(
         'div',
@@ -52,7 +52,7 @@ export class Panels {
     const body = h(
       'div',
       {},
-      h('div', { class: 'hint' }, `가방 ${inv.usedSlots()}/${BAG.slots}칸 · 담긴 재료 ${inv.totalItems()}개 · 한 칸에 ${BAG.stack}개까지`),
+      h('div', { class: 'hint' }, `가방 ${inv.usedSlots()}/${inv.slots}칸 · 담긴 재료 ${inv.totalItems()}개 · 한 칸에 ${BAG.stack}개까지`),
       grid,
       h('div', { class: 'section-label' }, '쓰기'),
       eatRow,
@@ -93,7 +93,7 @@ export class Panels {
       'div',
       {},
       h('div', { class: 'hint' }, '1 은 하나씩, 전체 는 그 재료를 전부 옮겨요 — 오른쪽은 창고로, 왼쪽은 가방으로.'),
-      h('div', { class: 'section-label' }, `🎒 가방 → 📦 창고  (${inv.usedSlots()}/${BAG.slots}칸)`),
+      h('div', { class: 'section-label' }, `🎒 가방 → 📦 창고  (${inv.usedSlots()}/${inv.slots}칸)`),
       bagRows.length ? h('div', { class: 'store-list' }, ...bagRows.map((e) => row(e, 'out'))) : h('div', { class: 'hint' }, '가방이 비어 있어요.'),
       h('div', { class: 'section-label' }, '📦 창고 → 🎒 가방'),
       storeRows.length ? h('div', { class: 'store-list' }, ...storeRows.map((e) => row(e, 'in'))) : h('div', { class: 'hint' }, '창고가 비어 있어요. 모아 둔 재료가 여기 쌓여요.')
@@ -170,7 +170,7 @@ export class Panels {
 
     return {
       title: `${lm.icon} ${lm.name}`,
-      subtitle: st.done ? '이미 복구된 건물이에요' : `${lm.day}일차에 열리는 부지 — 지금 바로 복구할 수 있어요`,
+      subtitle: st.done ? '이미 복구된 건물이에요' : '재료만 모이면 지금 바로 복구할 수 있어요',
       body,
       actions,
     };
@@ -200,7 +200,7 @@ export class Panels {
       h(
         'div',
         { class: 'row' },
-        h('div', {}, h('div', { class: 'label' }, '가방'), h('div', { class: 'hint' }, `${inv.usedSlots()}/${BAG.slots}칸 사용 중`)),
+        h('div', {}, h('div', { class: 'label' }, '가방'), h('div', { class: 'hint' }, `${inv.usedSlots()}/${inv.slots}칸 사용 중`)),
         h('span', { class: 'hint' }, `재료 ${inv.totalItems()}개`)
       ),
       h('div', { class: 'section-label' }, '공방 메뉴'),
@@ -209,8 +209,15 @@ export class Panels {
         { class: 'menu-list' },
         entry('📦', '창고', st.done ? '재료를 맡기고 꺼내요' : '공방을 복구하면 열려요', () => this.game.openStorage(), !st.done),
         entry('🍳', '요리하기', st.done ? '재료와 물고기로 기력을 회복해요' : '공방을 복구하면 열려요', () => this.game.openCooking(), !st.done),
-        entry('🪓', '도구 강화', st.done ? '도끼·곡깡이를 Lv.3까지' : '공방을 복구하면 열려요', () => this.game.openUpgrade(), !st.done),
-        entry('🔨', '건물 복구', '섬의 네 곳을 되살려요', () => this.game.openBuild('workshop'))
+        entry('🪓', '도구 강화', st.done ? '도끼·곡괭이를 Lv.3까지' : '공방을 복구하면 열려요', () => this.game.openUpgrade(), !st.done),
+        entry(
+          '🛒',
+          '리어카 만들기',
+          this.game.progress.cartLevel > 0 ? `가방 ${this.game.progress.inventory.slots}칸 사용 중` : `가방 ${BAG.slots}칸 → ${BAG.slots + 8}칸`,
+          () => this.game.openCart(),
+          !st.done
+        ),
+        entry('🔨', '건물 복구', '섬의 네 곳과 다리를 되살려요', () => this.game.openBuild('workshop'))
       )
     );
     return {

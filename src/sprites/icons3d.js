@@ -35,6 +35,43 @@ function painter(ctx, cell) {
   };
 }
 
+/** 🛒 리어카 — 플레이어 뒤를 따라오는 목재 손수레 (24×24) */
+export function cartTexture() {
+  const key = 'cart';
+  if (cache.has(key)) return cache.get(key);
+  const { c, ctx } = pixelCanvas(24);
+  const p = painter(ctx, 1);
+
+  // 손잡이 — 왼쪽 위로 뺀 자루
+  p(1, 11, 5, 2, '#a9713f');
+  p(1, 11, 5, 1, '#c68a52');
+  // 적재함 — 나무 판자 통
+  p(5, 7, 16, 8, '#b07845');
+  p(5, 7, 16, 1, '#d19a5f');
+  p(5, 14, 16, 1, '#8a5a30');
+  p(5, 10, 16, 1, '#96633a');
+  p(5, 7, 1, 8, '#8a5a30');
+  p(20, 7, 1, 8, '#7a4c28');
+  // 적재함 위쪽 테두리
+  p(6, 6, 14, 1, '#e0ad72');
+  // 바퀴 두 짝 — 바깥 고무는 진하게, 안쪽 살은 밝게
+  const wheel = (cx, cy) => {
+    p(cx - 3, cy - 1, 7, 2, '#4a4350');
+    p(cx - 2, cy - 3, 5, 1, '#4a4350');
+    p(cx - 2, cy + 2, 5, 1, '#4a4350');
+    p(cx - 1, cy - 2, 3, 4, '#6b6472');
+    p(cx, cy - 1, 1, 1, '#d8d2dc');
+  };
+  wheel(7, 18);
+  wheel(18, 18);
+  // 바퀴 축
+  p(7, 17, 11, 1, '#7a5a3a');
+
+  const tex = toTexture(c);
+  cache.set(key, tex);
+  return tex;
+}
+
 function buildItem(id) {
   const { c, ctx } = pixelCanvas(16);
   const p = painter(ctx, 1);

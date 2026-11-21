@@ -48,9 +48,30 @@ export const CROPS = {
     price: 75,
     desc: '해를 오래 먹어 노랗게 익은 호박. 제일 늦게, 제일 값지게.',
   },
+  // ── 4단계: 북쪽 논에서 기르는 벼 (물 잠긴 논 타일 전용)
+  rice: {
+    id: 'rice',
+    name: '쌀',
+    icon: '🍚',
+    tint: '#f4e7b8',
+    seedId: 'seed_rice',
+    seedPrice: 20,
+    grow: 45,
+    yield: [2, 3],
+    price: 28,
+    /** 논 타일에서만 자란다 (텃밭 3×3 에는 심을 수 없다) */
+    paddyOnly: true,
+    desc: '물 잠긴 논에서 자라는 벼. 거둬서 쌀로 팔거나 주먹밥을 지어요.',
+  },
 };
 
 export const CROP_ORDER = ['strawberry', 'radish', 'pumpkin'];
+/** 수확물 바구니·판매가 함께 보는 전체 작물 목록 (텃밭 3종 + 논의 쌀) */
+export const ALL_CROP_ORDER = [...CROP_ORDER, 'rice'];
+/** 텃밭(3×3)에 심을 수 있는 씨앗 */
+export const SEED_ORDER = ['seed_strawberry', 'seed_radish', 'seed_pumpkin'];
+/** 논(3×2)에 심을 수 있는 씨앗 */
+export const PADDY_SEED_ORDER = ['seed_rice'];
 
 /** 씨앗(자판기 사기 품목) — id 로 바로 찾을 수 있게 */
 export const SEEDS = {
@@ -78,9 +99,16 @@ export const SEEDS = {
     price: CROPS.pumpkin.seedPrice,
     desc: '심으면 60초 뒤 황금호박 1~2개. 오래 걸리는 만큼 비싸게 팔려요.',
   },
+  // ── 4단계: 볍씨 — 논 타일에만 심을 수 있다
+  seed_rice: {
+    id: 'seed_rice',
+    crop: 'rice',
+    name: '볍씨',
+    icon: '🌾',
+    price: CROPS.rice.seedPrice,
+    desc: '논에 심으면 45초 뒤 쌀 2~3개. 물을 주면 더 빨리 여물어요.',
+  },
 };
-
-export const SEED_ORDER = ['seed_strawberry', 'seed_radish', 'seed_pumpkin'];
 
 /** 성장 단계 이름 — 3D 흙 타일과 UI 가 같이 쓴다 */
 export const FARM_STAGES = ['빈 밭', '씨앗', '새싹', '자라는 중', '수확 가능'];

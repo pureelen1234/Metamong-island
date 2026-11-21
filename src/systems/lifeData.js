@@ -5,7 +5,7 @@
  * 밸런스 숫자를 바꾸고 싶으면 여기 한 곳만 고치면 된다.
  */
 import { ITEMS } from './items.js';
-import { CROPS, CROP_ORDER, FARMING, SEEDS, SEED_ORDER } from './farmData.js';
+import { CROPS, CROP_ORDER, FARMING, PADDY_SEED_ORDER, SEEDS, SEED_ORDER } from './farmData.js';
 
 /* ─────────────────────────────────────────────────────────────────
    🎣 낚시 — 어종 5종 + 별조각 보너스
@@ -94,9 +94,9 @@ export const FISH_WEIGHTS_BAIT = {
 
 export const FISHING = {
   /** 플레이어가 서서 낚시하는 자리 (부두 끝 물가) */
-  spot: { x: 0, z: 19.4, range: 3.0 },
+  spot: { x: 0, z: 28.9, range: 3.0 },
   /** 찌가 떨어지는 물 위 좌표 */
-  castTo: { x: 0, z: 22.2 },
+  castTo: { x: 0, z: 33.2 },
   stamina: 5,
   waitMin: 1.5,
   waitMax: 3.5,
@@ -182,9 +182,22 @@ export const COOK = {  tea: {
     buff: 0,
     desc: '노란 호박을 뭉근하게 끓인 수프. 한 그릇이면 하루가 든든해요.',
   },
+  // ── 4단계: 논에서 거둔 쌀로 짓는 주먹밥
+  riceball: {
+    id: 'riceball',
+    name: '고소한 주먹밥',
+    icon: '🍙',
+    need: { berry: 1 },
+    fish: {},
+    crop: { rice: 2 },
+    stamina: 80,
+    exp: 45,
+    buff: 0,
+    desc: '갓 지은 쌀에 열매 즙을 살짝 섞어 쥔 주먹밥. 한 손에 쏙 들어요.',
+  },
 };
 
-export const COOK_ORDER = ['tea', 'grill', 'bream', 'golden', 'smoothie', 'pumpkinsoup'];
+export const COOK_ORDER = ['tea', 'grill', 'bream', 'golden', 'smoothie', 'pumpkinsoup', 'riceball'];
 
 /** 황금 정식 버프 — 지속 초 동안 채집 기력 소모·이동 속도 보정 */
 export const GOLDEN_BUFF = { seconds: 60, stamina: 0.6, speed: 1.18, label: '황금 버프' };
@@ -265,9 +278,11 @@ export const SHOP = {
   seed_strawberry: { kind: 'seed', crop: 'strawberry', ...SEEDS.seed_strawberry },
   seed_radish: { kind: 'seed', crop: 'radish', ...SEEDS.seed_radish },
   seed_pumpkin: { kind: 'seed', crop: 'pumpkin', ...SEEDS.seed_pumpkin },
+  // ── 4단계: 볍씨 (북쪽 논 전용)
+  seed_rice: { kind: 'seed', crop: 'rice', ...SEEDS.seed_rice },
 };
 
-export const SHOP_ORDER = ['churu', 'ade', 'bait', ...SEED_ORDER];
+export const SHOP_ORDER = ['churu', 'ade', 'bait', ...SEED_ORDER, ...PADDY_SEED_ORDER];
 
 /** 팔기 단가 — 재료 + 물고기 + 수확물. 여기에 없는 물건은 팔 수 없다 */
 export const SELL = {
@@ -285,6 +300,8 @@ export const SELL = {
   strawberry: CROPS.strawberry.price,
   radish: CROPS.radish.price,
   pumpkin: CROPS.pumpkin.price,
+  // ── 4단계: 논에서 거둔 쌀
+  rice: CROPS.rice.price,
 };
 
 /** 에이드 한 개의 기력 회복량 */

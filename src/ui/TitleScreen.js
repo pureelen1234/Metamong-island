@@ -34,7 +34,7 @@ export class TitleScreen {
     this.el = h(
       'div',
       { class: 'title-screen' },
-      h('div', { class: 'title-badge' }, 'PHASE 1 · HD-2D 도트'),
+      h('div', { class: 'title-badge' }, 'PHASE 4 · HD-2D 도트'),
       h(
         'div',
         { class: 'title-panel' },
@@ -49,7 +49,7 @@ export class TitleScreen {
         h('div', { class: 'title-actions' }, this.continueBtn, this.newBtn),
         this.hint
       ),
-      h('div', { class: 'title-version' }, 'GDD v1.6 · Phase 1 · HD-2D')
+      h('div', { class: 'title-version' }, 'GDD v1.7 · Phase 4 · 72×72 섬')
     );
 
     root.append(this.el);

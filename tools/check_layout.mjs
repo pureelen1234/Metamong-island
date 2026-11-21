@@ -1,18 +1,20 @@
 /**
- * check_layout.mjs — 사각 섬 배치 검증 (순수 데이터, 브라우저 없이 실행)
+ * check_layout.mjs — 72×72 섬 배치 검증 (순수 데이터, 브라우저 없이 실행)
  *
  *   node tools/check_layout.mjs
  *
  * 확인하는 것
- *   ① 모든 배치물·메타몽·고양이·건물·텃밭 타일이 걸을 수 있는 땅 위에 있는가
- *   ② 텃밭 3×3 칸과 나무·바위·꽃덤불·건물·길이 겹치지 않는가
- *   ③ 길 위에 충돌물(나무·바위·울타리·가로등)이 서 있지 않은가
+ *   ① 모든 배치물·메타몽·고양이·건물·텃밭/논 타일이 걸을 수 있는 땅 위에 있는가
+ *   ② 텃밭 3×3 · 논 3×2 칸과 나무·바위·꽃덤불·건물·길이 겹치지 않는가
+ *   ③ 길 위에 충돌물(나무·바위·울타리·가로등)이 서 있지 않고, 길이 물에 잠기지 않는가
  *   ④ 배치물끼리 서로 파고들지 않는가
  *   ⑤ 스폰 지점·부두 앞 낚시 자리·찌가 물 위에 있는가
+ *   ⑥ 4단계: 중앙 강이 길을 끊고, 다리 데크가 강을 건너며, 다리를 놓으면 건널 수 있는가
+ *   ⑦ 4단계: 남쪽/북쪽 개척권에 메타몽이 흩어져 있는가
  */
 import * as THREE from 'three';
-import { NATURE, LANDMARKS, DITTOS, CATS, FARM, SPAWN, ZONES } from '../src/config.js';
-import { HEIGHTS, isWalkableAt, islandHeight } from '../src/terrain/Heightmap.js';
+import { NATURE, LANDMARKS, DITTOS, CATS, FARM, PADDY, SPAWN, ZONES, BRIDGE, RIVER, riverCenterZ, isOnBridgeDeck } from '../src/config.js';
+import { HEIGHTS, isWalkableAt, islandHeight, setBridgeBuilt } from '../src/terrain/Heightmap.js';
 import { ROUTES } from '../src/world/Path.js';
 import { FISHING } from '../src/systems/lifeData.js';
 
@@ -49,22 +51,39 @@ const walk = (x, z, label) => {
 };
 walk(SPAWN.x, SPAWN.z, '스폰');
 
-/* ── ② 텃밭 타일 ─────────────────────────────────────── */
-const tiles = [];
-for (let r = 0; r < FARM.rows; r++) {
-  for (let c = 0; c < FARM.cols; c++) {
-    const x = +(FARM.x + (c - (FARM.cols - 1) / 2) * FARM.pitch).toFixed(2);
-    const z = +(FARM.z + (r - (FARM.rows - 1) / 2) * FARM.pitch).toFixed(2);
-    tiles.push({ r, c, x, z });
-    walk(x, z, `텃밭 칸 ${r + 1}-${c + 1}`);
-    const pathD = distToPaths(x, z);
-    if (pathD < FARM.tile / 2 + PATH_HALF) fail(`텃밭 칸 ${r + 1}-${c + 1} (${x}, ${z}) 이 길 위에 있다 (${pathD.toFixed(2)})`);
+/* ── ② 경작지 타일 ───────────────────────────────────── */
+function tilesOf(def) {
+  const out = [];
+  for (let r = 0; r < def.rows; r++) {
+    for (let c = 0; c < def.cols; c++) {
+      out.push({
+        r,
+        c,
+        x: +(def.x + (c - (def.cols - 1) / 2) * def.pitch).toFixed(2),
+        z: +(def.z + (r - (def.rows - 1) / 2) * def.pitch).toFixed(2),
+        tile: def.tile,
+      });
+    }
   }
+  return out;
 }
 
-const nearTile = (x, z, margin) => {
-  for (const t of tiles) {
-    const half = FARM.tile / 2 + margin;
+const farmTiles = tilesOf(FARM);
+const paddyTiles = tilesOf(PADDY);
+for (const t of farmTiles) {
+  walk(t.x, t.z, `텃밭 칸 ${t.r + 1}-${t.c + 1}`);
+  const pathD = distToPaths(t.x, t.z);
+  if (pathD < FARM.tile / 2 + PATH_HALF) fail(`텃밭 칸 ${t.r + 1}-${t.c + 1} (${t.x}, ${t.z}) 이 길 위에 있다 (${pathD.toFixed(2)})`);
+}
+for (const t of paddyTiles) {
+  walk(t.x, t.z, `논 칸 ${t.r + 1}-${t.c + 1}`);
+  const pathD = distToPaths(t.x, t.z);
+  if (pathD < PADDY.tile / 2 + PATH_HALF) fail(`논 칸 ${t.r + 1}-${t.c + 1} (${t.x}, ${t.z}) 이 길 위에 있다 (${pathD.toFixed(2)})`);
+}
+
+const nearTiles = (x, z, margin) => {
+  for (const t of [...farmTiles, ...paddyTiles]) {
+    const half = t.tile / 2 + margin;
     if (Math.abs(x - t.x) < half && Math.abs(z - t.z) < half) return t;
   }
   return null;
@@ -77,8 +96,8 @@ for (const item of NATURE) {
   const r = item.collide || 0;
   const pathD = distToPaths(item.x, item.z);
   if (r > 0 && pathD < r + PATH_HALF) fail(`${item.frame} (${item.x}, ${item.z}) 이 길을 막는다 (길까지 ${pathD.toFixed(2)}, r=${r})`);
-  const t = nearTile(item.x, item.z, r + 0.2);
-  if (t) fail(`${item.frame} (${item.x}, ${item.z}) 이 텃밭 칸 ${t.r + 1}-${t.c + 1} 과 겹친다`);
+  const t = nearTiles(item.x, item.z, r + 0.2);
+  if (t) fail(`${item.frame} (${item.x}, ${item.z}) 이 경작지 칸 ${t.r + 1}-${t.c + 1} 과 겹친다`);
   if (r > 0) colliders.push({ kind: item.frame, x: item.x, z: item.z, r });
 }
 
@@ -121,11 +140,56 @@ if (dockH > 0.25 || dockH < -0.25) fail(`부두 발밑 높이가 물가가 아�
 const spotToDock = Math.hypot(spot.x - dock.x, spot.z - dock.z);
 if (spotToDock > spot.range) fail(`낚시 자리가 부두에서 반경(${spot.range}) 밖이다 (${spotToDock.toFixed(2)})`);
 
-/* ── 구역 중심 ──────────────────────────────────────── */
-for (const z of ZONES) walk(z.x, z.z, `구역 ${z.name}`);
+/* ── ⑥ 중앙 강 · 다리 ───────────────────────────────── */
+// 강은 동서로 이어져 섬을 두 쪽으로 가른다
+for (let x = -26; x <= 26; x += 2) {
+  const z = riverCenterZ(x);
+  if (islandHeight(x, z) > -0.3) fail(`강 한가운데(${x}, ${z.toFixed(1)})가 물이 아니다 (h=${islandHeight(x, z).toFixed(2)})`);
+  if (isWalkableAt(HEIGHTS, x, z)) fail(`강 한가운데(${x}, ${z.toFixed(1)})가 걸을 수 있다`);
+}
+// 다리를 놓기 전에는 강을 건널 수 없다 — 다리 데크 x 구간에서도 물은 막힌다
+setBridgeBuilt(false);
+let blocked = 0;
+for (let z = BRIDGE.z - 3; z <= BRIDGE.z + 3; z += 0.5) {
+  if (!isWalkableAt(HEIGHTS, BRIDGE.x, z)) blocked += 1;
+}
+if (blocked < 8) fail(`다리 없이 강 중앙(x=${BRIDGE.x})이 걸린다 (막힌 표본 ${blocked})`);
+// 다리를 놓으면 데크 위로 건널 수 있다 — 남쪽 끝에서 북쪽 끝까지 연속으로 걸린다
+setBridgeBuilt(true);
+for (let z = BRIDGE.south.z; z >= BRIDGE.north.z - 0.01; z -= 0.25) {
+  if (!isWalkableAt(HEIGHTS, BRIDGE.x, z)) fail(`다리 위 (${BRIDGE.x}, ${z.toFixed(2)}) 를 걸을 수 없다`);
+}
+if (!isOnBridgeDeck(BRIDGE.x, BRIDGE.z)) fail('다리 데크 판정이 강 중앙을 덮지 않는다');
+walk(BRIDGE.south.x, BRIDGE.south.z, '다리 남쪽 끝');
+walk(BRIDGE.north.x, BRIDGE.north.z, '다리 북쪽 끝');
+// 다리를 놓아도 강폭 밖(데크 바깥)은 여전히 물이다
+for (const dx of [RIVER.halfWidth + 2, -(RIVER.halfWidth + 2)]) {
+  if (isWalkableAt(HEIGHTS, BRIDGE.x + dx, BRIDGE.z)) fail(`다리 옆 (${BRIDGE.x + dx}, ${BRIDGE.z}) 이 걸린다`);
+}
+setBridgeBuilt(false);
+
+/* ── ⑦ 개척권 분산 ──────────────────────────────────── */
+const south = DITTOS.filter((d) => d.z > riverCenterZ(d.x));
+const north = DITTOS.filter((d) => d.z <= riverCenterZ(d.x));
+if (south.length < 3) fail(`생활권 메타몽이 ${south.length}마리뿐이다`);
+if (north.length < 3) fail(`개척권 메타몽이 ${north.length}마리뿐이다`);
+for (const z of ZONES) {
+  walk(z.x, z.z, `구역 ${z.name}`);
+  if (z.side === 'north' && z.z > riverCenterZ(z.x)) fail(`구역 ${z.name} 이 남쪽에 있다`);
+  if (z.side === 'south' && z.z <= riverCenterZ(z.x)) fail(`구역 ${z.name} 이 북쪽에 있다`);
+}
+
+/* ── ⑧ 길이 물에 잠기지 않는가 ──────────────────────── */
+for (const [x, z] of PATH_PTS) {
+  const h = islandHeight(x, z);
+  if (h < 0.1) fail(`길 표본 (${x.toFixed(1)}, ${z.toFixed(1)}) 이 물에 잠긴다 (h=${h.toFixed(2)})`);
+}
 
 /* ── 결과 ───────────────────────────────────────────── */
-console.log(`배치물 ${NATURE.length} · 충돌물 ${colliders.length} · 텃밭 칸 ${tiles.length} · 길 샘플 ${PATH_PTS.length}`);
+console.log(
+  `배치물 ${NATURE.length} · 충돌물 ${colliders.length} · 텃밭 칸 ${farmTiles.length} · 논 칸 ${paddyTiles.length} · 길 샘플 ${PATH_PTS.length}`
+);
+console.log(`메타몽 ${DITTOS.length} (생활권 ${south.length} · 개척권 ${north.length}) · 강 z(x=0)=${riverCenterZ(0).toFixed(2)}`);
 for (const n of notes) console.log('  · ' + n);
 if (problems.length) {
   console.log(`\n✗ 문제 ${problems.length}건`);

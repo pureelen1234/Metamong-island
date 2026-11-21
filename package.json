@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "보경이의 어설픈 메타몽 섬 - Phase 1 모바일 웹 HD-2D 도트 MVP",
+  "description": "보경이의 어설픈 메타몽 섬 - Phase 4 모바일 웹 HD-2D 도트 (72×72 섬 · 강/다리 · 숲/채석장/논 · 리어카)",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

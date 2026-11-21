@@ -11,7 +11,7 @@ export class LandmarkLabels {
     this.container = h('div', { class: 'landmark-layer' });
     root.append(this.container);
     this.items = sites.map((site) => {
-      const dayEl = h('span', { class: 'lm-day' }, `${site.day}일차 복구`);
+      const dayEl = h('span', { class: 'lm-day' }, '복구 전');
       const el = h('div', { class: 'landmark-pill' }, h('span', { class: 'lm-ico' }, site.icon), h('span', { class: 'lm-name' }, site.name), dayEl);
       this.container.append(el);
       return { site, el, dayEl, x: site.x, y: site.y + site.markerY + 0.55, z: site.z, opacity: -1, done: false };
@@ -25,7 +25,7 @@ export class LandmarkLabels {
     if (!item) return;
     item.done = !!done;
     item.el.classList.toggle('done', !!done);
-    item.dayEl.textContent = done ? '✨ 복구 완료' : `${item.site.day}일차 복구`;
+    item.dayEl.textContent = done ? '✨ 복구 완료' : '복구 전';
   }
 
   setVisible(v) {

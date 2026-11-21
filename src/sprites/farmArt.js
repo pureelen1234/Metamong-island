@@ -125,6 +125,17 @@ export function cropTexture(cropId, stage) {
       ctx.fillRect(13, 17, 3, 3);
       ctx.fillStyle = '#dbe6c9';
       ctx.fillRect(13, 19, 3, 1);
+    } else if (cropId === 'rice') {
+      // 벼 — 물 위로 뻗은 푸른 잎과 이삭 몇 가닥
+      ctx.fillStyle = '#4f8f45';
+      ctx.fillRect(9, 15, 1, 6);
+      ctx.fillRect(13, 14, 1, 7);
+      ctx.fillStyle = '#8fd47a';
+      ctx.fillRect(7, 12, 1, 6);
+      ctx.fillRect(15, 13, 1, 6);
+      ctx.fillStyle = '#c9e39a';
+      ctx.fillRect(8, 10, 1, 4);
+      ctx.fillRect(14, 11, 1, 4);
     } else {
       // 호박 — 작은 노란 열매 하나
       ctx.fillStyle = '#ffd77a';
@@ -168,6 +179,26 @@ export function cropTexture(cropId, stage) {
     ctx.fillRect(10, 17, 4, 3);
     ctx.fillStyle = '#dfecc8';
     ctx.fillRect(11, 17, 2, 2);
+  } else if (cropId === 'rice') {
+    // 다 자란 벼 — 황금빛 이삭이 고개를 숙인 모습
+    ctx.fillStyle = '#3f7a3c';
+    ctx.fillRect(8, 14, 1, 8);
+    ctx.fillRect(12, 13, 1, 9);
+    ctx.fillRect(16, 15, 1, 7);
+    ctx.fillStyle = '#5f9c4a';
+    ctx.fillRect(10, 16, 1, 6);
+    ctx.fillRect(14, 17, 1, 5);
+    const head = (x, y) => {
+      ctx.fillStyle = '#e6c159';
+      ctx.fillRect(x, y, 3, 4);
+      ctx.fillStyle = '#f4dd93';
+      ctx.fillRect(x, y + 1, 2, 2);
+      ctx.fillStyle = '#b98f34';
+      ctx.fillRect(x + 1, y + 4, 1, 3);
+    };
+    head(6, 7);
+    head(10, 5);
+    head(14, 8);
   } else {
     // 황금호박 — 둥글고 골이 진 몸통 + 갈색 줄기
     ctx.fillStyle = '#c98a2e';

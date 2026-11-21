@@ -1,6 +1,6 @@
 import './ui/styles.css';
 import { Game } from './world/Game.js';
-import { phaseAt } from './config.js';
+import { GRID, HALF, phaseAt } from './config.js';
 
 const canvas = document.getElementById('scene');
 const uiRoot = document.getElementById('ui');
@@ -58,6 +58,18 @@ window.__metamong = {
       achRows: p.achRows().map((r) => ({ id: r.id, value: r.value, need: r.need, done: r.done, claimed: r.claimed })),
       claimableAchievements: p.claimableAchievements,
       waterCan: p.toolLevel('water'),
+      // ── 4단계: 다리 · 리어카 · 논 · 웰컴 미션
+      bridge: { built: p.bridgeBuilt, invested: { ...p.bridgeState().invested } },
+      bridgeBuilt: p.bridgeBuilt,
+      cartLevel: p.cartLevel,
+      bagCapacity: p.inventory.slots,
+      paddyPlots: p.paddyPlots.map((st) =>
+        st ? { crop: st.crop, remain: Math.round(st.remain * 10) / 10, total: st.total, watered: st.watered, ripe: st.remain <= 0 } : null
+      ),
+      paddyPlanted: p.paddyPlots.filter(Boolean).length,
+      paddyRipe: p.paddyPlots.filter((st) => st && st.remain <= 0).length,
+      welcome: { step: p.welcome ? p.welcome.step : 0 },
+      mapGrid: { grid: GRID, half: HALF },
       fishing: g.fishing
         ? { state: g.fishing.state, active: g.fishing.active, baitUsed: !!g.fishing.baitUsed, last: g.fishing.lastResult ? { id: g.fishing.lastResult.fish.id, size: g.fishing.lastResult.size } : null }
         : null,

@@ -94,12 +94,23 @@ export class Hud {
 
     this.buffChip = h('span', { class: 'buff-chip hidden' }, '✨');
 
+    // ── 4단계: 리어카 칩 · 첫 1분 웰컴 3단 미션 배너
+    this.cartChip = h('span', { class: 'cart-chip hidden' }, '🛒 16칸');
+
     this.left = h(
       'div',
       { class: 'hud-left' },
       this.pill,
-      h('div', { class: 'hud-stats' }, this.stamina, this.coinChip, this.mailBtn, this.questBtn, this.buffChip)
+      h('div', { class: 'hud-stats' }, this.stamina, this.coinChip, this.mailBtn, this.questBtn, this.cartChip, this.buffChip)
     );
+
+    // 웰컴 미션 — 상단 HUD 바로 아래의 작은 칩 (방해되지 않게 한 줄)
+    this.welcomeIcon = h('span', { class: 'w-ico' }, '🎯');
+    this.welcomeText = h('span', { class: 'w-txt' }, '');
+    this.welcomeDots = h('span', { class: 'w-dots' });
+    this.welcome = h('div', { class: 'welcome-chip hidden' }, this.welcomeIcon, this.welcomeText, this.welcomeDots);
+    this.left.append(this.welcome);
+    this.lastWelcome = '';
 
     // ── 상단 우측 컨트롤
     this.muteBtn = h('button', { class: 'icon-btn', type: 'button', 'aria-label': '음소거 토글', onclick: () => this.handlers.onMute?.() }, '🔊');
@@ -261,6 +272,47 @@ export class Hud {
     if (!badge) return;
     badge.textContent = n > 9 ? '9+' : String(n);
     badge.classList.toggle('hidden', n <= 0);
+  }
+
+  /** 🛒 리어카 — 보유하면 칩으로 알려 준다 */
+  setCart(level, slots) {
+    const has = Math.floor(Number(level) || 0) > 0;
+    if (!this.cartChip) return;
+    this.cartChip.classList.toggle('hidden', !has);
+    if (has) {
+      const n = Math.max(0, Math.floor(Number(slots) || 0));
+      this.cartChip.textContent = `🛒 ${n}칸`;
+      this.cartChip.title = `리어카 — 가방이 ${n}칸으로 늘었어요`;
+    }
+  }
+
+  /**
+   * 첫 1분 웰컴 3단 미션 배너
+   * @param {number} step 지금 진행 단계(0부터)
+   * @param {Array<{icon:string,label:string,hint?:string}>} steps
+   */
+  setWelcome(step, steps) {
+    const list = Array.isArray(steps) ? steps : [];
+    if (!this.welcome) return;
+    if (!list.length || step >= list.length) {
+      if (this.lastWelcome !== 'done') {
+        this.lastWelcome = 'done';
+        this.welcome.classList.add('hidden');
+      }
+      return;
+    }
+    const cur = list[step];
+    const key = `${step}/${list.length}`;
+    this.welcome.classList.remove('hidden');
+    if (key === this.lastWelcome) return;
+    this.lastWelcome = key;
+    this.welcomeIcon.textContent = cur.icon || '🎯';
+    this.welcomeText.textContent = `${step + 1}/${list.length} ${cur.label}`;
+    this.welcome.title = cur.hint || '';
+    this.welcomeDots.innerHTML = '';
+    for (let i = 0; i < list.length; i++) {
+      this.welcomeDots.append(h('i', { class: i < step ? 'on' : i === step ? 'cur' : '' }));
+    }
   }
 
   /** 황금 정식 버프 남은 시간 칩 */
