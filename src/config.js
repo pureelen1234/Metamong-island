@@ -167,14 +167,45 @@ export const CAMERA = {
 };
 
 // ── 섬 배치 ───────────────────────────────────────────────────────
+// 좌표 규칙: +x = 동쪽(화면 오른쪽), -z = 북쪽(화면 안쪽), +z = 남쪽(화면 아래)
 export const SPAWN = { x: 0.4, z: 11.8 };
 
 /** 복구 부지 · 도트 건물 4종 (공방·등대·자판기·부두) */
 export const LANDMARKS = [
-  { id: 'dock', name: '부두', icon: '⚓', day: 5, x: 0, z: 17.0, markerY: 2.2, height: 1.7, water: true },
+  // 사각 섬의 남쪽 해변 끝 — 부두 그림자가 물에 반쯤 잠기는 자리(지형 높이 ≈ 0.08)
+  { id: 'dock', name: '부두', icon: '⚓', day: 5, x: 0, z: 20.3, markerY: 2.2, height: 1.7, water: true },
   { id: 'workshop', name: '공방', icon: '🔨', day: 10, x: -5.6, z: 5.6, markerY: 3.4, height: 2.8 },
   { id: 'vending', name: '메타몽 자판기', icon: '🥤', day: 17, x: 5.6, z: 5.2, markerY: 2.4, height: 1.8 },
   { id: 'lighthouse', name: '등대', icon: '🗼', day: 24, x: 6.8, z: -3.6, markerY: 5.6, height: 4.4 },
+];
+
+/**
+ * 사각 섬 네 구역 — 3단계에서 새로 생긴 귀퉁이 땅의 이름표
+ * farm 은 Farming.js 가 3×3 경작지를 까는 자리(타일 간격 farm.pitch)
+ */
+export const FARM = {
+  id: 'farm',
+  name: '텃밭',
+  icon: '🌱',
+  /** 3×3 경작지 중심 좌표 (북서쪽) */
+  x: -13.0,
+  z: -12.2,
+  cols: 3,
+  rows: 3,
+  /** 타일 중심 간격 */
+  pitch: 1.9,
+  /** 흙 타일 한 변 */
+  tile: 1.62,
+  /** 입구(남동쪽) — 길이 여기로 닿는다 */
+  gate: { x: -11.6, z: -8.4 },
+};
+
+/** 구역 표시용 중심 (미니맵·안내) */
+export const ZONES = [
+  { id: 'farm', name: '텃밭', icon: '🌱', x: FARM.x, z: FARM.z, r: 4.4 },
+  { id: 'orchard', name: '과수원', icon: '🍎', x: 12.0, z: -11.2, r: 5.6 },
+  { id: 'garden', name: '꽃밭', icon: '🌸', x: -12.2, z: 11.8, r: 5.0 },
+  { id: 'beach', name: '모래 해변', icon: '🏖️', x: 0, z: 18.8, r: 4.0 },
 ];
 
 /**
@@ -305,7 +336,7 @@ export const NATURE = [
   { frame: 'flowerbush', x: 0.4, z: -2.2, height: 0.56, collide: 0.24 },
   { frame: 'rock', x: -2.0, z: 1.4, height: 0.48, collide: 0.26 },
   { frame: 'flowerbush', x: 3.6, z: 0.8, height: 0.54, collide: 0.24 },
-  { frame: 'rock', x: 9.2, z: -0.6, height: 0.54, collide: 0.28 },
+  { frame: 'rock', x: 12.1, z: -0.8, height: 0.54, collide: 0.28 },
   // ── 해안가 — 바닷바람 부는 가장자리
   { frame: 'tree_round', x: -3.8, z: 15.0, height: 2.6, collide: 0.34 },
   { frame: 'cherry1', x: 3.4, z: 15.0, height: 3.0, collide: 0.38 },
@@ -313,6 +344,58 @@ export const NATURE = [
   { frame: 'rock', x: 5.0, z: 11.6, height: 0.48, collide: 0.26 },
   { frame: 'cherry2', x: -8.8, z: 12.2, height: 3.4, collide: 0.42 },
   { frame: 'flowerbush', x: 8.2, z: 12.2, height: 0.58, collide: 0.24 },
+
+  // ── 3단계 · 북서 텃밭 둘레 (경작지 사각형은 비워 둔다)
+  { frame: 'fence', x: -16.3, z: -15.8, height: 0.66, collide: 0.28 },
+  { frame: 'fence', x: -9.6, z: -15.8, height: 0.66, collide: 0.28 },
+  { frame: 'fence', x: -16.3, z: -8.7, height: 0.66, collide: 0.28 },
+  { frame: 'lamp', x: -9.8, z: -8.7, height: 2.0, collide: 0.22 },
+  { frame: 'flowerbush', x: -16.6, z: -11.9, height: 0.58, collide: 0.24 },
+  { frame: 'rock', x: -16.0, z: -6.4, height: 0.5, collide: 0.26 },
+
+  // ── 3단계 · 북동 과수원 (나무·열매)
+  { frame: 'cherry1', x: 9.2, z: -8.2, height: 3.0, collide: 0.38 },
+  { frame: 'tree_round', x: 12.1, z: -9.4, height: 2.6, collide: 0.34 },
+  { frame: 'cherry2', x: 15.0, z: -11.2, height: 3.4, collide: 0.42 },
+  { frame: 'tree_tall', x: 10.0, z: -12.6, height: 3.2, collide: 0.36 },
+  { frame: 'cherry1', x: 13.6, z: -14.8, height: 3.0, collide: 0.38 },
+  { frame: 'tree_round', x: 8.8, z: -14.4, height: 2.6, collide: 0.34 },
+  { frame: 'tree_round', x: 15.6, z: -8.0, height: 2.6, collide: 0.34 },
+  { frame: 'cherry2', x: 11.8, z: -6.6, height: 3.4, collide: 0.42 },
+  { frame: 'fence', x: 8.1, z: -10.9, height: 0.66, collide: 0.28 },
+  { frame: 'lamp', x: 9.0, z: -6.2, height: 2.0, collide: 0.22 },
+  { frame: 'rock', x: 16.4, z: -13.6, height: 0.5, collide: 0.26 },
+
+  // ── 3단계 · 남서 꽃밭 (꽃덤불·산책)
+  { frame: 'flowerbush', x: -9.4, z: 9.6, height: 0.6, collide: 0.24 },
+  { frame: 'flowerbush', x: -10.4, z: 15.0, height: 0.56, collide: 0.24 },
+  { frame: 'flowerbush', x: -13.6, z: 10.2, height: 0.58, collide: 0.24 },
+  { frame: 'flowerbush', x: -15.2, z: 13.4, height: 0.62, collide: 0.24 },
+  { frame: 'flowerbush', x: -8.6, z: 13.2, height: 0.54, collide: 0.24 },
+  { frame: 'flowerbush', x: -12.4, z: 15.2, height: 0.58, collide: 0.24 },
+  { frame: 'cherry1', x: -15.8, z: 9.0, height: 3.0, collide: 0.38 },
+  { frame: 'tree_round', x: -14.2, z: 7.4, height: 2.6, collide: 0.34 },
+  { frame: 'lamp', x: -10.2, z: 8.2, height: 2.0, collide: 0.22 },
+  { frame: 'rock', x: -16.0, z: 15.6, height: 0.52, collide: 0.26 },
+  // 꽃밭 가운데 — 군락으로 모아 두면 걷다가 꽃잎을 딸 자리가 많아진다
+  { frame: 'flowerbush', x: -8.8, z: 13.6, height: 0.58, collide: 0.24 },
+  { frame: 'flowerbush', x: -11.8, z: 11.0, height: 0.6, collide: 0.24 },
+  { frame: 'flowerbush', x: -10.2, z: 13.2, height: 0.56, collide: 0.24 },
+  { frame: 'flowerbush', x: -13.2, z: 12.0, height: 0.62, collide: 0.24 },
+  { frame: 'flowerbush', x: -12.6, z: 14.4, height: 0.58, collide: 0.24 },
+  { frame: 'flowerbush', x: -9.4, z: 14.2, height: 0.54, collide: 0.24 },
+  { frame: 'flowerbush', x: -14.4, z: 10.8, height: 0.6, collide: 0.24 },
+  { frame: 'flowerbush', x: -15.4, z: 12.2, height: 0.56, collide: 0.24 },
+
+  // ── 3단계 · 남쪽 모래 해변 & 부두 가는 길
+  { frame: 'rock', x: -3.8, z: 18.2, height: 0.5, collide: 0.26 },
+  { frame: 'rock', x: 3.6, z: 18.0, height: 0.46, collide: 0.24 },
+  { frame: 'rock', x: 7.6, z: 17.2, height: 0.52, collide: 0.26 },
+  { frame: 'flowerbush', x: -8.4, z: 16.4, height: 0.56, collide: 0.24 },
+  { frame: 'lamp', x: 2.2, z: 17.6, height: 2.0, collide: 0.22 },
+  { frame: 'lamp', x: -2.2, z: 17.6, height: 2.0, collide: 0.22 },
+  { frame: 'fence', x: -6.4, z: 16.6, height: 0.66, collide: 0.28 },
+  { frame: 'fence', x: 6.4, z: 16.4, height: 0.66, collide: 0.28 },
 ];
 
 export const INTERACT = {

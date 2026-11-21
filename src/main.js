@@ -44,6 +44,20 @@ window.__metamong = {
       claimableQuests: p.claimableQuests,
       buff: { ...p.buff },
       fishingStats: { ...p.fishing },
+      // ── 3단계
+      crops: { ...p.crops },
+      cropKinds: p.cropKinds(),
+      seeds: Object.fromEntries(Object.keys(p.supplies).filter((id) => id.startsWith('seed_')).map((id) => [id, p.supply(id)])),
+      farmPlots: p.farmPlots.map((st) =>
+        st ? { crop: st.crop, remain: Math.round(st.remain * 10) / 10, total: st.total, watered: st.watered, ripe: st.remain <= 0 } : null
+      ),
+      farmPlanted: p.farmPlots.filter(Boolean).length,
+      farmRipe: p.farmPlots.filter((st) => st && st.remain <= 0).length,
+      counters: { ...p.counters },
+      achievements: { unlocked: [...p.achievements.unlocked], claimed: [...p.achievements.claimed] },
+      achRows: p.achRows().map((r) => ({ id: r.id, value: r.value, need: r.need, done: r.done, claimed: r.claimed })),
+      claimableAchievements: p.claimableAchievements,
+      waterCan: p.toolLevel('water'),
       fishing: g.fishing
         ? { state: g.fishing.state, active: g.fishing.active, baitUsed: !!g.fishing.baitUsed, last: g.fishing.lastResult ? { id: g.fishing.lastResult.fish.id, size: g.fishing.lastResult.size } : null }
         : null,

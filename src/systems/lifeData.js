@@ -5,6 +5,7 @@
  * 밸런스 숫자를 바꾸고 싶으면 여기 한 곳만 고치면 된다.
  */
 import { ITEMS } from './items.js';
+import { CROPS, CROP_ORDER, FARMING, SEEDS, SEED_ORDER } from './farmData.js';
 
 /* ─────────────────────────────────────────────────────────────────
    🎣 낚시 — 어종 5종 + 별조각 보너스
@@ -93,9 +94,9 @@ export const FISH_WEIGHTS_BAIT = {
 
 export const FISHING = {
   /** 플레이어가 서서 낚시하는 자리 (부두 끝 물가) */
-  spot: { x: 0, z: 16.2, range: 3.0 },
+  spot: { x: 0, z: 19.4, range: 3.0 },
   /** 찌가 떨어지는 물 위 좌표 */
-  castTo: { x: 0, z: 18.1 },
+  castTo: { x: 0, z: 22.2 },
   stamina: 5,
   waitMin: 1.5,
   waitMax: 3.5,
@@ -111,8 +112,7 @@ export const FISHING = {
    🍳 요리 — 4종 (기력 회복 + 황금 정식은 버프)
    ───────────────────────────────────────────────────────────────── */
 
-export const COOK = {
-  tea: {
+export const COOK = {  tea: {
     id: 'tea',
     name: '꽃잎 허브차',
     icon: '🍵',
@@ -151,14 +151,40 @@ export const COOK = {
     icon: '🍱',
     need: { petal: 2, berry: 2 },
     fish: { goldcarp: 1 },
+    crop: {},
     stamina: 100,
     exp: 60,
     buff: 60,
     desc: '황금잉어 한 마리를 온전히 담은 섬의 정찬. 60초 동안 채집이 가벼워져요.',
   },
+  // ── 3단계 농작물 요리 (텃밭 수확물 바구니에서 꺼내 쓴다)
+  smoothie: {
+    id: 'smoothie',
+    name: '딸기 스무디',
+    icon: '🥤',
+    need: { berry: 1 },
+    fish: {},
+    crop: { strawberry: 2 },
+    stamina: 75,
+    exp: 35,
+    buff: 0,
+    desc: '딸기를 그대로 갈아 넣은 분홍빛 스무디. 마시면 기운이 톡 돌아와요.',
+  },
+  pumpkinsoup: {
+    id: 'pumpkinsoup',
+    name: '황금 호박 수프',
+    icon: '🍲',
+    need: {},
+    fish: {},
+    crop: { pumpkin: 1 },
+    stamina: 95,
+    exp: 55,
+    buff: 0,
+    desc: '노란 호박을 뭉근하게 끓인 수프. 한 그릇이면 하루가 든든해요.',
+  },
 };
 
-export const COOK_ORDER = ['tea', 'grill', 'bream', 'golden'];
+export const COOK_ORDER = ['tea', 'grill', 'bream', 'golden', 'smoothie', 'pumpkinsoup'];
 
 /** 황금 정식 버프 — 지속 초 동안 채집 기력 소모·이동 속도 보정 */
 export const GOLDEN_BUFF = { seconds: 60, stamina: 0.6, speed: 1.18, label: '황금 버프' };
@@ -168,8 +194,7 @@ export const GOLDEN_BUFF = { seconds: 60, stamina: 0.6, speed: 1.18, label: '황
    ───────────────────────────────────────────────────────────────── */
 
 export const TOOLS = {
-  axe: {
-    id: 'axe',
+  axe: {    id: 'axe',
     name: '도끼',
     icon: '🪓',
     kind: 'tree',
@@ -192,9 +217,23 @@ export const TOOLS = {
     hits: [0, 0, 1],
     desc: '바위를 캐는 도구. 강화하면 돌이 더 빨리 나와요.',
   },
+  // ── 3단계: 물뿌리개 (레벨이 오르면 한 번에 더 넓게 물을 준다)
+  water: {
+    id: 'water',
+    name: '물뿌리개',
+    icon: '🚿',
+    kind: 'farm',
+    max: 3,
+    cost: [{}, { log: 3, stone: 2, coin: 30 }, { log: 6, stone: 4, star: 1, coin: 90 }],
+    stamina: [1, 1, 1],
+    hits: [0, 0, 0],
+    /** 레벨별 물주기 범위 — 1칸 → 십자 5칸 → 3×3 9칸 */
+    area: [1, 5, 9],
+    desc: '한 번에 1칸 → 십자 → 3×3 까지 물을 줘요. 물은 남은 성장 시간을 절반으로 줄여요.',
+  },
 };
 
-export const TOOL_ORDER = ['axe', 'pick'];
+export const TOOL_ORDER = ['axe', 'pick', 'water'];
 
 /* ─────────────────────────────────────────────────────────────────
    🥤 자판기 상점 — 사기 품목 · 팔기 가격
@@ -222,11 +261,15 @@ export const SHOP = {
     price: 45,
     desc: '한 번 낚시할 때 희귀 어종 확률이 올라가요.',
   },
+  // ── 3단계: 씨앗 3종 (사기 탭 → progress.supplies 에 담긴다)
+  seed_strawberry: { kind: 'seed', crop: 'strawberry', ...SEEDS.seed_strawberry },
+  seed_radish: { kind: 'seed', crop: 'radish', ...SEEDS.seed_radish },
+  seed_pumpkin: { kind: 'seed', crop: 'pumpkin', ...SEEDS.seed_pumpkin },
 };
 
-export const SHOP_ORDER = ['churu', 'ade', 'bait'];
+export const SHOP_ORDER = ['churu', 'ade', 'bait', ...SEED_ORDER];
 
-/** 팔기 단가 — 재료 + 물고기. 여기에 없는 물건은 팔 수 없다 */
+/** 팔기 단가 — 재료 + 물고기 + 수확물. 여기에 없는 물건은 팔 수 없다 */
 export const SELL = {
   log: 6,
   stone: 7,
@@ -238,6 +281,10 @@ export const SELL = {
   minnow: 24,
   jelly: 45,
   goldcarp: 110,
+  // ── 3단계: 수확물(별도 바구니 progress.crops)
+  strawberry: CROPS.strawberry.price,
+  radish: CROPS.radish.price,
+  pumpkin: CROPS.pumpkin.price,
 };
 
 /** 에이드 한 개의 기력 회복량 */
@@ -247,11 +294,15 @@ export const ADE_STAMINA = 40;
    🌱 4대 생활 스킬 · 랭크 · 종합 칭호
    ───────────────────────────────────────────────────────────────── */
 
+/**
+ * 5대 생활 스킬 · 랭크 · 종합 칭호
+ */
 export const SKILLS = [
   { id: 'gather', name: '채집', icon: '🪓', desc: '나무·바위·꽃덤불을 두드릴 때마다' },
   { id: 'fish', name: '낚시', icon: '🎣', desc: '물고기를 잡을 때마다' },
   { id: 'cook', name: '요리', icon: '🍳', desc: '공방에서 요리할 때마다' },
   { id: 'care', name: '돌보기', icon: '🐾', desc: '고양이를 쓰다듬고 간식 줄 때마다' },
+  { id: 'farm', name: '농사', icon: '🌱', desc: '씨앗을 심고 물을 주고 거둘 때마다' },
 ];
 
 /** 랭크 사다리 — exp 이상이면 해당 랭크 */
@@ -289,6 +340,10 @@ export const EXP_GAIN = {
   pet: 10,
   treat: 12,
   quest: 20,
+  // ── 3단계 농사
+  plant: FARMING.expPlant,
+  water: FARMING.expWater,
+  crop: FARMING.expHarvest,
 };
 
 /* ─────────────────────────────────────────────────────────────────
@@ -349,19 +404,24 @@ export const QUESTS = {
   cook: { id: 'cook', icon: '🍳', need: [1, 2], coin: [40, 55], star: 1, label: (n) => `요리 ${n}번 하기`, event: 'cook' },
   sell: { id: 'sell', icon: '🪙', need: [4, 6], coin: [25, 35], star: 0, label: (n) => `자판기에 ${n}개 팔기`, event: 'sell' },
   petal: { id: 'petal', icon: '🌸', need: [3, 5], coin: [20, 28], star: 0, label: (n) => `꽃잎 ${n}개 모으기`, event: 'petal' },
+  // ── 3단계 농사 의뢰
+  plant: { id: 'plant', icon: '🌱', need: [2, 3], coin: [25, 35], star: 0, label: (n) => `씨앗 ${n}번 심기`, event: 'plant' },
+  crop: { id: 'crop', icon: '🧺', need: [2, 4], coin: [35, 50], star: 1, label: (n) => `작물 ${n}번 수확하기`, event: 'crop' },
 };
 
-export const QUEST_ORDER = ['chop', 'mine', 'fish', 'treat', 'pet', 'cook', 'sell', 'petal'];
+export const QUEST_ORDER = ['chop', 'mine', 'fish', 'treat', 'pet', 'cook', 'sell', 'petal', 'plant', 'crop'];
 
 /* ─────────────────────────────────────────────────────────────────
    도우미
    ───────────────────────────────────────────────────────────────── */
 
-/** id → {name, icon} (재료 + 물고기 + 상점 품목을 한 번에) */
+/** id → {name, icon} (재료 + 물고기 + 상점 품목 + 씨앗/수확물을 한 번에) */
 export function itemMeta(id) {
   if (ITEMS[id]) return { name: ITEMS[id].name, icon: ITEMS[id].icon, tint: ITEMS[id].tint || '#dcdcea' };
   if (FISH[id]) return { name: FISH[id].name, icon: FISH[id].icon, tint: FISH[id].tint };
   if (SHOP[id]) return { name: SHOP[id].name, icon: SHOP[id].icon, tint: '#ffe1b0' };
+  if (CROPS[id]) return { name: CROPS[id].name, icon: CROPS[id].icon, tint: CROPS[id].tint };
+  if (SEEDS[id]) return { name: SEEDS[id].name, icon: SEEDS[id].icon, tint: '#cbe8b0' };
   return { name: id, icon: '❔', tint: '#dcdcea' };
 }
 

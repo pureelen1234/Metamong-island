@@ -7,8 +7,10 @@
  */
 import { Inventory } from './Inventory.js';
 import { Skills } from './Skills.js';
-import { CATS, LANDMARKS } from '../config.js';
+import { CATS, FARM, LANDMARKS } from '../config.js';
 import { ITEMS, STAMINA } from './items.js';
+import { CROPS, CROP_ORDER, FARMING } from './farmData.js';
+import { ACHIEVEMENTS, achById } from './achievementsData.js';
 import {
   CAT_LEVELS,
   COOK,
@@ -74,6 +76,33 @@ export class Progress {
     this.buff = { kind: '', left: 0 };
     /** 낚시 통계 */
     this.fishing = { casts: 0, catches: 0, misses: 0, best: 0 };
+
+    // ── 3단계: 텃밭 · 수확물 바구니 · 업적
+    /** 수확물 바구니 — 가방 8칸을 차지하지 않는다(낚시 바구니와 같은 방식) */
+    this.crops = {};
+    /** 3×3 경작지 — null(빈 밭) 또는 { crop, remain, total, watered, wet } */
+    this.farmPlots = new Array(FARM.cols * FARM.rows).fill(null);
+    /** 평생 누적 카운터 — 업적·도감이 같이 읽는다 */
+    this.counters = {
+      chop: 0,
+      tree: 0,
+      rock: 0,
+      flower: 0,
+      mine: 0,
+      fish: 0,
+      cook: 0,
+      sell: 0,
+      pet: 0,
+      treat: 0,
+      petal: 0,
+      plant: 0,
+      water: 0,
+      crop: 0,
+    };
+    /** 업적 — 달성한 id 목록 · 보상을 받은 id 목록 */
+    this.achievements = { unlocked: [], claimed: [] };
+    /** Game 이 매번 동기화하는 도감 발견 수(메타몽 7마리 업적용) */
+    this.discoveredCount = 0;
   }
 
   /* ── 기력 ─────────────────────────────────────────────── */
@@ -261,7 +290,181 @@ export class Progress {
     return { ok: true, info: this.toolInfo(id) };
   }
 
-  /* ── 고양이 호감도 ────────────────────────────────────── */
+  /* ── 수확물 바구니 ──────────────────────────────────────── */
+
+  cropCount(id) {
+    return Math.max(0, Math.floor(Number(this.crops[id]) || 0));
+  }
+
+  addCrop(id, n = 1) {
+    if (!CROPS[id]) return 0;
+    const add = Math.max(0, Math.floor(Number(n) || 0));
+    this.crops[id] = Math.min(999, this.cropCount(id) + add);
+    return this.crops[id];
+  }
+
+  takeCrop(id, n = 1) {
+    const want = Math.max(0, Math.floor(Number(n) || 0));
+    const have = this.cropCount(id);
+    const take = Math.min(have, want);
+    if (take <= 0) return 0;
+    const next = have - take;
+    if (next > 0) this.crops[id] = next;
+    else delete this.crops[id];
+    return take;
+  }
+
+  /** 바구니에 담긴 작물 종류 수(도감용) */
+  cropKinds() {
+    return CROP_ORDER.filter((id) => this.cropCount(id) > 0).length;
+  }
+
+  /* ── 씨앗 ──────────────────────────────────────────────── */
+
+  seedCount(cropId) {
+    const crop = CROPS[cropId];
+    return crop ? this.supply(crop.seedId) : 0;
+  }
+
+  /* ── 평생 카운터 ──────────────────────────────────────── */
+
+  count(name) {
+    return Math.max(0, Math.floor(Number(this.counters[name]) || 0));
+  }
+
+  bump(name, n = 1) {
+    if (!(name in this.counters)) return 0;
+    const add = Math.max(0, Math.floor(Number(n) || 0));
+    if (add <= 0) return this.counters[name];
+    this.counters[name] = Math.min(999999, this.count(name) + add);
+    return this.counters[name];
+  }
+
+  /* ── 업적 ──────────────────────────────────────────────── */
+
+  /** 업적 한 줄 — 지금 값 / 목표 / 달성 / 보상 수령 */
+  achRow(id) {
+    const def = achById(id);
+    if (!def) return null;
+    const value = def.event
+      ? this.count(def.event)
+      : Math.max(0, Math.floor(Number(def.value ? def.value(this) : 0) || 0));
+    const unlocked = this.achievements.unlocked.includes(id);
+    const claimed = this.achievements.claimed.includes(id);
+    return {
+      ...def,
+      value: Math.min(def.need, value),
+      raw: value,
+      unlocked,
+      claimed,
+      done: value >= def.need,
+      pct: Math.min(100, Math.round((value / Math.max(1, def.need)) * 100)),
+    };
+  }
+
+  achRows() {
+    return ACHIEVEMENTS.map((a) => this.achRow(a.id));
+  }
+
+  get claimableAchievements() {
+    return this.achRows().filter((r) => r.done && !r.claimed).length;
+  }
+
+  /** 조건을 새로 넘긴 업적을 잠금 해제하고 그 정의들을 돌려준다 */
+  checkAchievements() {
+    const fresh = [];
+    for (const def of ACHIEVEMENTS) {
+      if (this.achievements.unlocked.includes(def.id)) continue;
+      const row = this.achRow(def.id);
+      if (!row.done) continue;
+      this.achievements.unlocked.push(def.id);
+      fresh.push(row);
+    }
+    return fresh;
+  }
+
+  /** 보상 수령 — 코인과 별조각(가방이 차면 창고로) */
+  claimAchievement(id) {
+    const row = this.achRow(id);
+    if (!row) return { ok: false, reason: 'missing' };
+    if (!row.done) return { ok: false, reason: 'unfinished' };
+    if (row.claimed) return { ok: false, reason: 'claimed' };
+    this.achievements.claimed.push(id);
+    this.addCoins(row.reward.coin);
+    let stored = 0;
+    if (row.reward.star > 0) {
+      const leftover = this.inventory.add('star', row.reward.star);
+      if (leftover > 0) {
+        this.inventory.storage.star = this.inventory.stored('star') + leftover;
+        stored = leftover;
+      }
+    }
+    return { ok: true, row, stored };
+  }
+
+  /* ── 텃밭 ──────────────────────────────────────────────── */
+
+  plot(index) {
+    const p = this.farmPlots[index];
+    return p && p.crop ? p : null;
+  }
+
+  /** 씨앗 심기 — @returns {{ok:boolean, reason?:string}} */
+  plantSeed(index, cropId) {
+    const crop = CROPS[cropId];
+    if (!crop) return { ok: false, reason: 'crop' };
+    if (index < 0 || index >= this.farmPlots.length) return { ok: false, reason: 'index' };
+    if (this.plot(index)) return { ok: false, reason: 'occupied' };
+    if (this.supply(crop.seedId) <= 0) return { ok: false, reason: 'seed' };
+    this.takeSupply(crop.seedId, 1);
+    this.farmPlots[index] = { crop: cropId, remain: crop.grow, total: crop.grow, watered: 0, wet: 0 };
+    this.bump('plant', 1);
+    return { ok: true, crop };
+  }
+
+  /** 물주기 — 남은 시간을 절반으로. @returns {{ok:boolean, remain?:number, reason?:string}} */
+  waterPlot(index) {
+    const plot = this.plot(index);
+    if (!plot) return { ok: false, reason: 'empty' };
+    if (plot.remain <= 0) return { ok: false, reason: 'ripe' };
+    if (plot.watered >= FARMING.maxWater) return { ok: false, reason: 'max' };
+    plot.remain = Math.max(0, plot.remain * FARMING.waterHalve);
+    plot.watered += 1;
+    plot.wet = FARMING.wetSeconds;
+    this.bump('water', 1);
+    return { ok: true, remain: plot.remain, watered: plot.watered };
+  }
+
+  /** 성장 틱 — @returns {number[]} 이번에 다 자란 칸 인덱스 */
+  tickFarm(dt) {
+    const ripe = [];
+    const step = Math.max(0, Number(dt) || 0);
+    for (let i = 0; i < this.farmPlots.length; i++) {
+      const plot = this.farmPlots[i];
+      if (!plot || !plot.crop) continue;
+      if (plot.wet > 0) plot.wet = Math.max(0, plot.wet - step);
+      if (plot.remain <= 0) continue;
+      plot.remain = Math.max(0, plot.remain - step);
+      if (plot.remain <= 0) ripe.push(i);
+    }
+    return ripe;
+  }
+
+  /** 수확 — 바구니에 담고 밭을 비운다 */
+  harvestPlot(index) {
+    const plot = this.plot(index);
+    if (!plot) return { ok: false, reason: 'empty' };
+    if (plot.remain > 0) return { ok: false, reason: 'growing' };
+    const crop = CROPS[plot.crop];
+    const [lo, hi] = crop.yield;
+    const n = lo + Math.floor(Math.random() * (hi - lo + 1));
+    this.addCrop(crop.id, n);
+    this.farmPlots[index] = null;
+    this.bump('crop', 1);
+    return { ok: true, crop, n, total: this.cropCount(crop.id) };
+  }
+
+  /* ── 고양이 호감도 ───────────────────────────────────── */
 
   cat(id) {
     if (!this.cats[id]) this.cats[id] = { aff: 0, gifts: [], follow: false };
@@ -312,7 +515,7 @@ export class Progress {
     this.cooked[id] = Math.min(999, this.cookedCount(id) + 1);
   }
 
-  /** 레시피 재료가 모두 있는가 (가방 + 물고기 바구니) */
+  /** 레시피 재료가 모두 있는가 (가방 + 물고기 바구니 + 수확물 바구니) */
   canCook(id) {
     const recipe = COOK[id];
     if (!recipe) return { ok: false, reason: 'recipe' };
@@ -321,9 +524,13 @@ export class Progress {
       const have = this.inventory.count(item);
       if (have < need) lack.push({ item, need, have });
     }
-    for (const [fish, need] of Object.entries(recipe.fish)) {
+    for (const [fish, need] of Object.entries(recipe.fish || {})) {
       const have = this.fishCount(fish);
       if (have < need) lack.push({ item: fish, need, have });
+    }
+    for (const [crop, need] of Object.entries(recipe.crop || {})) {
+      const have = this.cropCount(crop);
+      if (have < need) lack.push({ item: crop, need, have });
     }
     const full = this.stamina >= STAMINA.max - 0.5;
     return { ok: lack.length === 0 && !full, reason: lack.length ? 'lack' : full ? 'full' : '', lack };
@@ -424,6 +631,21 @@ export class Progress {
       quests: JSON.parse(JSON.stringify(this.quests)),
       buff: { ...this.buff },
       fishing: { ...this.fishing },
+      // ── 3단계
+      crops: { ...this.crops },
+      farmPlots: this.farmPlots.map((p) =>
+        p && p.crop
+          ? {
+              crop: p.crop,
+              remain: Math.round(Math.max(0, p.remain) * 100) / 100,
+              total: Math.round(p.total * 100) / 100,
+              watered: Math.max(0, Math.floor(p.watered || 0)),
+              wet: Math.round(Math.max(0, p.wet || 0) * 10) / 10,
+            }
+          : null
+      ),
+      counters: { ...this.counters },
+      achievements: { unlocked: [...this.achievements.unlocked], claimed: [...this.achievements.claimed] },
     };
   }
 
@@ -550,6 +772,43 @@ export class Progress {
       misses: int(fs.misses, 0, 99999, 0),
       best: int(fs.best, 0, 999, 0),
     };
+
+    /* ── 3단계 (v3 세이브에는 없으므로 기본값 그대로) ─────── */
+    this.crops = {};
+    if (json.crops && typeof json.crops === 'object') {
+      for (const [id, raw] of Object.entries(json.crops)) {
+        if (!CROPS[id]) continue;
+        const n = Math.floor(Number(raw));
+        if (Number.isFinite(n) && n > 0) this.crops[id] = Math.min(999, n);
+      }
+    }
+
+    this.farmPlots = new Array(FARM.cols * FARM.rows).fill(null);
+    const savedPlots = Array.isArray(json.farmPlots) ? json.farmPlots : [];
+    for (let i = 0; i < this.farmPlots.length; i++) {
+      const src = savedPlots[i];
+      if (!src || typeof src !== 'object') continue;
+      const crop = CROPS[src.crop];
+      if (!crop) continue;
+      const total = clamp(src.total, 1, 600, crop.grow);
+      this.farmPlots[i] = {
+        crop: crop.id,
+        total,
+        remain: clamp(src.remain, 0, total, total),
+        watered: int(src.watered, 0, FARMING.maxWater, 0),
+        wet: clamp(src.wet, 0, FARMING.wetSeconds, 0),
+      };
+    }
+
+    for (const key of Object.keys(this.counters)) this.counters[key] = int(json.counters && json.counters[key], 0, 999999, 0);
+
+    this.achievements = { unlocked: [], claimed: [] };
+    const ach = json.achievements && typeof json.achievements === 'object' ? json.achievements : {};
+    const known = new Set(ACHIEVEMENTS.map((a) => a.id));
+    for (const list of ['unlocked', 'claimed']) {
+      const src = Array.isArray(ach[list]) ? ach[list] : [];
+      this.achievements[list] = [...new Set(src.filter((id) => typeof id === 'string' && known.has(id)))];
+    }
 
     return this;
   }

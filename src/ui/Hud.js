@@ -10,6 +10,10 @@
  * 2단계 추가
  *  · 섬 코인(🪙) · 오늘의 의뢰 버튼(📋, 받을 보상 배지) · 황금 버프 칩
  *  · 낚시 스트립 — 찌 상태 문구와 입질 게이지, 입질 순간 중앙 `!` 팝업
+ *
+ * 3단계 추가
+ *  · 실시간 사각 미니맵(우측 상단, 탭하면 확대 지도 모달)
+ *  · 텃밭 퀵버튼(다 자란 밭 배지) · 업적 보상 배지(랭크 버튼)
  */
 import { h } from './dom.js';
 import { Joystick } from './Joystick.js';
@@ -19,7 +23,8 @@ const QUICK_ITEMS = [
   { id: 'bag', icon: '🎒', label: '가방' },
   { id: 'codex', icon: '📔', label: '도감' },
   { id: 'build', icon: '🏗️', label: '건축' },
-  { id: 'rank', icon: '🌱', label: '랭크' },
+  { id: 'farm', icon: '🌱', label: '텃밭' },
+  { id: 'rank', icon: '🌿', label: '랭크' },
 ];
 
 export class Hud {
@@ -115,7 +120,10 @@ export class Hud {
     this.quickbar = h('div', { class: 'quickbar' });
     this.quickBadges = {};
     for (const item of QUICK_ITEMS) {
-      const badge = item.id === 'bag' ? h('span', { class: 'quick-badge' }, '0/8') : null;
+      let badge = null;
+      if (item.id === 'bag') badge = h('span', { class: 'quick-badge' }, '0/8');
+      else if (item.id === 'rank') badge = h('span', { class: 'quick-badge ach hidden' }, '0');
+      else if (item.id === 'farm') badge = h('span', { class: 'quick-badge ripe hidden' }, '0');
       const btn = h(
         'button',
         { class: 'quick', type: 'button', onclick: () => this.handlers.onQuick?.(item.id) },
@@ -123,7 +131,10 @@ export class Hud {
         h('span', {}, item.label),
         badge
       );
-      if (badge) this.quickBadges.bag = badge;
+      if (item.id === 'bag') this.quickBadges.bag = badge;
+      if (item.id === 'rank') this.quickBadges.ach = badge;
+      if (item.id === 'farm') this.quickBadges.ripe = badge;
+      if (badge) btn.classList.add(`quick-${item.id}`);
       this.quickbar.append(btn);
     }
 
@@ -156,6 +167,8 @@ export class Hud {
     this.lastMail = -1;
     this.lastCoins = -1;
     this.lastQuests = -1;
+    this.lastAch = -1;
+    this.lastRipe = -1;
   }
 
   show() {
@@ -226,6 +239,28 @@ export class Hud {
     this.questBadge.textContent = n > 9 ? '9+' : String(n);
     this.questBadge.classList.toggle('hidden', n <= 0);
     this.questBtn.classList.toggle('has-mail', n > 0);
+  }
+
+  /** 업적 — 받을 보상이 있으면 랭크 버튼에 배지 */
+  setAchievements(count) {
+    const n = Math.max(0, Math.floor(Number(count) || 0));
+    if (n === this.lastAch) return;
+    this.lastAch = n;
+    const badge = this.quickBadges.ach;
+    if (!badge) return;
+    badge.textContent = n > 9 ? '9+' : String(n);
+    badge.classList.toggle('hidden', n <= 0);
+  }
+
+  /** 텃밭 — 다 자란 밭 수 배지 */
+  setRipePlots(count) {
+    const n = Math.max(0, Math.floor(Number(count) || 0));
+    if (n === this.lastRipe) return;
+    this.lastRipe = n;
+    const badge = this.quickBadges.ripe;
+    if (!badge) return;
+    badge.textContent = n > 9 ? '9+' : String(n);
+    badge.classList.toggle('hidden', n <= 0);
   }
 
   /** 황금 정식 버프 남은 시간 칩 */

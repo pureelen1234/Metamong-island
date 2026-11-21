@@ -15,8 +15,9 @@ export function cook(progress, id) {
   const check = progress.canCook(id);
   if (!check.ok) return { ok: false, reason: check.reason, lack: check.lack };
 
-  for (const [item, need] of Object.entries(recipe.need)) progress.inventory.take(item, need);
-  for (const [fish, need] of Object.entries(recipe.fish)) progress.takeFish(fish, need);
+  for (const [item, need] of Object.entries(recipe.need || {})) progress.inventory.take(item, need);
+  for (const [fish, need] of Object.entries(recipe.fish || {})) progress.takeFish(fish, need);
+  for (const [crop, need] of Object.entries(recipe.crop || {})) progress.takeCrop(crop, need);
 
   progress.restStamina(recipe.stamina);
   progress.markCooked(id);
@@ -31,5 +32,6 @@ export function recipeLabel(recipe) {
   const parts = [];
   for (const [item, n] of Object.entries(recipe.need || {})) parts.push({ id: item, n, source: 'bag' });
   for (const [item, n] of Object.entries(recipe.fish || {})) parts.push({ id: item, n, source: 'fish' });
+  for (const [item, n] of Object.entries(recipe.crop || {})) parts.push({ id: item, n, source: 'crop' });
   return parts;
 }

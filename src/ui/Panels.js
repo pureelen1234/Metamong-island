@@ -9,9 +9,10 @@ import { h } from './dom.js';
 import { LANDMARKS } from '../config.js';
 import { BAG, BUILD_NOTES, ITEMS, ITEM_ORDER, RECIPES } from '../systems/items.js';
 import { LETTERS } from '../systems/letters.js';
+import { itemIcon, itemName } from '../systems/lifeData.js';
 
-const name = (id) => (ITEMS[id] ? ITEMS[id].name : id);
-const icon = (id) => (ITEMS[id] ? ITEMS[id].icon : '❔');
+const name = (id) => (ITEMS[id] ? ITEMS[id].name : itemName(id));
+const icon = (id) => (ITEMS[id] ? ITEMS[id].icon : itemIcon(id));
 
 export class Panels {
   constructor(game) {

@@ -1,9 +1,13 @@
 /**
- * Heightmap.js — 48×48 섬 지형 높이 데이터 (순수 데이터 · three 의존 없음)
+ * Heightmap.js — 48×48 사각 섬 지형 높이 데이터 (순수 데이터 · three 의존 없음)
  *
  * 플랫 랜드: 육지 전체를 하나의 평평한 높이(LAND_HEIGHT)로 고정하고,
  * 해안선에서만 부드럽게 바다로 내려간다. 가운데 솟은 둔덕·언덕은 없다.
- * (광각 왜곡·경사로 인한 빌보드 눕기를 없애려고 평지로 바꿨다)
+ *
+ * 3단계: 원형 거리(Math.hypot) 대신 **둥근 모서리의 사각 거리 함수**(rounded box SD)를 쓴다.
+ *   · 48×48 그리드의 네 귀퉁이까지 육지가 넓게 펴져 북서 텃밭 · 북동 과수원 ·
+ *     남서 꽃밭 · 남쪽 해변이라는 네 구역을 놓을 자리가 생긴다.
+ *   · 남쪽(+z)은 해안 경사를 1.6배 넓혀 모래 해변이 다른 쪽보다 넓게 드러난다.
  */
 import { GRID, TILE, HALF, WATER_LEVEL, WALK_MIN_HEIGHT } from '../config.js';
 import { fbm, smoothstep, clamp } from './Noise.js';
@@ -14,17 +18,41 @@ const N = GRID + 1; // 49×49 정점
 export const LAND_HEIGHT = 0.7;
 /** 해안선에서 바다로 내려가는 깊이 */
 export const SEA_DEPTH = 1.0;
-/** 평지가 끝나고 해안 경사가 시작되는 정규화 반경 */
-const EDGE_START = 0.565;
-/** 완전히 바다가 되는 정규화 반경 */
-const EDGE_END = 0.80;
+
+/** 육지 평지 반폭 (모서리 둥글림 전 사각형의 절반) */
+export const LAND_BOARD = 17.6;
+/** 네 모서리 둥글림 반경 — 클수록 동글동글, 작을수록 각진 네모 섬 */
+export const LAND_CORNER = 4.6;
+/** 해안 경사 폭(월드 유닛) — 사각형 바깥으로 이만큼 미끄러져 바다가 된다 */
+export const COAST_WIDTH = 4.2;
+/** 남쪽(+z) 해변은 경사를 이 배율만큼 넓게 펴 모래사장을 넓힌다 */
+const SOUTH_BEACH_SCALE = 0.62;
+
+/**
+ * 둥근 사각형까지의 부호 있는 거리 (안쪽 음수 / 테두리 0 / 바깥 양수)
+ * iq 의 rounded-box SDF. 모서리는 반경 LAND_CORNER 로 둥글다.
+ */
+export function boxDistance(x, z) {
+  const bx = LAND_BOARD - LAND_CORNER;
+  const qx = Math.abs(x) - bx;
+  const qz = Math.abs(z) - bx;
+  const outside = Math.hypot(Math.max(qx, 0), Math.max(qz, 0));
+  const inside = Math.min(Math.max(qx, qz), 0);
+  return outside + inside - LAND_CORNER;
+}
+
+/** 이 자리의 해안 경사 폭 — 남쪽 해변은 더 넓다 */
+export function coastWidthAt(x, z) {
+  const south = smoothstep(4, 16, z); // z 가 +16 쪽으로 갈수록 1
+  return COAST_WIDTH * (1 + SOUTH_BEACH_SCALE * south);
+}
 
 /** 월드 좌표 (x,z)의 지형 높이 — 순수 함수 */
 export function islandHeight(x, z) {
-  const d = Math.hypot(x, z * 0.97) / HALF; // 0(중심) ~ 1.0(외곽)
-  // 해안선을 살짝 흔들어 원형보다 유기적인 섬 모양을 만든다
-  const warp = fbm(x * 0.06 + 13.7, z * 0.06 - 8.2, 3, 7) * 0.045;
-  const edge = smoothstep(EDGE_START, EDGE_END, d + warp); // 0 = 평지, 1 = 바다
+  const sd = boxDistance(x, z);
+  // 해안선을 살짝 흔들어 사각형보다 유기적인 섬 모양을 만든다 (약하게)
+  const warp = fbm(x * 0.075 + 13.7, z * 0.075 - 8.2, 3, 7) * 0.85;
+  const edge = smoothstep(0, coastWidthAt(x, z), sd + warp); // 0 = 평지, 1 = 바다
   const h = LAND_HEIGHT - (LAND_HEIGHT + SEA_DEPTH) * edge;
   return clamp(h, -SEA_DEPTH, LAND_HEIGHT);
 }

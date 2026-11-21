@@ -4,17 +4,18 @@
  * v1: day·elapsed·player·discovered·settings 만 있던 첫 세이브
  * v2: 1단계 생활 상태(stamina·bag·storage·buildings·mailbox·nodes)
  * v3: 2단계 생활 상태(coins·skills·fish·supplies·tools·cats·cooked·quests·buff·fishing)
+ * v4: 3단계 생활 상태(crops·farmPlots·counters·achievements) — 사각 섬 · 텃밭 농사 · 업적
  *
  * 어떤 버전이 들어와도 SaveStore 가 읽는 순간 코어 필드를 검사하고, 생활 상태는
- * Progress 로 정규화해 "기본값이 병합된" 한 덩어리로 돌려준다. v1/v2 세이브는
- * v3 필드가 조용히 0/기본값으로 채워지므로 그대로 이어서 플레이할 수 있다.
+ * Progress 로 정규화해 "기본값이 병합된" 한 덩어리로 돌려준다. v1/v2/v3 세이브는
+ * v4 필드가 조용히 0/기본값으로 채워지므로 그대로 이어서 플레이할 수 있다.
  *
  * 원칙: 절대 throw 하지 않는다. 알아볼 수 없으면 null(=새 섬)을 돌려준다.
  */
 import { Progress } from '../systems/Progress.js';
 import { DAY_SECONDS } from '../config.js';
 
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 4;
 
 const DEFAULT_SETTINGS = { muted: false, timeScale: 1, fps30: false };
 const SPEEDS = [1, 10, 60];

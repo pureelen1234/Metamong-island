@@ -26,6 +26,10 @@ import { Fx } from './Fx.js';
 import { BAG, HARVEST, ITEMS, RECIPES, STAMINA } from '../systems/items.js';
 import { LETTERS } from '../systems/letters.js';
 import { LifePanels } from '../ui/LifePanels.js';
+import { Phase3Panels } from '../ui/Phase3Panels.js';
+import { Minimap } from '../ui/Minimap.js';
+import { Farming } from './Farming.js';
+import { stageOf } from './Farming.js';
 import { cook as cookRecipe } from '../systems/Cooking.js';
 import { buy as buyGoods, sell as sellGoods } from '../systems/Shop.js';
 import {
@@ -39,11 +43,13 @@ import {
   itemIcon,
   itemName,
 } from '../systems/lifeData.js';
+import { CROPS, FARMING, SEEDS } from '../systems/farmData.js';
 import {
   CAMERA,
   CATS,
   DAY_SECONDS,
   DITTOS,
+  FARM,
   INTERACT,
   LANDMARKS,
   SAVE,
@@ -83,6 +89,10 @@ export class Game {
     this.panels = null;
     this.life = null;
     this.fishing = null;
+    this.farming = null;
+    this.phase3 = null;
+    this.minimap = null;
+    this.achAcc = 0;
     this.fishTarget = null;
     this.nodeMeshes = [];
     this.siteMeshes = [];
@@ -219,13 +229,16 @@ export class Game {
       onPickup: () => this.#refreshHud(),
       onHit: (kind) => {
         // 나무/바위를 한 번 두드릴 때마다 오늘의 의뢰 진행
-        if (kind === 'tree') this.progress.questEvent('chop', 1);
-        else if (kind === 'rock') this.progress.questEvent('mine', 1);
+        if (kind === 'tree') this.#event('chop', 1);
+        else if (kind === 'rock') this.#event('mine', 1);
       },
       onHarvest: (kind, gains) => {
         this.#gainExp('gather', EXP_GAIN.harvest);
-        if (gains && gains.petal) this.progress.questEvent('petal', gains.petal);
+        // 한 그루/한 덩이를 다 캐낸 횟수 — 업적이 '두드린 횟수'와 구분해 센다
+        if (kind === 'tree' || kind === 'rock' || kind === 'flower') this.progress.bump(kind, 1);
+        if (gains && gains.petal) this.#event('petal', gains.petal);
         this.#refreshHud();
+        this.checkAchievements();
       },
     };
     this.nodeMeshes = this.world.scenery.nodes.map((n) => n.mesh);
@@ -246,7 +259,7 @@ export class Game {
         onCatch: (fish, size) => {
           this.audio.sfxCoin();
           this.#gainExp('fish', FISHING.exp);
-          this.progress.questEvent('fish', 1);
+          this.#event('fish', 1);
           const first = this.progress.fishCount(fish.id) + (fish.id === 'star' ? 0 : 0) === 1;
           this.hud.toast(
             `${fish.icon} ${fish.name} ${fish.id === 'star' ? '' : `${size}cm`} 낚았다!${first ? ' 도감 등록 📔' : ''}`,
@@ -258,6 +271,41 @@ export class Game {
         onStart: () => this.#refreshHud(),
       },
     });
+
+    // ── 3단계: 북서쪽 텃밭 3×3 경작지
+    this.farming = new Farming({
+      terrain: this.world.terrain,
+      progress: this.progress,
+      fx: this.fx,
+      audio: this.audio,
+      hooks: {
+        toast: (msg, ms) => this.hud && this.hud.toast(msg, ms),
+        save: () => {
+          if (this.mode === 'play') this.save();
+        },
+        onPlant: () => {
+          this.#gainExp('farm', EXP_GAIN.plant);
+          // 씨앗 심기 카운터는 Progress.plantSeed 가 이미 올렸다
+          this.#event('plant', 1, false);
+        },
+        onWater: () => {
+          this.#gainExp('farm', EXP_GAIN.water);
+        },
+        onHarvest: (crop, n) => {
+          this.#gainExp('farm', EXP_GAIN.crop);
+          // 수확 카운터는 Progress.harvestPlot 이 이미 올렸다
+          this.#event('crop', 1, false);
+          this.audio.sfxCoin();
+        },
+        onRipe: (indexes) => {
+          if (!indexes.length) return;
+          this.audio.sfxRare?.();
+          this.hud?.toast(`✨ 텃밭에 ${indexes.length}칸이 다 자랐어요 — [수확] 할까요?`, 2600);
+          this.#refreshHud();
+        },
+      },
+    });
+    this.scene.add(this.farming.group);
   }
 
   #setupPost() {
@@ -278,6 +326,8 @@ export class Game {
     this.landmarkLabels = new LandmarkLabels(this.uiRoot, this.world.scenery.sites);
     this.panels = new Panels(this);
     this.life = new LifePanels(this);
+    this.phase3 = new Phase3Panels(this);
+    this.minimap = new Minimap(this.hud.container, this);
     if (this.fishing) this.fishing.hud = this.hud;
   }
 
@@ -454,6 +504,8 @@ export class Game {
     this.world.setWeather(weatherForDay(this.state.day));
     this.#snapCamera();
     this.#refreshHud();
+    if (this.farming) this.farming.syncAll();
+    this.checkAchievements();
 
     this.hud.toast(
       fromSave ? `Day ${this.state.day} — 다시 만나서 반가워요 🌿` : 'Day 1 — 섬에 도착했어요 🌿',
@@ -482,6 +534,7 @@ export class Game {
     for (const cat of this.cats) cat.setFollow(false);
     if (this.fishing) this.fishing.cancel();
     if (this.fx) this.fx.clear();
+    if (this.farming) this.farming.syncAll();
     this.#syncBuilt();
   }
 
@@ -523,6 +576,10 @@ export class Game {
     this.progress.rollQuests(this.state.day);
     for (const cat of this.cats) cat.setFollow(this.progress.cat(cat.id).follow);
     if (this.fishing) this.fishing.cancel();
+
+    // ── 3단계: 텃밭 상태 · 도감 발견 수
+    this.progress.discoveredCount = this.state.discovered.length;
+    if (this.farming) this.farming.syncAll();
   }
 
   /** 저장된 복구 상태를 3D·이름표에 반영 */
@@ -605,8 +662,18 @@ export class Game {
 
     // 채집·리젠·열매 드롭·기력 회복 (모달이 열리면 scaledDt 가 0 이라 시간이 멈춘다)
     if (this.gathering) this.gathering.update(dt, scaledDt, this.player.position, playing);
+    if (this.farming) this.farming.update(dt, scaledDt, this.camera);
     if (this.fishing && playing) this.fishing.update(dt, this.player.position);
     if (this.fx) this.fx.update(dt, this.camera);
+
+    // 업적 조건 재검사 — 0.5초에 한 번이면 충분하다
+    if (this.mode === 'play') {
+      this.achAcc += dt;
+      if (this.achAcc > 0.5) {
+        this.achAcc = 0;
+        this.checkAchievements();
+      }
+    }
 
     // 시간대 색을 스프라이트에 그대로 곱한다(밤에는 보랏빛으로 가라앉힘)
     for (const mat of this.spriteMaterials) mat.color.copy(this.world.spriteLight);
@@ -624,6 +691,7 @@ export class Game {
         this.hudAcc = 0;
         this.#refreshHud();
       }
+      if (this.minimap) this.minimap.update(dt);
     }
 
     if (playing) {
@@ -743,6 +811,17 @@ export class Game {
       }
     }
 
+    // 텃밭 칸 — 빈 밭·자라는 밭·다 자란 밭 모두 손이 닿는다
+    const plot = this.farming ? this.farming.nearest(p, INTERACT.nodeRange) : null;
+    if (plot) {
+      const dist = Math.hypot(plot.x - p.x, plot.z - p.z);
+      if (dist < bestDist) {
+        const info = this.#plotState(plot.index);
+        best = { kind: 'plot', plot, index: plot.index, x: plot.x, z: plot.z, info };
+        bestDist = dist;
+      }
+    }
+
     // 복구 부지 — 공방은 창고 메뉴를 연다
     const site = this.#nearestSite(p, INTERACT.siteRange);
     if (site) {
@@ -806,6 +885,10 @@ export class Game {
       this.#refreshHud();
       return;
     }
+    if (t.kind === 'plot') {
+      this.#touchPlot(t.index);
+      return;
+    }
     if (t.kind === 'site') {
       this.#openSite(t);
       return;
@@ -838,6 +921,7 @@ export class Game {
         3200
       );
       this.save();
+      this.checkAchievements();
     } else {
       this.hud.toast(`${ditto.name} — "·‿·" 이미 도감에 있어요`, 2000);
     }
@@ -948,6 +1032,8 @@ export class Game {
     this.hud.setCoins(this.progress.coins);
     this.hud.setQuests(this.progress.claimableQuests);
     this.hud.setBuff(this.progress.buffActive ? `✨ ${Math.ceil(this.progress.buff.left)}s` : null);
+    this.hud.setAchievements(this.progress.claimableAchievements);
+    this.hud.setRipePlots(this.progress.farmPlots.filter((st) => st && st.remain <= 0).length);
 
     // 낚시 중에는 액션 버튼이 낚시 하나만 가리킨다
     if (this.fishing && this.fishing.active) {
@@ -976,6 +1062,13 @@ export class Game {
     } else if (t && t.isNode) {
       const def = HARVEST[t.kind];
       this.hud.setAction({ active: true, icon: def.icon, label: `${def.verb} ${t.hitsLeft}/${t.hitsNeeded}` });
+    } else if (t && t.kind === 'plot') {
+      const info = this.#plotState(t.index);
+      if (info.state === 'empty') this.hud.setAction({ active: true, icon: '🌱', label: '씨앗 심기' });
+      else if (info.state === 'ripe') this.hud.setAction({ active: true, icon: '🧺', label: '수확하기' });
+      else if (info.st.watered < FARMING.maxWater)
+        this.hud.setAction({ active: true, icon: '💧', label: `물주기 ${Math.ceil(info.st.remain)}초` });
+      else this.hud.setAction({ active: false, icon: '🌱', label: `${Math.ceil(info.st.remain)}초 뒤 수확` });
     } else if (t && t.kind === 'site') {
       const built = !!this.progress.building(t.id).done;
       this.hud.setAction({
@@ -1123,6 +1216,7 @@ export class Game {
     if (id === 'codex') return this.openCodex();
     if (id === 'rank') return this.openRank();
     if (id === 'bag') return this.openBag();
+    if (id === 'farm') return this.openFarm();
     if (id !== 'build') return;
 
     if (id === 'build') {
@@ -1299,6 +1393,7 @@ export class Game {
     }
     this.save();
     this.#refreshHud();
+    this.checkAchievements();
     this.#openModal(this.panels.build(id));
     return true;
   }
@@ -1310,6 +1405,14 @@ export class Game {
     let given = 0;
     let stored = 0;
     for (const [id, n] of Object.entries(letter.gift)) {
+      // 씨앗처럼 가방(8칸)이 아니라 supplies 로 들어가는 선물
+      if (!ITEMS[id]) {
+        if (SEEDS[id]) {
+          this.progress.addSupply(id, n);
+          given += n;
+        }
+        continue;
+      }
       const leftover = inv.add(id, n);
       given += n - leftover;
       if (leftover > 0) {
@@ -1352,18 +1455,25 @@ export class Game {
     if (this.fx) this.fx.float(`${row.icon} ${rank || row.rank}`, p.x, p.y + 1.9, p.z, '#b2698f');
   }
 
-  /** 의뢰 진행 — 목표를 채우면 바로 알려 준다 */
-  #questEvent(event, amount = 1) {
+  /** 의뢰 진행 — 목표를 채우면 바로 알려 준다 (카운터는 호출자가 이미 올린 경우 bump=false) */
+  #questEvent(event, amount = 1, bump = true) {
     const done = this.progress.questEvent(event, amount);
+    if (bump) this.progress.bump(event, amount);
     if (done.length) {
       this.audio.sfxCoin();
       this.hud.toast(
         `📋 의뢰 달성 — ${done.map((q) => q.label).join(' · ')} · 우체통에서 보상 받기`,
         3000
       );
-      this.#refreshHud();
     }
+    this.#refreshHud();
+    this.checkAchievements();
     return done;
+  }
+
+  /** 의뢰·업적 카운터를 함께 올리는 짧은 이름 (채집·낚시 훅에서 쓴다) */
+  #event(name, amount = 1, bump = true) {
+    return this.#questEvent(name, amount, bump);
   }
 
   openCodex() {
@@ -1417,6 +1527,151 @@ export class Game {
   openCat(catId) {
     if (this.mode !== 'play') return;
     this.#openModal(this.life.cat(catId));
+  }
+
+  /* ── 3단계: 텃밭 · 업적 · 지도 ─────────────────────── */
+
+  /** 텃밭 한 칸의 지금 상태 — 액션 라벨·패널·퀵버튼이 같이 본다 */
+  #plotState(index) {
+    const st = this.progress.plot(index);
+    if (!st) return { state: 'empty', st: null, stage: -1, pct: 0, crop: null };
+    const crop = CROPS[st.crop];
+    const stage = stageOf(st);
+    return {
+      state: st.remain > 0 ? 'grow' : 'ripe',
+      st,
+      stage,
+      crop,
+      pct: Math.round((1 - st.remain / Math.max(1, st.total)) * 100),
+    };
+  }
+
+  openFarm() {
+    if (this.mode !== 'play') return;
+    this.#openModal(this.phase3.farm());
+  }
+
+  openSeedPicker(index) {
+    if (this.mode !== 'play') return;
+    this.#openModal(this.phase3.seedPicker(index));
+  }
+
+  openAchievements() {
+    if (this.mode !== 'play') return;
+    this.#openModal(this.phase3.achievements());
+  }
+
+  openMinimap() {
+    if (this.mode !== 'play') return;
+    if (!this.minimap) return;
+    this.#openModal({
+      title: '🗺️ 섬 지도',
+      subtitle: '사각 섬 전체 — 물·모래·잔디·길·텃밭',
+      body: this.minimap.modalBody(),
+      actions: [{ label: '닫기', kind: 'primary', onClick: () => this.modal.close() }],
+    });
+  }
+
+  /** 빈 밭을 손으로 눌렀을 때 — 상태에 따라 심기/물주기/수확 */
+  #touchPlot(index) {
+    const info = this.#plotState(index);
+    if (info.state === 'empty') return this.openSeedPicker(index);
+    if (info.state === 'ripe') return this.harvestPlot(index);
+    return this.waterPlot(index);
+  }
+
+  plantPlot(index, cropId) {
+    if (!this.farming) return false;
+    const plot = this.farming.plotByIndex(index);
+    const res = this.farming.plant(plot, cropId);
+    if (!res.ok) {
+      this.audio.sfxDeny();
+      const msg =
+        res.reason === 'seed'
+          ? '그 씨앗이 없어요 — 자판기 [사기] 탭에서 사 올까요? 🌱'
+          : res.reason === 'occupied'
+            ? '이미 자라고 있는 밭이에요'
+            : '지금은 심을 수 없어요';
+      this.hud.toast(msg, 2200);
+      if (this.modal.isOpen) this.#openModal(this.phase3.seedPicker(index));
+      return false;
+    }
+    this.#refreshHud();
+    if (this.modal.isOpen) this.#openModal(this.phase3.farm());
+    return true;
+  }
+
+  waterPlot(index) {
+    if (!this.farming) return false;
+    const plot = this.farming.plotByIndex(index);
+    const level = this.progress.toolLevel('water');
+    const res = this.farming.water(plot, level);
+    if (!res.ok) {
+      this.audio.sfxDeny();
+      const msg =
+        res.reason === 'stamina'
+          ? `기력이 부족해요 — 물주기에 ${res.cost} 필요해요 💪`
+          : res.reason === 'max'
+            ? '물을 줄 만큼 준 밭이에요 — 이제 기다리면 익어요'
+            : '지금은 물을 줄 밭이 없어요';
+      this.hud.toast(msg, 2200);
+    } else {
+      this.hud.toast(`💧 ${res.watered}칸에 물을 줬어요 — 남은 시간 절반! (기력 -${res.cost})`, 2300);
+    }
+    this.#refreshHud();
+    if (this.modal.isOpen) this.#openModal(this.phase3.farm());
+    return res.ok;
+  }
+
+  harvestPlot(index) {
+    if (!this.farming) return false;
+    const plot = this.farming.plotByIndex(index);
+    const res = this.farming.harvest(plot);
+    if (!res.ok) {
+      this.audio.sfxDeny();
+      this.hud.toast(res.reason === 'growing' ? '아직 덜 자랐어요 — 조금만 기다려요 🌱' : '빈 밭이에요', 2000);
+    }
+    this.#refreshHud();
+    if (this.modal.isOpen) this.#openModal(this.phase3.farm());
+    return res.ok;
+  }
+
+  /** 업적 조건 재검사 — 새로 달성한 것이 있으면 토스트 + 저장 */
+  checkAchievements() {
+    this.progress.discoveredCount = this.state.discovered.length;
+    const fresh = this.progress.checkAchievements();
+    if (!fresh.length) return [];
+    this.audio.sfxFanfare?.();
+    if (fresh.length === 1) {
+      const r = fresh[0];
+      this.hud.toast(`🏆 업적 달성 — ${r.name}! 랭크에서 보상을 받을 수 있어요`, 3000);
+      const p = this.player.position;
+      if (this.fx) this.fx.float(`🏆 ${r.name}`, p.x, p.y + 1.95, p.z, '#b2698f');
+    } else {
+      this.hud.toast(`🏆 업적 ${fresh.length}개 달성 — ${fresh.map((r) => r.name).join(' · ')}`, 3400);
+    }
+    this.#refreshHud();
+    this.save();
+    return fresh;
+  }
+
+  claimAchievement(id) {
+    const res = this.progress.claimAchievement(id);
+    if (!res.ok) {
+      this.audio.sfxDeny();
+      if (res.reason === 'unfinished') this.hud.toast('아직 조건을 채우지 못했어요', 1800);
+      return false;
+    }
+    const r = res.row;
+    this.audio.sfxCoin();
+    this.hud.toast(
+      `🏆 ${r.name} 보상 — 🪙 ${r.reward.coin}${r.reward.star ? ` · ⭐ ${r.reward.star}` : ''}${res.stored ? ' (별조각은 창고로)' : ''}`,
+      2800
+    );
+    this.#refreshHud();
+    this.save();
+    if (this.modal.isOpen) this.#openModal(this.phase3.achievements());
+    return true;
   }
 
   /* ── 부두 낚시 ────────────────────────────────────────── */
@@ -1531,7 +1786,13 @@ export class Game {
       return false;
     }
     this.audio.sfxBuild();
-    this.hud.toast(`${def.icon} ${def.name} Lv.${res.info.level} 강화! ${def.kind === 'tree' ? '나무' : '바위'}가 더 빨리 캐져요`, 2600);
+    const kindLabel = def.kind === 'tree' ? '나무' : def.kind === 'rock' ? '바위' : '텃밭';
+    this.hud.toast(
+      `${def.icon} ${def.name} Lv.${res.info.level} 강화! ${
+        def.kind === 'farm' ? `한 번에 ${['1칸', '십자 5칸', '3×3 9칸'][res.info.level - 1]}에 물을 줘요` : `${kindLabel}가 더 빨리 캐져요`
+      }`,
+      2600
+    );
     const p = this.player.position;
     this.fx.burst(p.x, p.y + 0.9, p.z, '#ffe3b0', 14, { spread: 1.1, up: 2.0 });
     this.save();
@@ -1747,7 +2008,7 @@ export class Game {
     // 노드 상태는 Gathering 이 들고 있다(리젠 카운트다운 포함)
     life.nodes = this.gathering ? this.gathering.toJSON() : {};
     return {
-      version: 3,
+      version: 4,
       savedAt: Date.now(),
       day: this.state.day,
       elapsedSeconds: Math.round(this.state.elapsed * 100) / 100,

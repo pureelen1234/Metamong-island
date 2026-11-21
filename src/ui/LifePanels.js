@@ -28,6 +28,7 @@ import {
 } from '../systems/lifeData.js';
 import { recipeLabel } from '../systems/Cooking.js';
 import { sellableEntries, sellPrice, goodsRows } from '../systems/Shop.js';
+import { CROPS, CROP_ORDER, SEEDS, SEED_ORDER } from '../systems/farmData.js';
 
 const chip = (text, cls = '') => h('span', { class: `lchip ${cls}` }, text);
 
@@ -75,6 +76,7 @@ export class LifePanels {
         { id: 'ditto', label: '메타몽' },
         { id: 'fish', label: '물고기' },
         { id: 'cook', label: '요리' },
+        { id: 'farm', label: '농사' },
         { id: 'cat', label: '고양이' },
       ],
       this.codexTab,
@@ -87,6 +89,7 @@ export class LifePanels {
     const body = h('div', { class: 'codex-tabs' }, tabs);
     if (this.codexTab === 'fish') body.append(this.#codexFish());
     else if (this.codexTab === 'cook') body.append(this.#codexCook());
+    else if (this.codexTab === 'farm') body.append(this.#codexFarm());
     else if (this.codexTab === 'cat') body.append(this.#codexCat());
     else body.append(this.#codexDitto());
 
@@ -94,6 +97,7 @@ export class LifePanels {
       ditto: '점 눈 두 개만 남은 어설픈 위장들',
       fish: '부두에서 낚은 물고기 기록',
       cook: '공방에서 만들어 본 요리',
+      farm: '텃밭에서 기른 작물 기록',
       cat: '솜이와 옹이의 마음',
     };
 
@@ -201,8 +205,44 @@ export class LifePanels {
     );
   }
 
-  #codexCat() {
+  #codexFarm() {
     const p = this.game.progress;
+    const list = h('div', { class: 'recipe-list' });
+    let known = 0;
+    for (const id of CROP_ORDER) {
+      const crop = CROPS[id];
+      const have = p.cropCount(id);
+      const harvested = p.count('crop');
+      if (have > 0) known += 1;
+      const seed = SEEDS[crop.seedId];
+      list.append(
+        h(
+          'div',
+          { class: `recipe-card ${have > 0 ? '' : 'locked'}` },
+          h('span', { class: 'rico' }, have > 0 ? crop.icon : '❔'),
+          h(
+            'div',
+            { class: 'rmain' },
+            h('div', { class: 'nm' }, crop.name),
+            h('div', { class: 'meta' }, `${seed.icon} ${seed.name} ${seed.price}코인 · ${Math.round(crop.grow)}초 · ${crop.yield[0]}~${crop.yield[1]}개`),
+            h('div', { class: 'meta' }, have > 0 ? crop.desc : '텃밭에서 기르면 여기에 기록돼요')
+          ),
+          h('div', { class: 'fright' }, have > 0 ? chip(`바구니 ${have}`, 'ok') : chip('미등록'))
+        )
+      );
+    }
+    return h(
+      'div',
+      {},
+      this.#bar(Math.round((known / CROP_ORDER.length) * 100)),
+      h('div', { class: 'hint' }, `바구니에 담긴 작물 ${known} / ${CROP_ORDER.length}종 · 지금까지 수확 ${p.count('crop')}번 · 심은 씨앗 ${p.count('plant')}번`),
+      h('div', { class: 'section-label' }, '작물'),
+      list,
+      h('div', { class: 'hint' }, `수확물은 가방 8칸을 차지하지 않고 텃밭 바구니에 담겨요. 자판기 [팔기] 에서 개당 ${CROP_ORDER.map((id) => `${CROPS[id].name} ${CROPS[id].price}`).join(' · ')} 코인에 팔려요.`)
+    );
+  }
+
+  #codexCat() {    const p = this.game.progress;
     const grid = h('div', { class: 'cat-grid' });
     for (const def of CATS) {
       const row = p.catRow(def.id);
@@ -251,7 +291,7 @@ export class LifePanels {
         title.next ? chip(`다음 ${title.next.name}까지 ${title.toNext}`, 'warm') : chip('최고 칭호', 'ok')
       ),
       this.#bar(title.pct, 'life'),
-      h('div', { class: 'section-label' }, '4대 생활 스킬'),
+      h('div', { class: 'section-label' }, '5대 생활 스킬'),
       h(
         'div',
         { class: 'skill-list' },
@@ -274,15 +314,19 @@ export class LifePanels {
       h('div', { class: 'section-label' }, '승급 조건'),
       h('div', { class: 'hint' }, RANKS.map((r) => `${r.name} ${r.exp}`).join(' · ')),
       h('div', { class: 'section-label' }, '경험치'),
-      h('div', { class: 'hint' }, '채집 +6 · 낚시 성공 +14 · 요리 +30 · 돌보기 +10 (간식 +12)'),
-      h('div', { class: 'hint' }, '4개 스킬 EXP 합계가 섬 생활 칭호를 정해요.')
+      h('div', { class: 'hint' }, '채집 +6 · 낚시 성공 +14 · 요리 +30 · 돌보기 +10 (간식 +12) · 농사 심기 +6 / 물주기 +3 / 수확 +16'),
+      h('div', { class: 'hint' }, '5개 스킬 EXP 합계가 섬 생활 칭호를 정해요.')
     );
 
+    const ach = p.claimableAchievements;
     return {
       title: '🌱 생활 랭크',
       subtitle: `${title.name} · 총 ${title.total} EXP`,
       body,
-      actions: [{ label: '닫기', kind: 'primary', onClick: () => this.game.modal.close() }],
+      actions: [
+        { label: `🏆 업적${ach ? ` (보상 ${ach})` : ''}`, kind: 'ghost', onClick: () => this.game.openAchievements() },
+        { label: '닫기', kind: 'primary', onClick: () => this.game.modal.close() },
+      ],
     };
   }
 
@@ -371,27 +415,30 @@ export class LifePanels {
     );
 
     if (this.shopTab === 'buy') {
-      const list = h('div', { class: 'shop-list' });
-      for (const g of goodsRows(p)) {
+      const rows = goodsRows(p);
+      const goodRow = (g) => {
         const btn = h('button', { class: `mini buy ${g.affordable ? 'on' : ''}`, type: 'button' }, `🪙 ${g.price}`);
         if (!g.affordable) btn.disabled = true;
         btn.addEventListener('click', () => this.game.buyGood(g.id));
-        list.append(
+        return h(
+          'div',
+          { class: 'shop-row' },
+          h('span', { class: 'gico' }, g.icon),
           h(
             'div',
-            { class: 'shop-row' },
-            h('span', { class: 'gico' }, g.icon),
-            h(
-              'div',
-              { class: 'gmain' },
-              h('div', { class: 'nm' }, `${g.name}${g.owned ? ` · ${g.owned}개 보유` : ''}`),
-              h('div', { class: 'meta' }, g.desc)
-            ),
-            btn
-          )
+            { class: 'gmain' },
+            h('div', { class: 'nm' }, `${g.name}${g.owned ? ` · ${g.owned}개 보유` : ''}`),
+            h('div', { class: 'meta' }, g.desc)
+          ),
+          btn
         );
-      }
-      body.append(h('div', { class: 'section-label' }, '사기'), list);
+      };
+      const goods = rows.filter((g) => g.kind !== 'seed');
+      const seeds = rows.filter((g) => g.kind === 'seed');
+      body.append(h('div', { class: 'section-label' }, '사기'));
+      body.append(h('div', { class: 'shop-list' }, ...goods.map(goodRow)));
+      body.append(h('div', { class: 'section-label' }, '🌱 씨앗 (북서 텃밭에 심어요)'));
+      body.append(h('div', { class: 'shop-list' }, ...seeds.map(goodRow)));
       if (p.supply('ade') > 0) {
         body.append(
           h(
@@ -401,7 +448,7 @@ export class LifePanels {
           )
         );
       }
-      body.append(h('div', { class: 'hint' }, '츄르는 고양이 돌보기에서, 별빛 미끼는 낚시할 때 써요.'));
+      body.append(h('div', { class: 'hint' }, '츄르는 고양이 돌보기에서, 별빛 미끼는 낚시할 때 쓰고, 씨앗은 텃밭에서 심어요.'));
     } else {
       const rows = sellableEntries(p);
       const list = h('div', { class: 'shop-list' });
@@ -420,7 +467,11 @@ export class LifePanels {
               'div',
               { class: 'gmain' },
               h('div', { class: 'nm' }, `${itemName(row.id)} × ${row.n}`),
-              h('div', { class: 'meta' }, `개당 🪙 ${row.unit}${row.source === 'fish' ? ' · 낚시 바구니' : ''}`)
+              h(
+                'div',
+                { class: 'meta' },
+                `개당 🪙 ${row.unit}${row.source === 'fish' ? ' · 낚시 바구니' : row.source === 'crop' ? ' · 텃밭 바구니' : ''}`
+              )
             ),
             h('div', { class: 'shop-btns' }, one, all)
           )
@@ -429,7 +480,7 @@ export class LifePanels {
       body.append(
         h('div', { class: 'section-label' }, '팔기'),
         list,
-        h('div', { class: 'hint' }, '전부 팔면 그 재료/물고기를 한 번에 정리해요.')
+        h('div', { class: 'hint' }, '전부 팔면 그 재료·물고기·작물을 한 번에 정리해요.')
       );
     }
 
@@ -450,7 +501,7 @@ export class LifePanels {
       const r = COOK[id];
       const check = p.canCook(id);
       const items = recipeLabel(r).map((part) => {
-        const have = part.source === 'fish' ? p.fishCount(part.id) : p.inventory.count(part.id);
+        const have = part.source === 'fish' ? p.fishCount(part.id) : part.source === 'crop' ? p.cropCount(part.id) : p.inventory.count(part.id);
         return h(
           'span',
           { class: `lchip ${have >= part.n ? 'ok' : 'lack'}` },
@@ -490,7 +541,8 @@ export class LifePanels {
           'div',
           { class: 'chips' },
           ...['log', 'stone', 'petal', 'star', 'berry'].map((id) => chip(`${itemIcon(id)} ${itemName(id)} ${p.inventory.count(id)}`)),
-          ...FISH_ORDER.filter((id) => p.fishCount(id) > 0).map((id) => chip(`${itemIcon(id)} ${itemName(id)} ${p.fishCount(id)}`))
+          ...FISH_ORDER.filter((id) => p.fishCount(id) > 0).map((id) => chip(`${itemIcon(id)} ${itemName(id)} ${p.fishCount(id)}`)),
+          ...CROP_ORDER.filter((id) => p.cropCount(id) > 0).map((id) => chip(`${CROPS[id].icon} ${CROPS[id].name} ${p.cropCount(id)}`))
         )
       ),
       actions: [
@@ -523,7 +575,9 @@ export class LifePanels {
       const effect =
         info.level >= info.max
           ? '더 강화할 수 없어요'
-          : `기력 소모 ×${info.def.stamina[info.level].toFixed(2)}${info.def.hits[info.level] ? ' · 타격 +1' : ''}`;
+          : id === 'water'
+            ? `한 번에 ${['십자 5칸', '3×3 9칸'][info.level - 1]}에 물주기`
+            : `기력 소모 ×${info.def.stamina[info.level].toFixed(2)}${info.def.hits[info.level] ? ' · 타격 +1' : ''}`;
       list.append(
         h(
           'div',
@@ -546,7 +600,7 @@ export class LifePanels {
       body: h(
         'div',
         {},
-        h('div', { class: 'hint' }, '도끼는 나무, 곡괭이는 바위에 적용돼요. Lv.3이면 타격 횟수도 줄어요.'),
+        h('div', { class: 'hint' }, '도끼는 나무, 곡괭이는 바위에 적용돼요. 물뿌리개는 레벨이 오르면 한 번에 더 넓게 물을 줘요.'),
         list,
         h('div', { class: 'section-label' }, '보유'),
         h('div', { class: 'hint' }, `🪙 ${p.coins} · 🪵 ${p.inventory.count('log')} · 🪨 ${p.inventory.count('stone')} · ⭐ ${p.inventory.count('star')}`)
