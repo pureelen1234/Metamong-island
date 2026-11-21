@@ -399,6 +399,10 @@ QA_PART=content python3 tools/qa_phase4.py   # 맵·웰컴·타격감·즉시 �
 QA_PART=regress python3 tools/qa_phase4.py   # 1·2·3단계 회귀 + 지도 + 업적 (14 체크)
 QA_PART=save    python3 tools/qa_phase4.py   # v5 저장/복원 + v4·v3 → v5 (23 체크)
 python3 tools/qa_live.py                     # 배포된 GitHub Pages 부팅 확인
+python3 tools/check_modal_fix.py audit       # 390×844 — 모달 21종 레이아웃 전수(세로 1글자 찌그러짐 검출)
+python3 tools/check_modal_fix.py hud         # 우체통·의뢰·웰컴 배너를 실제 좌표 클릭으로 검증
+python3 tools/check_modal_fix.py buildings   # 네 건물 복구 전/후 외형·이름표·액션 라벨 + 세이브 유지
+python3 tools/check_modal_fix.py dock        # 부두 복구 과정 한 번에(전/후 스크린샷)
 ```
 
 결과: **97/97 통과 · 콘솔 에러 0 · 404/실패 요청 0**. 캡처: `screenshots/phase4/`.
