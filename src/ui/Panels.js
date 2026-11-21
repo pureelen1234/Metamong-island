@@ -179,22 +179,45 @@ export class Panels {
   workshopMenu() {
     const st = this.game.progress.building('workshop');
     const inv = this.game.progress.inventory;
+
+    const entry = (icon, title, sub, onClick, disabled = false) => {
+      const btn = h(
+        'button',
+        { class: `menu-entry ${disabled ? 'off' : ''}`, type: 'button', ...(disabled ? { disabled: 'disabled' } : {}) },
+        h('span', { class: 'mico' }, icon),
+        h('div', { class: 'mmain' }, h('div', { class: 'nm' }, title), h('div', { class: 'meta' }, sub)),
+        h('span', { class: 'arrow' }, disabled ? '🔒' : '›')
+      );
+      if (!disabled) btn.addEventListener('click', onClick);
+      return btn;
+    };
+
     const body = h(
       'div',
       {},
-      h('div', { class: 'hint' }, st.done ? '공방이 열렸어요. 창고에 재료를 맡기고 다시 꺼낼 수 있어요.' : '공방은 아직 낡았어요. 복구하면 창고와 도구방이 함께 열려요.'),
+      h('div', { class: 'hint' }, st.done ? '공방이 열렸어요. 재료를 정리하고, 요리하고, 도구를 손봐요.' : '공방은 아직 낡았어요. 복구하면 창고·요리·도구방이 함께 열려요.'),
       h(
         'div',
         { class: 'row' },
         h('div', {}, h('div', { class: 'label' }, '가방'), h('div', { class: 'hint' }, `${inv.usedSlots()}/${BAG.slots}칸 사용 중`)),
         h('span', { class: 'hint' }, `재료 ${inv.totalItems()}개`)
+      ),
+      h('div', { class: 'section-label' }, '공방 메뉴'),
+      h(
+        'div',
+        { class: 'menu-list' },
+        entry('📦', '창고', st.done ? '재료를 맡기고 꺼내요' : '공방을 복구하면 열려요', () => this.game.openStorage(), !st.done),
+        entry('🍳', '요리하기', st.done ? '재료와 물고기로 기력을 회복해요' : '공방을 복구하면 열려요', () => this.game.openCooking(), !st.done),
+        entry('🪓', '도구 강화', st.done ? '도끼·곡깡이를 Lv.3까지' : '공방을 복구하면 열려요', () => this.game.openUpgrade(), !st.done),
+        entry('🔨', '건물 복구', '섬의 네 곳을 되살려요', () => this.game.openBuild('workshop'))
       )
     );
-    const actions = [];
-    if (st.done) actions.push({ label: '📦 창고 열기', kind: 'primary', onClick: () => this.game.openStorage() });
-    actions.push({ label: '🔨 건물 복구', kind: st.done ? 'ghost' : 'primary', onClick: () => this.game.openBuild('workshop') });
-    actions.push({ label: '닫기', kind: 'ghost', onClick: () => this.game.modal.close() });
-    return { title: '🔨 공방', subtitle: '재료를 정리하고 섬을 고치는 곳', body, actions };
+    return {
+      title: '🔨 공방',
+      subtitle: '재료를 정리하고, 요리하고, 섬을 고치는 곳',
+      body,
+      actions: [{ label: '닫기', kind: 'primary', onClick: () => this.game.modal.close() }],
+    };
   }
 
   /* ── 우체통 ───────────────────────────────────────────── */
@@ -223,10 +246,20 @@ export class Panels {
       );
     });
 
+    const quests = progress.questRows();
+    const readyQuest = quests.filter((q) => q.done && !q.claimed).length;
+
     return {
       title: '📬 우체통',
-      subtitle: '공지와 편지, 그리고 동봉된 선물이 있어요',
-      body: h('div', { class: 'mail-list' }, ...rows),
+      subtitle: '공지와 편지, 그리고 의뢰와 선물이 있어요',
+      body: h(
+        'div',
+        {},
+        h('div', { class: 'section-label' }, `📋 오늘의 의뢰 (Day ${progress.quests.day})${readyQuest ? ` · 보상 ${readyQuest}건` : ''}`),
+        this.game.life.questList(),
+        h('div', { class: 'section-label' }, '편지'),
+        h('div', { class: 'mail-list' }, ...rows)
+      ),
       actions: [{ label: '닫기', kind: 'primary', onClick: () => this.game.modal.close() }],
     };
   }

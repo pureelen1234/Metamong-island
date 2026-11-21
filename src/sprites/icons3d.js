@@ -230,6 +230,28 @@ export function glowTexture() {
   return tex;
 }
 
+/** 물 위로 퍼지는 동심원 물결 링 (부두 낚시) — 64×64 흰 테두리 */
+export function rippleTexture() {
+  const key = 'ripple';
+  if (cache.has(key)) return cache.get(key);
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const ctx = c.getContext('2d');
+  const g = ctx.createRadialGradient(32, 32, 14, 32, 32, 31);
+  g.addColorStop(0, 'rgba(255,255,255,0)');
+  g.addColorStop(0.55, 'rgba(255,255,255,0.06)');
+  g.addColorStop(0.8, 'rgba(236,252,255,0.92)');
+  g.addColorStop(0.94, 'rgba(206,240,255,0.42)');
+  g.addColorStop(1, 'rgba(206,240,255,0)');
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.arc(32, 32, 31, 0, Math.PI * 2);
+  ctx.fill();
+  const tex = toTexture(c);
+  cache.set(key, tex);
+  return tex;
+}
+
 /** 파티클 점 — 동그랗게 번지는 작은 빛 */
 export function dotTexture() {
   const key = 'dot';

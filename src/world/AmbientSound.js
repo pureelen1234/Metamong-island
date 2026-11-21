@@ -330,6 +330,65 @@ export class AmbientSound {
     this.#tone(this.ctx.currentTime + 0.005, 988, 0.07, 0.06, 'sine');
   }
 
+  /* ── 2단계: 낚시 · 요리 · 코인 · 고양이 ───────────────── */
+
+  /** 찌를 던지는 휘익 */
+  sfxCast() {
+    if (!this.sfxReady) return;
+    const t = this.ctx.currentTime + 0.01;
+    this.#noise(t, 0.24, { type: 'bandpass', freq: 900, q: 0.7, level: 0.07 });
+    this.#tone(t, 620, 0.22, 0.035, 'triangle', 250);
+  }
+
+  /** 찌가 물에 닿는 톡 (level 0.4~1) */
+  sfxSplash(level = 1) {
+    if (!this.sfxReady) return;
+    const t = this.ctx.currentTime + 0.008;
+    const lv = Math.max(0.15, Math.min(1, Number(level) || 1));
+    this.#noise(t, 0.26, { type: 'highpass', freq: 1500, q: 0.8, level: 0.17 * lv });
+    this.#tone(t, 320, 0.16, 0.09 * lv, 'sine', 170);
+  }
+
+  /** 입질 — 짧게 두 번 울리는 신호음 */
+  sfxBite() {
+    if (!this.sfxReady) return;
+    const t = this.ctx.currentTime + 0.01;
+    this.#tone(t, 1046, 0.09, 0.11, 'sine');
+    this.#tone(t + 0.085, 1397, 0.12, 0.1, 'sine');
+  }
+
+  /** 낚아채는 소리 — 상행 세 음 */
+  sfxReel() {
+    if (!this.sfxReady) return;
+    const t = this.ctx.currentTime + 0.01;
+    [784, 988, 1319].forEach((f, i) => this.#tone(t + i * 0.06, f, 0.16, 0.08, 'sine'));
+  }
+
+  /** 야옹 — 낮게 시작해 살짝 올라가는 부드러운 글라이드 */
+  sfxMeow() {
+    if (!this.sfxReady) return;
+    const t = this.ctx.currentTime + 0.01;
+    this.#tone(t, 560, 0.34, 0.075, 'triangle', 760);
+    this.#tone(t + 0.18, 720, 0.26, 0.05, 'sine', 520);
+  }
+
+  /** 코인 — 반짝 두 음 */
+  sfxCoin() {
+    if (!this.sfxReady) return;
+    const t = this.ctx.currentTime + 0.008;
+    this.#tone(t, 1319, 0.08, 0.08, 'sine');
+    this.#tone(t + 0.06, 1760, 0.12, 0.07, 'sine');
+  }
+
+  /** 요리 — 지글 + 딩 */
+  sfxCook() {
+    if (!this.sfxReady) return;
+    const t = this.ctx.currentTime + 0.01;
+    this.#noise(t, 0.42, { type: 'lowpass', freq: 1600, q: 0.6, level: 0.09 });
+    this.#pluck(hz(84), t + 0.28, 1.2, 0.1);
+    this.#pluck(hz(88), t + 0.4, 1.1, 0.08);
+  }
+
   /* ── 외부 제어 ────────────────────────────────────────── */
 
   setMuted(muted) {

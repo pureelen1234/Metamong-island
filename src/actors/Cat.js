@@ -3,12 +3,17 @@
  *
  * 아틀라스 4×5: 1행 정면 / 2행 뒷면 / 3행 왼쪽 / 4행 오른쪽 걷기 · 5행 앉기·식빵·그루밍·신남
  * 섬을 자유롭게 거닐다가 쉬는 자리에서 포즈를 바꾸고, 쓰다듬으면 폴짝 뛰며 하트를 띄운다.
+ *
+ * 2단계: 호감도 Lv.3 이상이면 [따라오기] 를 켤 수 있다 — 그때는 배회 대신
+ * 플레이어 뒤 1.4m 지점을 목표로 부드럽게 따라온다(모달·일시정지 중에는 멈춤).
  */
 import * as THREE from 'three';
 import { Billboard, blobShadow, heartSprite } from '../sprites/Billboard.js';
 
 const WALK_FPS = 7;
 const WALK_SPEED = 0.85;
+const FOLLOW_SPEED = 3.1;
+const FOLLOW_KEEP = 1.45;
 
 export class Cat {
   constructor(def, terrain, atlases) {
@@ -45,6 +50,10 @@ export class Cat {
     this.hop = 0;
     this.heartT = 0;
     this.pets = 0;
+    this.follow = false;
+    this.followGrace = 0;
+    /** 쓰다듬기·간식 쿨타임(초) */
+    this.cd = { pet: 0, snack: 0 };
     this.yaw = Math.random() * Math.PI * 2;
     this.frameName = 'sit';
     this.restPose = 'sit';
@@ -65,6 +74,64 @@ export class Cat {
     this.stateT = 1.2;
     this.billboard.setFrame('happy');
     this.frameName = 'happy';
+  }
+
+  /** 간식 — 쓰다듬기보다 크게 기뻐한다 */
+  feast() {
+    this.pet();
+    this.hop = 1.25;
+    this.heartT = 1.8;
+  }
+
+  setFollow(on) {
+    this.follow = !!on;
+    this.followGrace = 0.4;
+    if (!this.follow) this.target = null;
+  }
+
+  /** 방향에 맞는 걷기 프레임 (호출자가 walkT 를 먼저 진행시킨다) */
+  #walkFrame(nx, nz) {
+    const idx = Math.floor(this.walkT * WALK_FPS) % 4;
+    const ax = Math.abs(nx);
+    const az = Math.abs(nz);
+    const name = ax > az * 1.05 ? `${nx < 0 ? 'left' : 'right'}${idx + 1}` : `${nz > 0 ? 'front' : 'back'}${idx + 1}`;
+    if (name !== this.frameName) {
+      this.frameName = name;
+      this.billboard.setFrame(name);
+    }
+  }
+
+  /** 플레이어를 따라온다 — 너무 가까우면 앉아서 기다린다 */
+  #followStep(dt, playerPos) {
+    const dx = playerPos.x - this.position.x;
+    const dz = playerPos.z - this.position.z;
+    const dist = Math.hypot(dx, dz);
+    if (dist < FOLLOW_KEEP + 0.35) {
+      if (this.state !== 'rest') {
+        this.state = 'rest';
+        this.stateT = 0.6;
+        this.billboard.setFrame(this.restPose);
+        this.frameName = this.restPose;
+      }
+      return;
+    }
+    const nx = dx / dist;
+    const nz = dz / dist;
+    const step = Math.min(dist - FOLLOW_KEEP, FOLLOW_SPEED * dt);
+    const px = this.position.x + nx * step;
+    const pz = this.position.z + nz * step;
+    if (this.terrain.isWalkable(px, pz)) {
+      this.position.x = px;
+      this.position.z = pz;
+      this.state = 'walk';
+      this.yaw = Math.atan2(nx, nz);
+      this.walkT += dt;
+      this.#walkFrame(nx, nz);
+    } else if (dist > 4.5 && this.terrain.isWalkable(playerPos.x, playerPos.z)) {
+      // 물·바위에 막혀 너무 멀어지면 살짝 뛰어 넘어온다
+      this.position.x = playerPos.x - nx * 1.4;
+      this.position.z = playerPos.z - nz * 1.4;
+    }
   }
 
   #pickTarget() {
@@ -92,10 +159,20 @@ export class Cat {
     this.frameName = this.restPose;
   }
 
-  update(dt, camera) {
+  /**
+   * @param {number} dt
+   * @param {THREE.Camera} camera
+   * @param {{x:number,z:number}} [playerPos] 따라오기 대상
+   * @param {boolean} [canMove] 모달·일시정지 중에는 false
+   */
+  update(dt, camera, playerPos = null, canMove = true) {
+    this.cd.pet = Math.max(0, this.cd.pet - dt);
+    this.cd.snack = Math.max(0, this.cd.snack - dt);
     this.stateT -= dt;
 
-    if (this.state === 'walk' && this.target) {
+    if (this.follow && playerPos) {
+      if (canMove) this.#followStep(dt, playerPos);
+    } else if (this.state === 'walk' && this.target) {
       const dx = this.target.x - this.position.x;
       const dz = this.target.y - this.position.z;
       const dist = Math.hypot(dx, dz);
@@ -128,7 +205,7 @@ export class Cat {
           this.billboard.setFrame(name);
         }
       }
-    } else if (this.stateT <= 0) {
+    } else if (!this.follow && this.stateT <= 0 && canMove) {
       if (Math.random() < 0.62) this.#pickTarget();
       else this.#rest();
     }

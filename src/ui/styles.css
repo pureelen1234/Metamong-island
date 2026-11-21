@@ -945,7 +945,7 @@ canvas#scene {
 }
 
 .stamina .bar {
-  width: 68px;
+  width: 44px;
   height: 8px;
   border-radius: 999px;
   background: rgba(226, 214, 236, 0.85);
@@ -1405,4 +1405,811 @@ canvas#scene {
   white-space: nowrap;
   text-shadow: 0 1px 0 rgba(255, 255, 255, 0.95), 0 2px 7px rgba(255, 255, 255, 0.8);
   will-change: transform, opacity;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   2단계 생활 콘텐츠 — 낚시 · 요리 · 자판기 · 의뢰 · 랭크 · 고양이
+   ───────────────────────────────────────────────────────────── */
+
+/* ── HUD 추가 칩 (코인 · 의뢰 · 버프) ───────────────────── */
+.hud-stats {
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+/* 코인·의뢰까지 한 줄에 들어가도록 HUD 통계 요소를 살짝 조인다 */
+.hud-stats .icon-btn {
+  width: 40px;
+  height: 40px;
+}
+
+.coin-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 7px;
+  border-radius: 999px;
+  background: var(--glass);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: var(--shadow-soft);
+  font-size: 11px;
+  font-weight: 800;
+  color: #8a6a3d;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+.coin-chip .ico {
+  font-size: 12px;
+  line-height: 1;
+}
+
+.coin-chip.rich {
+  color: #b2698f;
+}
+
+.quest-btn {
+  position: relative;
+}
+
+.quest-btn .ico {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.quest-btn .badge,
+.mail-btn .badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: #ff6f8f;
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 800;
+  line-height: 14px;
+  text-align: center;
+  border: 2px solid #fff;
+  box-shadow: 0 2px 6px rgba(220, 90, 120, 0.42);
+}
+
+.quest-btn.has-mail {
+  animation: mailBob 2.4s ease-in-out infinite;
+}
+
+.buff-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 9px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #fff2c9, #ffd9a8);
+  font-size: 11px;
+  font-weight: 900;
+  color: #9a6a2f;
+  box-shadow: var(--shadow-soft);
+  pointer-events: none;
+}
+
+/* ── 낚시 스트립 · 입질 팝업 ────────────────────────────── */
+.fish-strip {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--safe-bottom) + 184px);
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: var(--glass-strong);
+  box-shadow: var(--shadow);
+  font-size: 12px;
+  font-weight: 800;
+  color: #5f7a86;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 24;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.fish-strip .ico {
+  font-size: 14px;
+}
+
+.fish-strip .bar {
+  width: 54px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(214, 236, 240, 0.9);
+  overflow: hidden;
+}
+
+.fish-strip .bar > i {
+  display: block;
+  height: 100%;
+  width: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #a9e6f4, #59c2dd);
+  transition: width 0.12s linear;
+}
+
+.fish-strip.urgent {
+  background: linear-gradient(135deg, #ffe1ea, #ffc6d7);
+  color: #b3395d;
+  animation: bitePulse 0.42s ease-in-out infinite;
+}
+
+.fish-strip.urgent .bar > i {
+  background: linear-gradient(90deg, #ffb3c8, #ff6f8f);
+}
+
+@keyframes bitePulse {
+  0%, 100% { transform: translateX(-50%) scale(1); }
+  50% { transform: translateX(-50%) scale(1.06); }
+}
+
+.bite-pop {
+  position: absolute;
+  left: 50%;
+  top: 40%;
+  width: 68px;
+  height: 68px;
+  margin: -34px 0 0 -34px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.96);
+  border: 3px solid #ff8aa6;
+  color: #ff4f7d;
+  font-size: 42px;
+  font-weight: 900;
+  line-height: 1;
+  box-shadow: 0 8px 22px rgba(255, 118, 158, 0.45);
+  opacity: 0;
+  transform: scale(0.3);
+  pointer-events: none;
+  z-index: 27;
+}
+
+.bite-pop.on {
+  animation: bitePop 1.6s cubic-bezier(0.2, 1.6, 0.4, 1) forwards;
+}
+
+@keyframes bitePop {
+  0% { opacity: 0; transform: scale(0.3); }
+  14% { opacity: 1; transform: scale(1.14); }
+  32% { transform: scale(1); }
+  76% { opacity: 1; }
+  100% { opacity: 0; transform: scale(1) translateY(-14px); }
+}
+
+/* ── 모달 탭 바 ─────────────────────────────────────────── */
+.tabbar {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  margin: 4px 0 2px;
+  border-radius: 14px;
+  background: #f2ecf6;
+}
+
+.tab {
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 8px 4px;
+  border-radius: 11px;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 800;
+  color: #90879e;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.tab.on {
+  background: #fff;
+  color: #b2698f;
+  box-shadow: 0 2px 6px rgba(150, 130, 170, 0.18);
+}
+
+/* ── 공용 칩 · 진행 바 색 ───────────────────────────────── */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 6px;
+}
+
+.lchip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #f5eefa;
+  font-size: 10.5px;
+  font-weight: 800;
+  color: #7f738f;
+  white-space: nowrap;
+}
+
+.lchip.ok {
+  background: #e6f6e6;
+  color: #5b8a55;
+}
+
+.lchip.lack {
+  background: #ffeef2;
+  color: #c06a83;
+}
+
+.lchip.warm {
+  background: #fff2d8;
+  color: #a5762f;
+}
+
+.progress-line.care > i {
+  background: linear-gradient(90deg, #ffc2d8, #ff92b3);
+}
+
+.progress-line.life > i {
+  background: linear-gradient(90deg, #ffe3a8, #ffc45e);
+}
+
+/* ── 도감: 물고기 · 요리 · 고양이 ──────────────────────── */
+.fish-grid,
+.recipe-list,
+.cat-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fish-card,
+.recipe-card,
+.cat-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: var(--shadow-soft);
+}
+
+.fish-card.locked,
+.recipe-card.locked {
+  background: #f7f2fa;
+  opacity: 0.82;
+}
+
+.fish-card.rare {
+  background: linear-gradient(135deg, #fffaf0, #fff3f7);
+}
+
+.fish-card .fico,
+.recipe-card .rico {
+  font-size: 24px;
+  line-height: 1.1;
+  flex: none;
+  width: 30px;
+  text-align: center;
+}
+
+.fmain,
+.rmain {
+  flex: 1;
+  min-width: 0;
+}
+
+.fmain .nm,
+.rmain .nm {
+  font-size: 12.5px;
+  font-weight: 800;
+  color: #625a72;
+}
+
+.fmain .meta,
+.rmain .meta {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #9a90a8;
+  line-height: 1.5;
+  margin-top: 2px;
+}
+
+.fright {
+  flex: none;
+  align-self: center;
+}
+
+.cat-card {
+  align-items: center;
+}
+
+.cat-portrait {
+  flex: none;
+  width: 54px;
+  height: 54px;
+  border-radius: 16px;
+  background-color: #f7f2fa;
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.9);
+}
+
+.cat-portrait.big {
+  width: 84px;
+  height: 84px;
+  border-radius: 20px;
+}
+
+.cat-portrait.tap {
+  cursor: pointer;
+}
+
+.cmain {
+  flex: 1;
+  min-width: 0;
+}
+
+.cmain .nm {
+  font-size: 12.5px;
+  font-weight: 800;
+  color: #625a72;
+}
+
+.cmain .meta {
+  font-size: 10.5px;
+  color: #9a90a8;
+  font-weight: 600;
+  line-height: 1.5;
+  margin-top: 3px;
+}
+
+/* ── 고양이 돌보기 ─────────────────────────────────────── */
+.cat-head {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.cat-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.cat-info .nm {
+  font-size: 14px;
+  font-weight: 900;
+  color: #625a72;
+}
+
+.cat-info .meta {
+  font-size: 11px;
+  font-weight: 700;
+  color: #9a90a8;
+  margin-top: 4px;
+}
+
+.cat-info .say {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: #fdf3f8;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #8b6480;
+  line-height: 1.5;
+}
+
+.snack-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.mini.snack,
+.mini.cook,
+.mini.up,
+.mini.buy,
+.mini.quest-claim {
+  padding: 8px 10px;
+  font-size: 11.5px;
+  border-radius: 11px;
+}
+
+.mini.snack.on,
+.mini.cook.on,
+.mini.up.on,
+.mini.buy.on,
+.mini.quest-claim.on {
+  background: linear-gradient(135deg, #ffe6f0, #ffd0e2);
+  color: #a84f74;
+  box-shadow: var(--shadow-soft);
+}
+
+.mini:disabled {
+  opacity: 0.5;
+}
+
+.switch.wide {
+  width: auto;
+  padding: 0 14px;
+  height: 30px;
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 800;
+  color: #8e849c;
+}
+
+.switch.wide.on {
+  color: #fff;
+}
+
+.gift-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.gift-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 12px;
+  background: #f7f2fa;
+  font-size: 11px;
+  font-weight: 800;
+  color: #8a7f99;
+}
+
+.gift-row.got {
+  background: #eaf7ea;
+  color: #5b8a55;
+}
+
+.gift-row .meta {
+  flex: 1;
+  font-weight: 700;
+  font-size: 10.5px;
+}
+
+/* ── 랭크 ──────────────────────────────────────────────── */
+.title-medal {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #fff8e8, #ffeef6);
+  box-shadow: var(--shadow-soft);
+}
+
+.title-medal .ico {
+  font-size: 26px;
+}
+
+.title-medal .nm {
+  font-size: 14.5px;
+  font-weight: 900;
+  color: #7a5c6d;
+}
+
+.title-medal .meta {
+  font-size: 11px;
+  font-weight: 700;
+  color: #a08d99;
+  margin-top: 2px;
+}
+
+.title-medal > .lchip {
+  margin-left: auto;
+}
+
+.skill-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.skill-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 11px;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: var(--shadow-soft);
+}
+
+.skill-row .sico {
+  font-size: 19px;
+  flex: none;
+  width: 24px;
+}
+
+.smain {
+  flex: 1;
+  min-width: 0;
+}
+
+.smain .nm {
+  font-size: 12.5px;
+  font-weight: 800;
+  color: #625a72;
+}
+
+.smain .meta {
+  font-size: 10.5px;
+  color: #9a90a8;
+  font-weight: 700;
+  margin-top: 3px;
+}
+
+.skill-row .lv {
+  flex: none;
+  font-size: 11.5px;
+  font-weight: 900;
+  color: #b2698f;
+}
+
+/* ── 의뢰 ──────────────────────────────────────────────── */
+.quest-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.quest-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 11px;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: var(--shadow-soft);
+}
+
+.quest-row.done:not(.claimed) {
+  background: #fffaf0;
+  box-shadow: 0 0 0 2px #ffe0a8, var(--shadow-soft);
+}
+
+.quest-row.claimed {
+  opacity: 0.62;
+}
+
+.quest-row .qico {
+  font-size: 18px;
+  flex: none;
+}
+
+.qmain {
+  flex: 1;
+  min-width: 0;
+}
+
+.qmain .nm {
+  font-size: 12px;
+  font-weight: 800;
+  color: #625a72;
+}
+
+.qmain .meta {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #9a90a8;
+  margin-top: 3px;
+}
+
+/* ── 자판기 ────────────────────────────────────────────── */
+.wallet {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px;
+  margin-top: 10px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #fff8e8, #fff1f6);
+  box-shadow: var(--shadow-soft);
+  font-size: 13px;
+  color: #8a6a3d;
+}
+
+.wallet strong {
+  font-size: 18px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
+.wallet .hint {
+  margin-left: auto;
+}
+
+.shop-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.shop-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 11px;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: var(--shadow-soft);
+}
+
+.shop-row .gico {
+  font-size: 20px;
+  flex: none;
+  width: 26px;
+  text-align: center;
+}
+
+.gmain {
+  flex: 1;
+  min-width: 0;
+}
+
+.gmain .nm {
+  font-size: 12px;
+  font-weight: 800;
+  color: #625a72;
+}
+
+.gmain .meta {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #9a90a8;
+  margin-top: 2px;
+  line-height: 1.4;
+}
+
+.shop-btns {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+/* ── 공방 메뉴 ─────────────────────────────────────────── */
+.menu-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.menu-entry {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 12px;
+  border: none;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: var(--shadow-soft);
+  text-align: left;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.menu-entry.off {
+  background: #f7f2fa;
+  opacity: 0.7;
+  cursor: default;
+}
+
+.menu-entry .mico {
+  font-size: 20px;
+  flex: none;
+}
+
+.menu-entry .mmain .nm {
+  font-size: 13px;
+  font-weight: 800;
+  color: #625a72;
+}
+
+.menu-entry .mmain .meta {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #9a90a8;
+  margin-top: 2px;
+}
+
+.menu-entry .arrow {
+  margin-left: auto;
+  font-size: 18px;
+  font-weight: 900;
+  color: #c5b6d2;
+}
+
+
+/* ── 요리 · 도구 강화 행 (버튼은 아래 한 줄) ───────────── */
+.recipe-row,
+.tool-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: var(--shadow-soft);
+}
+
+.recipe-row .shop-btns,
+.tool-row .shop-btns {
+  flex: 0 0 100%;
+  flex-direction: row;
+}
+
+.recipe-row .mini.cook,
+.tool-row .mini.up {
+  flex: 1;
+  padding: 9px 0;
+  border-radius: 12px;
+  background: #fff1f7;
+  color: #b2698f;
+  font-weight: 900;
+  font-size: 12px;
+  border: 1px solid #ffdbe8;
+}
+
+.recipe-row .mini.cook.on,
+.tool-row .mini.up.on {
+  background: linear-gradient(135deg, #ffe1ee, #ffc9dd);
+  border-color: #ffb9d2;
+  color: #a13c63;
+  box-shadow: 0 4px 10px rgba(240, 150, 185, 0.28);
+}
+
+.recipe-row .mini.cook:disabled,
+.tool-row .mini.up:disabled {
+  background: #f6f1f9;
+  border-color: #ece2f2;
+  color: #b3a7bf;
+  opacity: 1;
+}
+
+.recipe-row .rico,
+.tool-row .tico {
+  font-size: 22px;
+  flex: none;
+  width: 28px;
+  text-align: center;
+  line-height: 1.1;
+}
+
+.recipe-row .rmain,
+.tool-row .tmain {
+  flex: 1;
+  min-width: 0;
+}
+
+.recipe-row .rmain .nm,
+.tool-row .tmain .nm {
+  font-size: 12.5px;
+  font-weight: 800;
+  color: #625a72;
+}
+
+.recipe-row .rmain .meta,
+.tool-row .tmain .meta {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #9a90a8;
+  line-height: 1.45;
+  margin-top: 3px;
 }

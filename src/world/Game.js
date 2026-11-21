@@ -20,10 +20,25 @@ import { makeRamp } from '../render/toon.js';
 import { loadAtlases } from '../sprites/atlas.js';
 import { Progress } from '../systems/Progress.js';
 import { Gathering } from './Gathering.js';
+import { Fishing } from './Fishing.js';
 import { DropField } from './Drops.js';
 import { Fx } from './Fx.js';
 import { BAG, HARVEST, ITEMS, RECIPES, STAMINA } from '../systems/items.js';
 import { LETTERS } from '../systems/letters.js';
+import { LifePanels } from '../ui/LifePanels.js';
+import { cook as cookRecipe } from '../systems/Cooking.js';
+import { buy as buyGoods, sell as sellGoods } from '../systems/Shop.js';
+import {
+  ADE_STAMINA,
+  CAT_CARE,
+  EXP_GAIN,
+  FISH,
+  FISHING,
+  GOLDEN_BUFF,
+  TOOLS,
+  itemIcon,
+  itemName,
+} from '../systems/lifeData.js';
 import {
   CAMERA,
   CATS,
@@ -66,6 +81,9 @@ export class Game {
     this.drops = null;
     this.fx = null;
     this.panels = null;
+    this.life = null;
+    this.fishing = null;
+    this.fishTarget = null;
     this.nodeMeshes = [];
     this.siteMeshes = [];
 
@@ -199,9 +217,47 @@ export class Game {
         if (this.mode === 'play') this.save();
       },
       onPickup: () => this.#refreshHud(),
+      onHit: (kind) => {
+        // 나무/바위를 한 번 두드릴 때마다 오늘의 의뢰 진행
+        if (kind === 'tree') this.progress.questEvent('chop', 1);
+        else if (kind === 'rock') this.progress.questEvent('mine', 1);
+      },
+      onHarvest: (kind, gains) => {
+        this.#gainExp('gather', EXP_GAIN.harvest);
+        if (gains && gains.petal) this.progress.questEvent('petal', gains.petal);
+        this.#refreshHud();
+      },
     };
     this.nodeMeshes = this.world.scenery.nodes.map((n) => n.mesh);
     this.siteMeshes = this.world.scenery.sites.map((s) => s.billboard.mesh);
+
+    // ── 2단계: 부두 낚시 (찌·물결·입질)
+    this.fishing = new Fishing({
+      progress: this.progress,
+      audio: this.audio,
+      fx: this.fx,
+      scene: this.scene,
+      hud: null,
+      hooks: {
+        toast: (msg, ms) => this.hud && this.hud.toast(msg, ms),
+        save: () => {
+          if (this.mode === 'play') this.save();
+        },
+        onCatch: (fish, size) => {
+          this.audio.sfxCoin();
+          this.#gainExp('fish', FISHING.exp);
+          this.progress.questEvent('fish', 1);
+          const first = this.progress.fishCount(fish.id) + (fish.id === 'star' ? 0 : 0) === 1;
+          this.hud.toast(
+            `${fish.icon} ${fish.name} ${fish.id === 'star' ? '' : `${size}cm`} 낚았다!${first ? ' 도감 등록 📔' : ''}`,
+            2600
+          );
+          this.#refreshHud();
+          this.save();
+        },
+        onStart: () => this.#refreshHud(),
+      },
+    });
   }
 
   #setupPost() {
@@ -215,11 +271,14 @@ export class Game {
       onPause: () => this.openPause(),
       onQuick: (id) => this.openQuick(id),
       onMail: () => this.openMailbox(),
+      onQuest: () => this.openQuest(),
     });
     this.hud.hide();
     this.modal = new Modal(this.uiRoot);
     this.landmarkLabels = new LandmarkLabels(this.uiRoot, this.world.scenery.sites);
     this.panels = new Panels(this);
+    this.life = new LifePanels(this);
+    if (this.fishing) this.fishing.hud = this.hud;
   }
 
   #setupInput() {
@@ -415,10 +474,13 @@ export class Game {
 
     // 생활 시스템도 처음 상태로
     this.progress.reset();
+    this.progress.rollQuests(1);
     if (this.gathering) {
       this.gathering.applySaved({});
       this.gathering.hooks.toast = (msg, ms) => this.hud && this.hud.toast(msg, ms);
     }
+    for (const cat of this.cats) cat.setFollow(false);
+    if (this.fishing) this.fishing.cancel();
     if (this.fx) this.fx.clear();
     this.#syncBuilt();
   }
@@ -456,6 +518,11 @@ export class Game {
     this.progress.load(data);
     if (this.gathering) this.gathering.applySaved(data.nodes || {});
     this.#syncBuilt();
+
+    // ── 2단계: 오늘의 의뢰·따라오기·낚싯줄 정리
+    this.progress.rollQuests(this.state.day);
+    for (const cat of this.cats) cat.setFollow(this.progress.cat(cat.id).follow);
+    if (this.fishing) this.fishing.cancel();
   }
 
   /** 저장된 복구 상태를 3D·이름표에 반영 */
@@ -517,17 +584,28 @@ export class Game {
         this.state.elapsed -= DAY_SECONDS;
         this.state.day += 1;
         this.world.setWeather(weatherForDay(this.state.day));
-        this.hud.toast(`Day ${this.state.day} — 새로운 하루가 시작됐어요`, 3000);
+        const fresh = this.progress.rollQuests(this.state.day);
+        this.hud.toast(
+          fresh ? `Day ${this.state.day} — 새로운 하루 · 의뢰 2건이 새로 왔어요 📋` : `Day ${this.state.day} — 새로운 하루가 시작됐어요`,
+          3000
+        );
       }
     }
 
+    // 황금 정식 버프 타이머 (모달이 열려 있으면 멈춘다)
+    if (playing && this.progress.tickBuff(dt)) {
+      this.hud.toast('✨ 황금 버프가 끝났어요', 2000);
+    }
+    this.player.speedScale = this.progress.buffActive && this.progress.buff.kind === 'golden' ? GOLDEN_BUFF.speed : 1;
+
     const move = this.#inputVector(playing);
     this.player.update(dt, move, this.world.terrain, this.camera);
-    for (const cat of this.cats) cat.update(dt, this.camera);
+    for (const cat of this.cats) cat.update(dt, this.camera, this.player.position, playing);
     for (const ditto of this.dittos) ditto.update(dt, this.player.position, this.camera);
 
     // 채집·리젠·열매 드롭·기력 회복 (모달이 열리면 scaledDt 가 0 이라 시간이 멈춘다)
     if (this.gathering) this.gathering.update(dt, scaledDt, this.player.position, playing);
+    if (this.fishing && playing) this.fishing.update(dt, this.player.position);
     if (this.fx) this.fx.update(dt, this.camera);
 
     // 시간대 색을 스프라이트에 그대로 곱한다(밤에는 보랏빛으로 가라앉힘)
@@ -637,6 +715,7 @@ export class Game {
     let best = null;
     let bestDist = Infinity;
     const p = this.player.position;
+    this.fishTarget = null;
 
     for (const ditto of this.dittos) {
       const dist = ditto.distanceTo(p);
@@ -674,6 +753,23 @@ export class Game {
       }
     }
 
+    // 부두 끝 낚시 자리 — 복구 전에는 복구 안내를 보여 준다
+    const spot = FISHING.spot;
+    const fdist = Math.hypot(spot.x - p.x, spot.z - p.z);
+    if (fdist <= spot.range) {
+      this.fishTarget = {
+        kind: 'fish',
+        id: 'dock_fish',
+        x: spot.x,
+        z: spot.z,
+        built: !!this.progress.building('dock').done,
+      };
+      if (fdist < bestDist) {
+        best = this.fishTarget;
+        bestDist = fdist;
+      }
+    }
+
     this.target = best;
   }
 
@@ -692,6 +788,14 @@ export class Game {
 
   interact() {
     if (this.mode !== 'play' || this.modal.isOpen || this.paused) return;
+
+    // 낚시 중에는 액션 버튼이 곧 찌 당기기
+    if (this.fishing && this.fishing.active) {
+      this.fishing.reel();
+      this.#refreshHud();
+      return;
+    }
+
     const t = this.target;
     if (!t) {
       this.hud.toast('가까이에 살펴볼 게 없어요 — 나무나 바위를 두드려 보세요 🪓', 1700);
@@ -706,17 +810,22 @@ export class Game {
       this.#openSite(t);
       return;
     }
+    if (t.kind === 'fish') {
+      this.openFishSpot();
+      return;
+    }
     this.#activateActor(t);
   }
 
   #openSite(site) {
     if (site.id === 'workshop') this.#openModal(this.panels.workshopMenu());
+    else if (site.id === 'vending' && this.progress.building('vending').done) this.openVending();
     else this.#openModal(this.panels.build(site.id));
   }
 
   #activateActor(actor) {
     if (actor.kind === 'ditto') this.#discoverDitto(actor);
-    else if (actor.kind === 'cat') this.#petCat(actor);
+    else if (actor.kind === 'cat') this.openCat(actor.id);
   }
 
   #discoverDitto(ditto) {
@@ -741,6 +850,14 @@ export class Game {
 
   #onCanvasTap(e) {
     if (this.mode !== 'play' || this.modal.isOpen) return;
+
+    // 낚시 중 화면 탭 = 찌 당기기 (대상 판정보다 먼저)
+    if (this.fishing && this.fishing.active) {
+      this.fishing.reel();
+      this.#refreshHud();
+      return;
+    }
+
     if (performance.now() - this.tap.t > 520) return;
     if (Math.hypot(e.clientX - this.tap.x, e.clientY - this.tap.y) > 14) return;
 
@@ -828,6 +945,18 @@ export class Game {
     this.hud.setStamina(this.progress.stamina, STAMINA.max);
     this.hud.setMail(this.#mailBadgeCount());
     this.hud.setBag(this.progress.inventory.usedSlots(), BAG.slots);
+    this.hud.setCoins(this.progress.coins);
+    this.hud.setQuests(this.progress.claimableQuests);
+    this.hud.setBuff(this.progress.buffActive ? `✨ ${Math.ceil(this.progress.buff.left)}s` : null);
+
+    // 낚시 중에는 액션 버튼이 낚시 하나만 가리킨다
+    if (this.fishing && this.fishing.active) {
+      const st = this.fishing.state;
+      if (st === 'bite') this.hud.setAction({ active: true, icon: '🎣', label: '입질! 탭!' });
+      else if (st === 'cast' || st === 'wait') this.hud.setAction({ active: true, icon: '🎣', label: '회수하기' });
+      else this.hud.setAction({ active: false, icon: '🎣', label: '낚시 마무리' });
+      return;
+    }
 
     const t = this.target;
     if (t && t.kind === 'ditto') {
@@ -837,15 +966,22 @@ export class Game {
         label: t.discovered ? '다시 보기' : '살펴보기',
       });
     } else if (t && t.kind === 'cat') {
-      this.hud.setAction({ active: true, icon: '🤲', label: '쓰다듬기' });
+      this.hud.setAction({ active: true, icon: '🐾', label: '돌보기' });
+    } else if (t && t.kind === 'fish') {
+      this.hud.setAction(
+        t.built
+          ? { active: true, icon: '🎣', label: '낚시하기' }
+          : { active: true, icon: '⚓', label: '부두 복구 필요' }
+      );
     } else if (t && t.isNode) {
       const def = HARVEST[t.kind];
       this.hud.setAction({ active: true, icon: def.icon, label: `${def.verb} ${t.hitsLeft}/${t.hitsNeeded}` });
     } else if (t && t.kind === 'site') {
+      const built = !!this.progress.building(t.id).done;
       this.hud.setAction({
         active: true,
-        icon: t.id === 'workshop' ? '🔨' : t.icon,
-        label: t.id === 'workshop' ? '공방 열기' : '복구 보기',
+        icon: t.id === 'workshop' ? '🔨' : t.id === 'vending' && built ? '🥤' : t.icon,
+        label: t.id === 'workshop' ? '공방 열기' : t.id === 'vending' && built ? '자판기 열기' : '복구 보기',
       });
     } else {
       this.hud.setAction({ active: false, icon: '✋', label: '둘러보기' });
@@ -984,42 +1120,10 @@ export class Game {
   openQuick(id) {
     if (this.mode !== 'play' || this.modal.isOpen) return;
 
-    if (id === 'codex') {
-      const found = this.state.discovered;
-      const grid = h('div', { class: 'codex-grid' });
-      for (const def of DITTOS) {
-        const known = found.includes(def.id);
-        const thumb = h('div', { class: `codex-thumb ${known ? '' : 'locked'}` }, known ? '' : '· ? ·');
-        if (known && def.thumb) this.#paintThumb(thumb, def.thumb);
-        grid.append(
-          h(
-            'div',
-            { class: `codex-card ${known ? '' : 'unknown'}` },
-            thumb,
-            h('div', { class: 'name' }, known ? def.name : '아직 못 찾음'),
-            h('div', { class: 'meta' }, known ? def.flavor : '섬 어딘가에서 돌멩이인 척하고 있어요')
-          )
-        );
-      }
-      const pct = Math.round((found.length / DITTOS.length) * 100);
-      const body = h(
-        'div',
-        {},
-        h('div', { class: 'progress-line' }, h('i', { style: { width: `${pct}%` } })),
-        h('div', { class: 'hint' }, `발견 ${found.length} / ${DITTOS.length} · 이번 섬에는 어설픈 메타몽 일곱 마리가 숨어 있어요`),
-        h('div', { class: 'section-label' }, '이번 섬의 도감'),
-        grid,
-        h('div', { class: 'section-label' }, '다음 단계'),
-        h('div', { class: 'hint' }, '시즌 1 도감 40종 전체와 도트 프리뷰는 Phase 3에서 열려요.')
-      );
-      this.#openModal({
-        title: '메타몽 도감',
-        subtitle: '점 눈 두 개만 남은 어설픈 위장들',
-        body,
-        actions: [{ label: '닫기', kind: 'primary', onClick: () => this.modal.close() }],
-      });
-      return;
-    }
+    if (id === 'codex') return this.openCodex();
+    if (id === 'rank') return this.openRank();
+    if (id === 'bag') return this.openBag();
+    if (id !== 'build') return;
 
     if (id === 'build') {
       const list = h('div', {});
@@ -1058,28 +1162,6 @@ export class Game {
       return;
     }
 
-    if (id === 'bag') {
-      this.openBag();
-      return;
-    }
-
-    if (id === 'rank') {
-      this.#openModal({
-        title: '생활 랭크',
-        subtitle: '연습 · 0 EXP',
-        body: h(
-          'div',
-          {},
-          h('div', { class: 'progress-line' }, h('i', { style: { width: '8%' } })),
-          h('div', { class: 'hint' }, '채집 10 EXP · 낮 보너스 15 EXP · 요리/제작 25 EXP'),
-          h('div', { class: 'section-label' }, '승급 조건'),
-          h('div', { class: 'hint' }, '연습 → F (50) · F → E (200) · E → D (600)'),
-          h('div', { class: 'section-label' }, '다음 단계'),
-          h('div', { class: 'hint' }, '채집·요리·랭크 시스템은 Phase 2에서 열려요.')
-        ),
-        actions: [{ label: '닫기', kind: 'primary', onClick: () => this.modal.close() }],
-      });
-    }
   }
 
   /* ── 1단계: 가방 · 창고 · 복구 · 우체통 ──────────────── */
@@ -1111,6 +1193,7 @@ export class Game {
 
   openMailbox(letterId = null) {
     if (this.mode !== 'play') return;
+    this.questSource = 'mail';
     if (letterId) this.progress.markRead(letterId);
     this.#openModal(this.panels.mailbox(letterId));
     this.#refreshHud();
@@ -1208,7 +1291,11 @@ export class Game {
     }
     this.hud.toast(`🎉 ${lm ? lm.name : id} 복구 완료!`, 3200);
     if (id === 'workshop') {
-      setTimeout(() => this.hud.toast('공방이 열렸어요 — 창고에 재료를 맡길 수 있어요 📦', 3000), 900);
+      setTimeout(() => this.hud.toast('공방이 열렸어요 — 창고·요리·도구 강화를 쓸 수 있어요 📦', 3000), 900);
+    } else if (id === 'dock') {
+      setTimeout(() => this.hud.toast('부두 끝에서 [낚시하기] — 찌를 던져 볼까요? 🎣', 3000), 900);
+    } else if (id === 'vending') {
+      setTimeout(() => this.hud.toast('자판기가 켜졌어요 — 재료와 물고기를 팔고 물건을 살 수 있어요 🥤', 3000), 900);
     }
     this.save();
     this.#refreshHud();
@@ -1243,6 +1330,416 @@ export class Game {
     return true;
   }
 
+  /* ── 2단계: 낚시 · 요리 · 상점 · 랭크 · 고양이 ─────────── */
+
+  paintDittoThumb(el, thumb) {
+    this.#paintThumb(el, thumb);
+  }
+
+  /** 생활 스킬 EXP — 랭크가 오르면 팡파르와 문구 */
+  #gainExp(id, amount) {
+    const res = this.progress.gainExp(id, amount);
+    if (res.rankedUp) this.#rankUpToast(id, res.rank);
+    this.#refreshHud();
+    return res;
+  }
+
+  #rankUpToast(id, rank) {
+    const row = this.progress.skills.row(id);
+    this.audio.sfxFanfare();
+    this.hud.toast(`🌱 ${row.name} 랭크 업! ${rank || row.rank}`, 2800);
+    const p = this.player.position;
+    if (this.fx) this.fx.float(`${row.icon} ${rank || row.rank}`, p.x, p.y + 1.9, p.z, '#b2698f');
+  }
+
+  /** 의뢰 진행 — 목표를 채우면 바로 알려 준다 */
+  #questEvent(event, amount = 1) {
+    const done = this.progress.questEvent(event, amount);
+    if (done.length) {
+      this.audio.sfxCoin();
+      this.hud.toast(
+        `📋 의뢰 달성 — ${done.map((q) => q.label).join(' · ')} · 우체통에서 보상 받기`,
+        3000
+      );
+      this.#refreshHud();
+    }
+    return done;
+  }
+
+  openCodex() {
+    if (this.mode !== 'play') return;
+    this.#openModal(this.life.codex());
+  }
+
+  openRank() {
+    if (this.mode !== 'play') return;
+    this.#openModal(this.life.rank());
+  }
+
+  openQuest() {
+    if (this.mode !== 'play') return;
+    this.questSource = 'quest';
+    this.#openModal(this.life.quests());
+  }
+
+  openVending() {
+    if (this.mode !== 'play') return;
+    if (!this.progress.building('vending').done) {
+      this.audio.sfxDeny();
+      this.hud.toast('자판기를 먼저 복구해야 열려요 🥤', 2200);
+      this.#openModal(this.panels.build('vending'));
+      return;
+    }
+    this.#openModal(this.life.vending());
+  }
+
+  openCooking() {
+    if (this.mode !== 'play') return;
+    if (!this.progress.building('workshop').done) {
+      this.audio.sfxDeny();
+      this.hud.toast('공방을 먼저 복구해야 요리할 수 있어요 🔨', 2200);
+      this.#openModal(this.panels.build('workshop'));
+      return;
+    }
+    this.#openModal(this.life.cooking());
+  }
+
+  openUpgrade() {
+    if (this.mode !== 'play') return;
+    if (!this.progress.building('workshop').done) {
+      this.audio.sfxDeny();
+      this.hud.toast('공방을 먼저 복구해야 도구를 강화할 수 있어요 🔨', 2200);
+      return;
+    }
+    this.#openModal(this.life.upgrade());
+  }
+
+  openCat(catId) {
+    if (this.mode !== 'play') return;
+    this.#openModal(this.life.cat(catId));
+  }
+
+  /* ── 부두 낚시 ────────────────────────────────────────── */
+
+  openFishSpot() {
+    if (this.mode !== 'play') return;
+    if (!this.progress.building('dock').done) {
+      this.audio.sfxDeny();
+      this.hud.toast('부두를 먼저 복구해야 낚시할 수 있어요 ⚓', 2200);
+      this.#openModal(this.panels.build('dock'));
+      return;
+    }
+    if (this.fishing.active) {
+      this.fishing.reel();
+      return;
+    }
+
+    const p = this.progress;
+    const bait = p.supply('bait');
+    const body = h(
+      'div',
+      {},
+      h('div', { class: 'hint' }, '부두 끝으로 찌를 던져요. 물결이 퍼지다 입질이 오면 1.4초 안에 화면을 탭!'),
+      h(
+        'div',
+        { class: 'row' },
+        h('div', {}, h('div', { class: 'label' }, '기력'), h('div', { class: 'hint' }, `낚시 1회에 ${FISHING.stamina} 소모`)),
+        h('span', { class: 'hint' }, `${Math.round(p.stamina)} / 100`)
+      ),
+      h(
+        'div',
+        { class: 'row' },
+        h('div', {}, h('div', { class: 'label' }, '별빛 미끼'), h('div', { class: 'hint' }, '희귀 어종 확률이 올라가요')),
+        h('span', { class: 'hint' }, `${bait}개`)
+      ),
+      h('div', { class: 'section-label' }, '오늘의 물빛'),
+      h(
+        'div',
+        { class: 'chips' },
+        ...Object.values(FISH).map((f) => h('span', { class: `lchip ${f.rare ? 'warm' : ''}` }, `${f.icon} ${f.name}`))
+      )
+    );
+
+    const actions = [
+      { label: `🎣 낚시하기 (기력 ${FISHING.stamina})`, kind: 'primary', onClick: () => this.#beginFishing(false) },
+    ];
+    if (bait > 0) {
+      actions.push({ label: '🪱 별빛 미끼 쓰고 낚시', kind: 'ghost', onClick: () => this.#beginFishing(true) });
+    }
+    actions.push({ label: '닫기', kind: 'ghost', onClick: () => this.modal.close() });
+
+    this.#openModal({ title: '🎣 부두 낚시', subtitle: '찌 · 물결 · 그리고 1.4초', body, actions });
+  }
+
+  #beginFishing(bait) {
+    this.modal.close();
+    const res = this.fishing.start({ bait });
+    if (!res.ok) {
+      this.audio.sfxDeny();
+      const msg =
+        res.reason === 'stamina'
+          ? '기력이 부족해요 — 열매나 요리로 채워 주세요 🍓'
+          : res.reason === 'dock'
+            ? '부두를 먼저 복구해야 해요 ⚓'
+            : res.reason === 'no-bait'
+              ? '별빛 미끼가 없어요'
+              : '지금은 낚시할 수 없어요';
+      this.hud.toast(msg, 2200);
+      return;
+    }
+    this.player.setYaw(0);
+    if (res.bait) this.hud.toast('별빛 미끼를 달았어요 — 희귀한 손님이 올지도 🪱', 2000);
+    this.#refreshHud();
+  }
+
+  /* ── 요리 · 강화 ──────────────────────────────────────── */
+
+  cook(id) {
+    const before = this.progress.skills.level('cook');
+    const res = cookRecipe(this.progress, id);
+    if (!res.ok) {
+      this.audio.sfxDeny();
+      this.hud.toast(
+        res.reason === 'full' ? '기력이 이미 가득해요 💪' : '재료가 부족해요 — 채집·낚시로 모아 올까요?',
+        2200
+      );
+      if (this.modal.isOpen) this.#openModal(this.life.cooking());
+      return false;
+    }
+    this.audio.sfxCook();
+    const p = this.player.position;
+    this.fx.float(`${res.recipe.icon} ${res.recipe.name}`, p.x, p.y + 1.8, p.z, '#b2698f');
+    this.hud.toast(`${res.recipe.icon} ${res.recipe.name} 완성 — 기력 +${res.recipe.stamina}`, 2400);
+    if (res.recipe.buff > 0) {
+      setTimeout(() => this.hud.toast(`✨ ${GOLDEN_BUFF.seconds}초 동안 채집 기력이 가벼워져요`, 2600), 700);
+    }
+    this.#questEvent('cook', 1);
+    if (this.progress.skills.level('cook') > before) this.#rankUpToast('cook', this.progress.skills.row('cook').rank);
+    this.save();
+    this.#refreshHud();
+    this.#openModal(this.life.cooking());
+    return true;
+  }
+
+  upgradeTool(id) {
+    const def = TOOLS[id];
+    const res = this.progress.upgradeTool(id);
+    if (!res.ok) {
+      this.audio.sfxDeny();
+      this.hud.toast(res.reason === 'max' ? '이미 최고 레벨이에요' : '재료나 코인이 부족해요 🪙', 2200);
+      if (this.modal.isOpen) this.#openModal(this.life.upgrade());
+      return false;
+    }
+    this.audio.sfxBuild();
+    this.hud.toast(`${def.icon} ${def.name} Lv.${res.info.level} 강화! ${def.kind === 'tree' ? '나무' : '바위'}가 더 빨리 캐져요`, 2600);
+    const p = this.player.position;
+    this.fx.burst(p.x, p.y + 0.9, p.z, '#ffe3b0', 14, { spread: 1.1, up: 2.0 });
+    this.save();
+    this.#refreshHud();
+    this.#openModal(this.life.upgrade());
+    return true;
+  }
+
+  /* ── 자판기 ───────────────────────────────────────────── */
+
+  sellItem(id, amount = 1) {
+    const res = sellGoods(this.progress, id, amount);
+    if (!res.ok) {
+      this.audio.sfxDeny();
+      this.hud.toast('팔 수 있는 게 없어요', 1800);
+      return false;
+    }
+    this.audio.sfxCoin();
+    this.hud.toast(`${itemIcon(id)} ${itemName(id)} ${res.count}개 → 🪙 ${res.coin}`, 2200);
+    this.#questEvent('sell', res.count);
+    this.save();
+    this.#refreshHud();
+    this.#openModal(this.life.vending());
+    return true;
+  }
+
+  buyGood(id) {
+    const res = buyGoods(this.progress, id);
+    if (!res.ok) {
+      this.audio.sfxDeny();
+      this.hud.toast(
+        res.reason === 'coin' ? '섬 코인이 부족해요 — 자판기에 재료를 팔아 모아 보세요 🪙' : '지금은 살 수 없어요',
+        2200
+      );
+      if (this.modal.isOpen) this.#openModal(this.life.vending());
+      return false;
+    }
+    this.audio.sfxCoin();
+    this.hud.toast(`${res.good.icon} ${res.good.name} 구입 — ${res.good.price} 코인`, 2200);
+    this.save();
+    this.#refreshHud();
+    this.#openModal(this.life.vending());
+    return true;
+  }
+
+  drinkAde() {
+    if (this.progress.supply('ade') <= 0) {
+      this.audio.sfxDeny();
+      return false;
+    }
+    if (this.progress.stamina >= STAMINA.max) {
+      this.hud.toast('기력이 이미 가득해요 💪', 1800);
+      return false;
+    }
+    this.progress.takeSupply('ade', 1);
+    this.progress.restStamina(ADE_STAMINA);
+    this.audio.sfxEat();
+    this.hud.toast(`🥤 반짝 에이드 — 기력 +${ADE_STAMINA}`, 2000);
+    this.save();
+    this.#refreshHud();
+    this.#openModal(this.life.vending());
+    return true;
+  }
+
+  /* ── 고양이 돌보기 ────────────────────────────────────── */
+
+  #catOf(id) {
+    return this.cats.find((c) => c.id === id) || null;
+  }
+
+  petCat(id) {
+    const cat = this.#catOf(id);
+    const def = CATS.find((c) => c.id === id);
+    if (!cat || !def) return;
+    if (cat.cd.pet > 0) {
+      this.audio.sfxDeny();
+      return;
+    }
+    cat.cd.pet = CAT_CARE.pet.cooldown;
+    cat.pet();
+    this.audio.sfxMeow();
+    this.progress.restStamina(CAT_CARE.pet.stamina);
+    const res = this.progress.addAffection(id, CAT_CARE.pet.aff);
+    this.#gainExp('care', EXP_GAIN.pet);
+    this.#questEvent('pet', 1);
+    this.#catAfter(def, cat, res);
+  }
+
+  feedCat(id, itemId) {
+    const cat = this.#catOf(id);
+    const def = CATS.find((c) => c.id === id);
+    const treat = CAT_CARE.snacks[itemId];
+    if (!cat || !def || !treat) return;
+
+    if (cat.cd.snack > 0) {
+      this.audio.sfxDeny();
+      this.hud.toast(`${def.name}가 방금 간식을 먹었어요 — 조금 뒤에 주세요`, 1900);
+      return;
+    }
+    const have =
+      itemId === 'churu'
+        ? this.progress.supply('churu')
+        : itemId === 'berry'
+          ? this.progress.inventory.count('berry')
+          : this.progress.fishCount('anchovy');
+    if (have <= 0) {
+      this.audio.sfxDeny();
+      this.hud.toast(`${treat.icon} ${treat.name}이 없어요${itemId === 'churu' ? ' — 자판기에서 살 수 있어요' : ''}`, 2200);
+      return;
+    }
+    if (itemId === 'churu') this.progress.takeSupply('churu', 1);
+    else if (itemId === 'berry') this.progress.inventory.take('berry', 1);
+    else this.progress.takeFish('anchovy', 1);
+
+    cat.cd.snack = treat.cooldown;
+    cat.feast();
+    this.audio.sfxMeow();
+    const res = this.progress.addAffection(id, treat.aff);
+    this.#gainExp('care', EXP_GAIN.treat);
+    this.#questEvent('treat', 1);
+    this.hud.toast(`${def.name}가 ${treat.icon} ${treat.name}을 맛있게 먹었어요 · 호감도 +${treat.aff}`, 2300);
+    this.#catAfter(def, cat, res);
+  }
+
+  #catAfter(def, cat, res) {
+    const level = res.row.level;
+    if (this.fx) {
+      this.fx.burst(cat.position.x, cat.position.y + cat.height, cat.position.z, '#ffb3d1', 12, { spread: 0.9, up: 1.6 });
+    }
+    if (res.levelUp) {
+      this.hud.toast(`${def.name} 호감도 Lv.${level}! ${CAT_CARE.dialogue[def.id][level - 1]}`, 3400);
+      this.#giveCatGift(def.id, level);
+      if (level === CAT_CARE.followLevel) {
+        setTimeout(() => this.hud.toast(`${def.name}가 이제 따라와도 된대요 — 돌보기에서 [따라오기] 🐾`, 3000), 900);
+      }
+    } else if (Math.random() < 0.45) {
+      this.hud.toast(CAT_CARE.dialogue[def.id][level - 1], 1900);
+    }
+    this.save();
+    this.#refreshHud();
+    if (this.modal.isOpen) this.#openModal(this.life.cat(def.id));
+  }
+
+  /** 레벨 첫 달성 보답 선물 — 가방이 차면 창고로 */
+  #giveCatGift(catId, level) {
+    const gift = CAT_CARE.gifts[level];
+    if (!gift) return;
+    const st = this.progress.cat(catId);
+    if (st.gifts.includes(level)) return;
+    st.gifts.push(level);
+    let stored = 0;
+    for (const [id, n] of Object.entries(gift)) {
+      const leftover = this.progress.inventory.add(id, n);
+      if (leftover > 0) {
+        this.progress.inventory.storage[id] = this.progress.inventory.stored(id) + leftover;
+        stored += leftover;
+      }
+    }
+    this.audio.sfxRare();
+    const label = Object.entries(gift)
+      .map(([id, n]) => `${itemIcon(id)} ${itemName(id)} ${n}`)
+      .join(' · ');
+    const def = CATS.find((c) => c.id === catId);
+    this.hud.toast(`🎁 ${def ? def.name : catId}의 보답 선물 — ${label}${stored ? ` (${stored}개는 창고로)` : ''}`, 3200);
+  }
+
+  toggleFollow(id) {
+    const row = this.progress.catRow(id);
+    const def = CATS.find((c) => c.id === id);
+    if (!row.canFollow) {
+      this.audio.sfxDeny();
+      this.hud.toast(`따라오기는 호감도 Lv.${CAT_CARE.followLevel}부터예요 (지금 Lv.${row.level})`, 2200);
+      return;
+    }
+    const st = this.progress.cat(id);
+    st.follow = !st.follow;
+    const cat = this.#catOf(id);
+    if (cat) cat.setFollow(st.follow);
+    this.audio.sfxUi();
+    this.hud.toast(st.follow ? `${def ? def.name : id}가 따라와요 🐾` : `${def ? def.name : id}는 여기서 기다릴게요`, 2000);
+    this.save();
+    this.#refreshHud();
+    if (this.modal.isOpen) this.#openModal(this.life.cat(id));
+  }
+
+  /* ── 오늘의 의뢰 ──────────────────────────────────────── */
+
+  claimQuest(id) {
+    const res = this.progress.claimQuest(id);
+    if (!res.ok) {
+      this.audio.sfxDeny();
+      return false;
+    }
+    const q = res.quest;
+    if (q.reward.star > 0) {
+      const leftover = this.progress.inventory.add('star', q.reward.star);
+      if (leftover > 0) {
+        this.progress.inventory.storage.star = this.progress.inventory.stored('star') + leftover;
+      }
+    }
+    this.audio.sfxCoin();
+    this.hud.toast(`📋 의뢰 완료! 🪙 ${q.reward.coin}${q.reward.star ? ` · ⭐ ${q.reward.star}` : ''}`, 2600);
+    this.save();
+    this.#refreshHud();
+    this.#openModal(this.questSource === 'mail' ? this.panels.mailbox() : this.life.quests());
+    return true;
+  }
+
   /* ── 저장 ──────────────────────────────────────────────── */
 
   snapshot() {
@@ -1250,7 +1747,7 @@ export class Game {
     // 노드 상태는 Gathering 이 들고 있다(리젠 카운트다운 포함)
     life.nodes = this.gathering ? this.gathering.toJSON() : {};
     return {
-      version: 2,
+      version: 3,
       savedAt: Date.now(),
       day: this.state.day,
       elapsedSeconds: Math.round(this.state.elapsed * 100) / 100,

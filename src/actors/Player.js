@@ -32,6 +32,7 @@ export class Player {
     this.position = new THREE.Vector3(spawn.x, terrain.groundY(spawn.x, spawn.z), spawn.z);
     this.yaw = Math.PI; // 카메라를 등지고 바다를 바란다
     this.targetYaw = this.yaw;
+    this.speedScale = 1;
     this.moving = 0;
     this.idleT = 0;
     this.walkT = 0;
@@ -139,7 +140,7 @@ export class Player {
     if (this.emoteT > 0) this.emoteT = Math.max(0, this.emoteT - dt);
 
     if (mag > 0.02) {
-      const speed = PLAYER.speed * mag;
+      const speed = PLAYER.speed * mag * (this.speedScale || 1);
       const stepX = (dir.x / (mag || 1)) * speed * dt;
       const stepZ = (dir.z / (mag || 1)) * speed * dt;
 

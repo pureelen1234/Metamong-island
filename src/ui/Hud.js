@@ -6,6 +6,10 @@
  *  · 기력 게이지 — 채집할 때마다 줄고, 열매를 먹으면 차오른다
  *  · 우체통 버튼 — 안 읽은 편지 + 미수령 선물 수를 빨간 배지로 (우체통 메타몽과는 별개)
  *  · 가방 버튼 배지 — 8칸 중 몇 칸을 쓰고 있는지
+ *
+ * 2단계 추가
+ *  · 섬 코인(🪙) · 오늘의 의뢰 버튼(📋, 받을 보상 배지) · 황금 버프 칩
+ *  · 낚시 스트립 — 찌 상태 문구와 입질 게이지, 입질 순간 중앙 `!` 팝업
  */
 import { h } from './dom.js';
 import { Joystick } from './Joystick.js';
@@ -66,7 +70,31 @@ export class Hud {
       this.mailBadge
     );
 
-    this.left = h('div', { class: 'hud-left' }, this.pill, h('div', { class: 'hud-stats' }, this.stamina, this.mailBtn));
+    // ── 2단계: 섬 코인 · 오늘의 의뢰
+    this.coinVal = h('span', { class: 'n' }, '0');
+    this.coinChip = h(
+      'div',
+      { class: 'coin-chip', title: '섬 코인 — 자판기에 물건을 팔면 모여요' },
+      h('span', { class: 'ico' }, '🪙'),
+      this.coinVal
+    );
+
+    this.questBadge = h('span', { class: 'badge hidden' }, '0');
+    this.questBtn = h(
+      'button',
+      { class: 'icon-btn quest-btn', type: 'button', 'aria-label': '오늘의 의뢰 열기', onclick: () => this.handlers.onQuest?.() },
+      h('span', { class: 'ico' }, '📋'),
+      this.questBadge
+    );
+
+    this.buffChip = h('span', { class: 'buff-chip hidden' }, '✨');
+
+    this.left = h(
+      'div',
+      { class: 'hud-left' },
+      this.pill,
+      h('div', { class: 'hud-stats' }, this.stamina, this.coinChip, this.mailBtn, this.questBtn, this.buffChip)
+    );
 
     // ── 상단 우측 컨트롤
     this.muteBtn = h('button', { class: 'icon-btn', type: 'button', 'aria-label': '음소거 토글', onclick: () => this.handlers.onMute?.() }, '🔊');
@@ -102,6 +130,18 @@ export class Hud {
     // ── 조이스틱
     this.joystick = new Joystick(this.container);
 
+    // ── 2단계: 낚시 스트립 · 입질 팝업
+    this.fishLabel = h('span', { class: 'txt' }, '');
+    this.fishBar = h('i');
+    this.fishStrip = h(
+      'div',
+      { class: 'fish-strip hidden' },
+      h('span', { class: 'ico' }, '🎣'),
+      this.fishLabel,
+      h('div', { class: 'bar' }, this.fishBar)
+    );
+    this.bitePop = h('div', { class: 'bite-pop' }, '!');
+
     // ── 토스트 · GL 오버레이
     this.toastView = new Toast(this.container);
     this.glOverlay = h(
@@ -109,11 +149,13 @@ export class Hud {
       { class: 'gl-overlay' },
       h('div', { class: 'box' }, h('h3', {}, '그래픽을 다시 준비하고 있어요'), h('p', {}, '잠깐만 기다려 주세요. 섬은 그대로 있으니 걱정 마세요.'))
     );
-    this.container.append(this.top, this.actionBtn, this.quickbar, this.glOverlay);
+    this.container.append(this.top, this.actionBtn, this.quickbar, this.fishStrip, this.bitePop, this.glOverlay);
 
     this.lastPill = '';
     this.lastStamina = -1;
     this.lastMail = -1;
+    this.lastCoins = -1;
+    this.lastQuests = -1;
   }
 
   show() {
@@ -165,6 +207,62 @@ export class Hud {
     if (!badge) return;
     badge.textContent = `${used}/${total}`;
     badge.classList.toggle('full', used >= total);
+  }
+
+  /** 섬 코인 */
+  setCoins(n) {
+    const v = Math.max(0, Math.floor(Number(n) || 0));
+    if (v === this.lastCoins) return;
+    this.lastCoins = v;
+    this.coinVal.textContent = String(v);
+    this.coinChip.classList.toggle('rich', v >= 200);
+  }
+
+  /** 오늘의 의뢰 — 받을 보상이 있으면 배지 */
+  setQuests(count) {
+    const n = Math.max(0, Math.floor(Number(count) || 0));
+    if (n === this.lastQuests) return;
+    this.lastQuests = n;
+    this.questBadge.textContent = n > 9 ? '9+' : String(n);
+    this.questBadge.classList.toggle('hidden', n <= 0);
+    this.questBtn.classList.toggle('has-mail', n > 0);
+  }
+
+  /** 황금 정식 버프 남은 시간 칩 */
+  setBuff(text) {
+    if (!text) {
+      this.buffChip.classList.add('hidden');
+      return;
+    }
+    this.buffChip.textContent = text;
+    this.buffChip.classList.remove('hidden');
+  }
+
+  /**
+   * 낚시 스트립
+   * @param {null|{state:string,label:string,urgent?:boolean,ratio?:number}} info
+   */
+  setFishing(info) {
+    if (!info) {
+      this.fishStrip.classList.add('hidden');
+      this.fishStrip.classList.remove('urgent');
+      return;
+    }
+    this.fishStrip.classList.remove('hidden');
+    this.fishStrip.classList.toggle('urgent', !!info.urgent);
+    if (this.fishLabel.textContent !== info.label) this.fishLabel.textContent = info.label;
+    const ratio = info.ratio === undefined ? 1 : Math.max(0, Math.min(1, info.ratio));
+    this.fishBar.style.width = `${ratio * 100}%`;
+  }
+
+  /** 입질 순간 중앙 `!` 팝업 */
+  bite() {
+    this.bitePop.classList.remove('on');
+    // 같은 프레임에 다시 켜도 애니메이션이 재시작되도록 리플로우를 강제한다
+    void this.bitePop.offsetWidth;
+    this.bitePop.classList.add('on');
+    if (this.bitePop.__timer) clearTimeout(this.bitePop.__timer);
+    this.bitePop.__timer = setTimeout(() => this.bitePop.classList.remove('on'), 1600);
   }
 
   setAction({ active, icon = '✋', label = '둘러보기' }) {

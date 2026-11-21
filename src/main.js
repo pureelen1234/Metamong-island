@@ -13,19 +13,40 @@ window.__metamong = {
   get audio() {
     return game.audio;
   },
-  /** 1단계 생활 상태 — QA 스크립트가 그대로 읽는다 */
+  /** 1·2단계 생활 상태 — QA 스크립트가 그대로 읽는다 */
   life() {
     const g = game;
     const inv = g.progress.inventory;
+    const p = g.progress;
     return {
-      stamina: Math.round(g.progress.stamina * 10) / 10,
+      stamina: Math.round(p.stamina * 10) / 10,
       bagSlots: inv.usedSlots(),
       bag: inv.toJSON().bag,
       storage: { ...inv.storage },
-      buildings: JSON.parse(JSON.stringify(g.progress.buildings)),
-      mailbox: { read: [...g.progress.mailbox.read], claimed: [...g.progress.mailbox.claimed] },
+      buildings: JSON.parse(JSON.stringify(p.buildings)),
+      mailbox: { read: [...p.mailbox.read], claimed: [...p.mailbox.claimed] },
       harvested: g.gathering ? Object.keys(g.gathering.toJSON()).length : 0,
       drops: g.drops ? g.drops.items.map((d) => `${d.itemId}x${d.count}`) : [],
+      // ── 2단계
+      coins: p.coins,
+      skills: p.skills.toJSON(),
+      skillRows: p.skills.rows().map((r) => ({ id: r.id, rank: r.rank, level: r.level, exp: r.exp, pct: r.pct })),
+      title: p.skills.title(),
+      fish: { ...p.fish },
+      fishKinds: p.fishKinds(),
+      supplies: { ...p.supplies },
+      tools: p.tools,
+      cats: Object.fromEntries(
+        Object.keys(p.cats).map((id) => [id, { ...p.catRow(id), follow: !!p.cat(id).follow }])
+      ),
+      cooked: { ...p.cooked },
+      quests: { day: p.quests.day, list: p.questRows() },
+      claimableQuests: p.claimableQuests,
+      buff: { ...p.buff },
+      fishingStats: { ...p.fishing },
+      fishing: g.fishing
+        ? { state: g.fishing.state, active: g.fishing.active, baitUsed: !!g.fishing.baitUsed, last: g.fishing.lastResult ? { id: g.fishing.lastResult.fish.id, size: g.fishing.lastResult.size } : null }
+        : null,
     };
   },
   stats() {
@@ -48,6 +69,9 @@ window.__metamong = {
       hasSave: g.hasSave,
       stamina: Math.round(g.progress.stamina * 10) / 10,
       bagSlots: g.progress.inventory.usedSlots(),
+      coins: g.progress.coins,
+      quests: g.progress.claimableQuests,
+      fishing: g.fishing ? g.fishing.state : 'idle',
       settings: { ...g.state.settings },
       player: g.player
         ? {

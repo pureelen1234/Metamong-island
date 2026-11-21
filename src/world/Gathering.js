@@ -107,17 +107,21 @@ export class Gathering {
     const def = HARVEST[node.kind];
     if (!def) return { ok: false, reason: 'kind' };
 
-    if (!this.progress.useStamina(def.cost)) {
+    // 도구 강화·황금 버프로 기력 소모가 줄어든다
+    const cost = Math.max(1, Math.round(def.cost * this.progress.staminaMultiplier(node.kind)));
+    if (!this.progress.useStamina(cost)) {
       this.audio.sfxDeny();
       this.hooks.toast?.('기운이 부족해요 — 열매를 먹거나 잠깐 쉬어요 🍓', 2000);
       this.fx.float('기운 부족', node.x, node.y + node.height * 0.8, node.z, '#b26a86');
       return { ok: false, reason: 'stamina' };
     }
 
-    node.hitsLeft = Math.max(0, node.hitsLeft - 1);
+    // 강화한 도구는 한 번에 두 번 분량을 깎는다
+    node.hitsLeft = Math.max(0, node.hitsLeft - 1 - this.progress.hitsBonus(node.kind));
     this.scenery.pop(node);
     this.fx.burst(node.x, node.y + node.height * 0.42, node.z, this.#tint(node), 9);
     this.audio.sfxHit(node.kind);
+    this.hooks.onHit?.(node.kind, cost);
 
     if (node.hitsLeft > 0) {
       this.fx.float('툭!', node.x, node.y + node.height * 0.95, node.z, '#fff2e2');
@@ -155,6 +159,7 @@ export class Gathering {
     } else {
       this.audio.sfxPickup();
     }
+    this.hooks.onHarvest?.(node.kind, got, node);
     this.hooks.save?.();
     return { ok: true, harvest: true, gains: got };
   }

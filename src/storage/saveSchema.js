@@ -1,17 +1,20 @@
 /**
  * saveSchema.js — 세이브 병합(migrate)
  *
- * 1단계 이전 세이브에는 day·elapsed·player·discovered·settings 만 있었다.
- * 그런 세이브를 그대로 불러오면 새 시스템이 undefined 를 만지다 죽으므로,
- * SaveStore 가 읽는 순간 코어 필드를 검사하고 생활 상태(stamina·bag·storage·
- * buildings·mailbox)는 Progress 로 정규화해 "기본값이 병합된" 한 덩어리로 돌려준다.
+ * v1: day·elapsed·player·discovered·settings 만 있던 첫 세이브
+ * v2: 1단계 생활 상태(stamina·bag·storage·buildings·mailbox·nodes)
+ * v3: 2단계 생활 상태(coins·skills·fish·supplies·tools·cats·cooked·quests·buff·fishing)
+ *
+ * 어떤 버전이 들어와도 SaveStore 가 읽는 순간 코어 필드를 검사하고, 생활 상태는
+ * Progress 로 정규화해 "기본값이 병합된" 한 덩어리로 돌려준다. v1/v2 세이브는
+ * v3 필드가 조용히 0/기본값으로 채워지므로 그대로 이어서 플레이할 수 있다.
  *
  * 원칙: 절대 throw 하지 않는다. 알아볼 수 없으면 null(=새 섬)을 돌려준다.
  */
 import { Progress } from '../systems/Progress.js';
 import { DAY_SECONDS } from '../config.js';
 
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 
 const DEFAULT_SETTINGS = { muted: false, timeScale: 1, fps30: false };
 const SPEEDS = [1, 10, 60];
@@ -56,6 +59,7 @@ export function migrateSave(raw) {
 
   return {
     version: SAVE_VERSION,
+    fromVersion: Math.max(1, Math.min(SAVE_VERSION, Math.floor(num(raw.version, 1)))),
     savedAt: num(raw.savedAt, Date.now()),
     day: Math.max(1, Math.min(3650, Math.floor(num(raw.day, 1)))),
     elapsed: clamp(num(raw.elapsed, num(raw.elapsedSeconds, 120)), 0, DAY_SECONDS - 0.01, 120),
