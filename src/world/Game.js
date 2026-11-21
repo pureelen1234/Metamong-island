@@ -113,6 +113,7 @@ export class Game {
     this.achAcc = 0;
     this.welcomeAcc = 0;
     this.somiPickAcc = 0;
+    this.invasionWarnedDay = 0;
     this.cartSprite = null;
     this.fishTarget = null;
     this.nodeMeshes = [];
@@ -788,6 +789,21 @@ export class Game {
           fresh ? `Day ${this.state.day} — 새로운 하루 · 의뢰 2건이 새로 왔어요 📋` : `Day ${this.state.day} — 새로운 하루가 시작됐어요`,
           3000
         );
+      }
+    }
+
+    // 5단계: 예고된 날(Day 3·6·9…) 밤이 되면 수집단이 스스로 상륙한다.
+    // 노을에는 미리 알려 주고, 밤에 아직 방어하지 않았다면 웨이브를 연다(직접 시작은 언제든 가능).
+    if (playing && this.defense && !this.defense.waveActive) {
+      const ph = phaseAt(this.state.elapsed).id;
+      const invasionToday = isInvasionDay(this.state.day) && this.progress.defense.lastRunDay !== this.state.day;
+      if (ph === 'sunset' && invasionToday && this.invasionWarnedDay !== this.state.day) {
+        this.invasionWarnedDay = this.state.day;
+        this.hud.toast('🛡️ 노을이 짙어져요 — 밤이 되면 수집단이 옵니다', 3200);
+      }
+      if (ph === 'night' && invasionToday) {
+        this.defense.startWave(this.state.day, 'night');
+        this.hud.toast('🌙 밤이 되자 부두 앞 바다에 회색 돛이…!', 3000);
       }
     }
 

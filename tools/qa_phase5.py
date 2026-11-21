@@ -528,6 +528,31 @@ def run():
                 ev = page.evaluate("() => ({ active: window.__metamong.game.defense.evac.active, returning: window.__metamong.game.dittos.filter((d) => d.returning).length })")
                 check('다음 날 아침 메타몽 복귀', ev['active'] is False and ev['returning'] >= 1, ev)
 
+                # ═══ ⑪ 3일 주기 — 예고된 날 밤이면 스스로 상륙 ═══════
+                page.evaluate("() => window.__metamong.game.modal.close()")
+                page.evaluate(
+                    """() => {
+                      const g = window.__metamong.game;
+                      if (g.defense.wave) g.defense.stopWave();
+                      g.progress.defense.lastRunDay = 0;
+                      g.state.day = 3;
+                      g.state.elapsed = 968;   // 밤(960~1200)
+                    }"""
+                )
+                page.wait_for_timeout(1600)
+                ds = defense_stats(page)
+                check('Day 3 밤에 수집단이 스스로 상륙', bool(ds['wave']) and ds['wave']['reason'] == 'night', ds['wave'] and ds['wave']['reason'])
+                page.evaluate(
+                    """() => {
+                      const g = window.__metamong.game;
+                      if (g.defense.wave) g.defense.stopWave();
+                      g.state.day = 1;
+                      g.state.elapsed = 300;
+                      g.progress.defense.lastRunDay = 0;
+                    }"""
+                )
+                page.wait_for_timeout(600)
+
                 # ═══ ⑨ 모달 3종 레이아웃 (세로 찌그러짐) ══════════
                 for fn, name in (
                     ('openDefense', 'defense'),
