@@ -179,11 +179,11 @@ export class LifePanels {
         h(
           'div',
           { class: `recipe-card ${n > 0 ? '' : 'locked'}` },
-          h('span', { class: 'rico' }, n > 0 ? r.icon : '❔'),
+          h('span', { class: 'rico' }, r.icon),
           h(
             'div',
             { class: 'rmain' },
-            h('div', { class: 'nm' }, n > 0 ? r.name : '아직 못 만듦'),
+            h('div', { class: 'nm' }, r.name),
             h('div', { class: 'meta' }, ing),
             h('div', { class: 'meta' }, r.stamina >= 100 ? `기력 ${r.stamina} 회복 + ${GOLDEN_BUFF.seconds}초 버프` : `기력 +${r.stamina}`)
           ),
