@@ -403,6 +403,9 @@ python3 tools/qa_live.py                     # 배포된 GitHub Pages 부팅 확
 
 결과: **97/97 통과 · 콘솔 에러 0 · 404/실패 요청 0**. 캡처: `screenshots/phase4/`.
 
+> 3단계 이전 QA 스크립트(`tools/qa_phase3.py`, `qa_phase2.py`)는 48×48 좌표·옛 복구 레시피 기준이라 4단계 이후에는 실행하지 않습니다.
+> 1·2·3단계 회귀는 `qa_phase4.py` 의 `regress` 파트가 담당합니다.
+
 | 파일 | 내용 |
 | --- | --- |
 | `01_title.png` · `02_new_island.png` | Phase 4 타이틀 · 72×72 새 섬 + 웰컴 배너 |
