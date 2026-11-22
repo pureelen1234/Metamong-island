@@ -70,6 +70,7 @@ def unlock(page):
 
 def run():
     httpd, port = start(DIST)
+    run.port = port
     url = f'http://127.0.0.1:{port}/'
     print('URL', url)
     with sync_playwright() as p:
@@ -256,5 +257,77 @@ def run():
             httpd.shutdown()
 
 
+def run_ui(port=None):
+    """UI 장면 — 서버·세션을 새로 열어 찍는다(SwiftShader 세션 피로로 화면이 검게 남는 것을 피한다)"""
+    httpd, port = start(DIST)
+    url = f'http://127.0.0.1:{port}/'
+    with sync_playwright() as p:
+        browser = p.chromium.launch(args=['--use-gl=angle', '--enable-unsafe-swiftshader'])
+        ctx = browser.new_context(viewport={'width': 390, 'height': 844}, device_scale_factor=1, is_mobile=True, has_touch=True, service_workers='block')
+        page = ctx.new_page()
+        page.set_default_timeout(20000)
+        page.on('pageerror', lambda e: errors.append(str(e)))
+        page.goto(url, wait_until='networkidle')
+        page.wait_for_function('() => !!window.__metamong', timeout=20000)
+        page.wait_for_timeout(2400)
+        new_island(page)
+        unlock(page)
+
+        # 다리 위 낚시
+        page.evaluate("""() => {
+          const g = window.__metamong.game;
+          g.progress.bridgeState().invested = { log: 6, stone: 4 };
+          g.completeBridge();
+          g.modal.close();
+          g.player.teleport(0.3, -9.0); g.player.setYaw(0);
+        }""")
+        page.wait_for_timeout(1800)
+        snap(page, '20_bridge_deck.png')
+        page.evaluate("() => window.__metamong.game.openFishSpot('river_bridge')")
+        page.wait_for_timeout(800)
+        snap(page, '21_bridge_fish_modal.png')
+        close_modal(page)
+
+        # 밤의 민물 어종
+        page.evaluate("() => { const g = window.__metamong.game; g.state.elapsed = 1000; g.player.teleport(10.2, -1.4); g.player.setYaw(Math.PI); }")
+        page.wait_for_timeout(1500)
+        page.evaluate("() => window.__metamong.game.openFishSpot('river_bank')")
+        page.wait_for_timeout(900)
+        snap(page, '26_river_night_fish.png')
+        close_modal(page)
+
+        # 확대 지도 · 가방 특산 바구니 · 도감 채집 · 업적
+        page.evaluate("() => window.__metamong.game.openMinimap()")
+        page.wait_for_timeout(900)
+        snap(page, '22_map_modal.png')
+        close_modal(page)
+
+        page.evaluate("""() => {
+          const g = window.__metamong.game;
+          g.progress.forage = { shell: 5, conch: 2, driftwood: 1, pine_mushroom: 3, acorn: 4, honey: 2, copper: 3, crystal: 1 };
+          g.progress.crops = { tomato: 3, corn: 2, sweetpotato: 2, melon: 1, sunflower: 1, rice: 3, strawberry: 2 };
+          g.progress.fish = { trout: 1, catfish: 1, tuna: 1, clownfish: 1 };
+          g.openBag();
+        }""")
+        page.wait_for_timeout(800)
+        scroll_modal(page, 300)
+        snap(page, '23_bag_basket.png')
+        close_modal(page)
+
+        page.evaluate("() => { const g = window.__metamong.game; g.life.codexTab = 'gather'; g.openCodex(); }")
+        page.wait_for_timeout(900)
+        snap(page, '24_codex_gather_filled.png')
+        close_modal(page)
+
+        page.evaluate("() => window.__metamong.game.openAchievements()")
+        page.wait_for_timeout(900)
+        scroll_modal(page, 240)
+        snap(page, '25_achievements.png')
+        close_modal(page)
+        browser.close()
+    httpd.shutdown()
+
+
 if __name__ == '__main__':
     run()
+    run_ui()

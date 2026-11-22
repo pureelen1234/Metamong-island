@@ -488,26 +488,31 @@ def run():
                 snap(page, 'qa_14_river_morning.png')
                 close_modal(page)
 
-                # 실제 낚시 — 입질 → 탭 → 민물고기
+                # 실제 낚시 — 입질 → 탭 → 민물고기 (별조각이 걸리면 한 번 더 던진다)
                 page.evaluate("() => window.__metamong.game.openFishSpot('river_bank')")
                 page.wait_for_timeout(600)
                 page.evaluate("() => window.__metamong.game.modal.close()")
-                before = life(page)
-                page.evaluate("() => window.__metamong.game.fishing.start({ zone: 'river_bank' })")
-                page.wait_for_timeout(500)
-                page.evaluate("() => { const f = window.__metamong.game.fishing; f.state = 'wait'; f.t = f.waitFor; }")
-                page.wait_for_timeout(700)
-                check('강 낚시 입질', page.evaluate("() => window.__metamong.game.fishing.state") == 'bite', page.evaluate("() => window.__metamong.game.fishing.state"))
-                snap(page, 'qa_15_river_bite.png')
-                page.evaluate("() => window.__metamong.game.fishing.reel()")
-                page.wait_for_timeout(700)
-                last = page.evaluate("() => window.__metamong.game.fishing.lastResult ? window.__metamong.game.fishing.lastResult.fish : null")
+                caught = None
+                for attempt in range(5):
+                    page.evaluate("() => window.__metamong.game.fishing.start({ zone: 'river_bank' })")
+                    page.wait_for_timeout(420)
+                    page.evaluate("() => { const f = window.__metamong.game.fishing; f.state = 'wait'; f.t = f.waitFor; }")
+                    page.wait_for_timeout(620)
+                    if attempt == 0:
+                        check('강 낚시 입질', page.evaluate("() => window.__metamong.game.fishing.state") == 'bite', page.evaluate("() => window.__metamong.game.fishing.state"))
+                        snap(page, 'qa_15_river_bite.png')
+                    page.evaluate("() => window.__metamong.game.fishing.reel()")
+                    page.wait_for_timeout(620)
+                    last = page.evaluate("() => window.__metamong.game.fishing.lastResult ? window.__metamong.game.fishing.lastResult.fish : null")
+                    page.evaluate("() => window.__metamong.game.fishing.cancel()")
+                    page.wait_for_timeout(380)
+                    if last and last['habitat'] == 'river':
+                        caught = last
+                        break
                 lf = life(page)
-                check('민물고기 낚음', last and last['habitat'] == 'river', last and last['name'])
-                check('낚시 바구니에 담김', lf['fish'].get(last['id'], 0) >= 1 if last else False, lf['fish'])
+                check('민물고기 낚음', caught is not None, (last and last['name'], page.evaluate("() => window.__metamong.game.fishing.zone.id")))
+                check('낚시 바구니에 담김', bool(caught) and lf['fish'].get(caught['id'], 0) >= 1, lf['fish'])
                 check('민물 낚시 카운터', lf['counters'].get('riverfish', 0) >= 1, lf['counters'].get('riverfish'))
-                page.evaluate("() => window.__metamong.game.fishing.cancel()")
-                page.wait_for_timeout(400)
 
                 # 밤 — 민물 풀이 바뀐다
                 page.evaluate("() => { window.__metamong.game.state.elapsed = 1000; }")

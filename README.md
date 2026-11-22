@@ -774,10 +774,12 @@ QA_PART=save    python3 tools/qa_phase5.py   # (24 — 스냅샷 버전 기대�
 QA_PART=regress python3 tools/qa_phase5.py   # (18)
 python3 tools/qa_mute.py                     # 음소거 회귀 (27)
 python3 tools/shots_phase6.py                # 대표 캡처 (screenshots/phase6/)
+python3 tools/qa_live6.py                    # 배포된 실서버 200 · Phase 6 · 16칸/8칸 · 채집지 22 · 강 낚시
 ```
 
 결과: **qa_phase6 126/126(content 76 · save 24 · regress 26) · qa_phase5 105/105 · qa_mute 27/27 ·
 콘솔 에러 0 · 페이지 에러 0 · 404/실패 요청 0.**
+실서버 `https://pureelen1234.github.io/Metamong-island/` — **HTTP 200 · Phase 6 타이틀 · save v7 · 텃밭 16칸/논 8칸/채집지 22곳 · 강가 [강 낚시하기]** 확인.
 
 | 파일 (`screenshots/phase6/`) | 내용 |
 | --- | --- |
