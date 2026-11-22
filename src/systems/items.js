@@ -10,13 +10,43 @@ export const ITEMS = {
   petal: { id: 'petal', name: '꽃잎', icon: '🌸', tint: '#ffb3d1', desc: '꽃덤불과 벚꽃나무에서' },
   star: { id: 'star', name: '별조각', icon: '⭐', tint: '#ffd77a', desc: '바위에서 아주 가끔' },
   berry: { id: 'berry', name: '열매', icon: '🍓', tint: '#ff7d9c', desc: '먹으면 기력 +30' },
+
+  // ── 6단계: 새 채집지의 특산물 (가방이 아니라 특산 바구니 progress.forage 에 담긴다)
+  shell: { id: 'shell', name: '조개', icon: '🐚', tint: '#ffdfe8', group: 'beach', forage: true, desc: '남쪽 모래 해변에서 주워요' },
+  conch: { id: 'conch', name: '소라', icon: '🐌', tint: '#ffcfa8', group: 'beach', forage: true, desc: '파도가 밀어 둔 소라 껍데기' },
+  driftwood: { id: 'driftwood', name: '유목', icon: '🪵', tint: '#dcc6a2', group: 'beach', forage: true, desc: '바닷물에 다듬어진 나무토막' },
+  pine_mushroom: { id: 'pine_mushroom', name: '송이버섯', icon: '🍄', tint: '#e6b98a', group: 'forest', forage: true, desc: '북쪽 빼곡한 숲의 솔밭에서' },
+  acorn: { id: 'acorn', name: '도토리', icon: '🌰', tint: '#c9945f', group: 'forest', forage: true, desc: '숲 바닥에 톡 떨어진 도토리' },
+  honey: { id: 'honey', name: '달콤한 꿀', icon: '🍯', tint: '#ffc65e', group: 'forest', forage: true, desc: '숲의 벌집에서 한 방울' },
+  copper: { id: 'copper', name: '구리광석', icon: '🔶', tint: '#e0955b', group: 'ore', forage: true, desc: '채석장 바위틈의 구리 광맥' },
+  crystal: { id: 'crystal', name: '수정', icon: '💎', tint: '#a8e6f2', group: 'ore', forage: true, desc: '채석장 깊은 곳의 맑은 수정' },
 };
 
+/**
+ * 가방·창고·목록의 분류 — 재료 종류가 늘어난 만큼 6단계에서 묶어 보여 준다.
+ * 특산(beach·forest·ore)은 가방을 차지하지 않고 특산 바구니(progress.forage)에 담긴다.
+ */
+export const ITEM_GROUPS = [
+  { id: 'basic', name: '기본 재료', icon: '🧺', items: ['log', 'stone', 'petal', 'star', 'berry'] },
+  { id: 'beach', name: '해변 특산', icon: '🐚', items: ['shell', 'conch', 'driftwood'] },
+  { id: 'forest', name: '숲 특산', icon: '🍄', items: ['pine_mushroom', 'acorn', 'honey'] },
+  { id: 'ore', name: '광물', icon: '💎', items: ['copper', 'crystal'] },
+];
+
+/** 특산 바구니로 가는 재료인가 */
+const FORAGE_SET = new Set(['shell', 'conch', 'driftwood', 'pine_mushroom', 'acorn', 'honey', 'copper', 'crystal']);
+export const isForageItem = (id) => FORAGE_SET.has(id);
+
 /** 가방·창고·목록에서 늘 같은 순서로 보여 준다 */
-export const ITEM_ORDER = ['log', 'stone', 'petal', 'star', 'berry'];
+export const ITEM_ORDER = ITEM_GROUPS.flatMap((g) => g.items);
+/** 특산물(가방을 차지하지 않는 바구니 재료) */
+export const FORAGE_ITEM_ORDER = ['shell', 'conch', 'driftwood', 'pine_mushroom', 'acorn', 'honey', 'copper', 'crystal'];
 
 /** 가방: 기본 8칸, 한 칸에 20개까지 — 리어카를 만들면 16칸으로 늘어난다 */
 export const BAG = { slots: 8, cartSlots: 16, stack: 20 };
+
+/** 특산 바구니 — 물고기·수확물처럼 가방 칸을 쓰지 않는다 */
+export const FORAGE = { cap: 999, stack: 20 };
 
 /** 🛒 리어카 — 공방에서 만드는 운반 도구 (가방 칸 2배) */
 export const CART = {
@@ -39,6 +69,9 @@ export const STAMINA = {
   hitTree: 6,
   hitRock: 7,
   hitFlower: 3,
+  hitBeach: 2,
+  hitForest: 3,
+  hitMine: 7,
   eat: 30,
   /** 0.166/s — 10분에 가득. 열매를 먹는 재미를 해치지 않을 만큼만 천천히 */
   regenPerSecond: 1 / 6,
@@ -63,11 +96,18 @@ export const BUILD_NOTES = {
 /** 강을 건너는 다리 — 통나무·돌만 모으면 Day 1에도 바로 놓을 수 있다 */
 export const BRIDGE_RECIPE = { log: 6, stone: 4 };
 
-/** 채집 대상 분류 — 프레임 이름으로 종류를 정한다 */
+/**
+ * 채집 대상 분류 — 프레임 이름으로 종류를 정한다.
+ * 6단계에서 해변(줍기)·숲(채집)·광맥(캐기)이 붙었다. 새 채집지는 아틀라스 프레임이 아니라
+ * config.GATHER 의 캔버스 도트를 쓰므로 frames 는 비어 있고, toolKind 로 도구 강화를 잇는다.
+ */
 export const HARVEST = {
-  tree: { frames: ['cherry1', 'cherry2', 'tree_tall', 'tree_round'], cost: STAMINA.hitTree, hits: [2, 3], icon: '🪓', verb: '베기' },
-  rock: { frames: ['rock'], cost: STAMINA.hitRock, hits: [2, 3], icon: '⛏️', verb: '채굴' },
-  flower: { frames: ['flowerbush'], cost: STAMINA.hitFlower, hits: [1, 1], icon: '🌸', verb: '꽃 따기' },
+  tree: { frames: ['cherry1', 'cherry2', 'tree_tall', 'tree_round'], cost: STAMINA.hitTree, hits: [2, 3], icon: '🪓', verb: '베기', toolKind: 'tree' },
+  rock: { frames: ['rock'], cost: STAMINA.hitRock, hits: [2, 3], icon: '⛏️', verb: '채굴', toolKind: 'rock' },
+  flower: { frames: ['flowerbush'], cost: STAMINA.hitFlower, hits: [1, 1], icon: '🌸', verb: '꽃 따기', toolKind: 'flower' },
+  beach: { frames: [], cost: STAMINA.hitBeach, hits: [1, 2], icon: '🐚', verb: '줍기', toolKind: 'flower', basket: 'forage' },
+  forest: { frames: [], cost: STAMINA.hitForest, hits: [1, 2], icon: '🍄', verb: '채집', toolKind: 'flower', basket: 'forage' },
+  mine: { frames: [], cost: STAMINA.hitMine, hits: [2, 3], icon: '⛏️', verb: '캐기', toolKind: 'rock', basket: 'forage' },
 };
 
 /** 프레임 → 채집 종류 */

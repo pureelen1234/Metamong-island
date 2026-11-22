@@ -15,6 +15,9 @@ const BASE_ITEM = { tree: 'log', rock: 'stone', flower: 'petal' };
 /** 확률적 럭키 드롭 — 숨은 섬 코인 +5 또는 황금 열매 */
 const LUCKY = { chance: 0.09, coinChance: 0.6, coin: 5 };
 
+/** 새 채집지 종류 → 파티클 색 */
+const KIND_TINT = { beach: '#ffe0ea', forest: '#e6c8a0', mine: '#d7d0e4' };
+
 export class Gathering {
   constructor({ scenery, progress, drops, fx, audio }) {
     this.scenery = scenery;
@@ -37,7 +40,7 @@ export class Gathering {
   reset() {
     for (const node of this.scenery.nodes) {
       this.#restoreNode(node, false);
-      node.berryT = 22 + Math.random() * 26;
+      if (node.kind === 'tree') node.berryT = 22 + Math.random() * 26;
     }
     if (this.drops) this.drops.clear();
   }
@@ -139,9 +142,24 @@ export class Gathering {
     }
 
     // ── 채집 완료
-    const gains = rollDrops(node.kind, node.frame);
+    const gains = this.#rollGains(node);
     const got = {};
+    const basket = def.basket === 'forage';
     for (const [id, n] of Object.entries(gains)) {
+      if (!ITEMS[id]) continue;
+      if (basket) {
+        // 6단계: 해변·숲·광맥 특산물은 가방이 아니라 특산 바구니로
+        const before = this.progress.forageCount(id);
+        const after = this.progress.addForage(id, n);
+        const add = after - before;
+        if (add > 0) got[id] = add;
+        if (n - add > 0) {
+          const spot = this.#freeSpotNear(node.x, node.z);
+          this.drops.spawn(id, n - add, spot.x, spot.z);
+          this.hooks.toast?.(`특산 바구니가 가득 — ${ITEMS[id].name} ${n - add}개를 바닥에 내려놓았어요`, 2400);
+        }
+        continue;
+      }
       const leftover = this.inventory.add(id, n);
       const add = n - leftover;
       if (add > 0) got[id] = add;
@@ -160,7 +178,8 @@ export class Gathering {
     if (!Object.keys(got).length && !Object.keys(gains).length) this.fx.float('…', node.x, node.y + 0.9, node.z, '#5f5470');
 
     this.scenery.setHarvested(node, true);
-    node.respawn = 60 + Math.random() * 30;
+    const [rMin, rMax] = node.respawnRange || [60, 90];
+    node.respawn = rMin + Math.random() * (rMax - rMin);
     node.hitsLeft = node.hitsNeeded;
 
     if (got.star) {
@@ -174,10 +193,32 @@ export class Gathering {
     return { ok: true, harvest: true, gains: got };
   }
 
+  /**
+   * 채집 완료 드롭 — 기존 나무·바위·꽃덤불은 rollDrops, 새 채집지는 node.loot 표를 쓴다.
+   * @returns {object} { itemId: 수량 }
+   */
+  #rollGains(node) {
+    const def = HARVEST[node.kind];
+    if (!def) return {};
+    if (def.frames.length) return rollDrops(node.kind, node.frame);
+    const gains = {};
+    const loot = node.loot;
+    if (loot && ITEMS[loot.item]) {
+      const [lo, hi] = Array.isArray(loot.n) ? loot.n : [1, 1];
+      gains[loot.item] = lo + Math.floor(Math.random() * (hi - lo + 1));
+      const b = loot.bonus;
+      if (b && ITEMS[b.item] && Math.random() < (Number(b.chance) || 0)) {
+        gains[b.item] = (gains[b.item] || 0) + (b.n || 1);
+      }
+    }
+    return gains;
+  }
+
   #tint(node) {
     if (node.kind === 'tree') return node.frame.startsWith('cherry') ? '#ffc2d8' : '#9ed08a';
     if (node.kind === 'rock') return '#c8c8dc';
-    return '#ffb9d5';
+    if (node.kind === 'flower') return '#ffb9d5';
+    return KIND_TINT[node.kind] || '#ffb9d5';
   }
 
   /**
@@ -235,10 +276,22 @@ export class Gathering {
 
   /* ── 드롭 줍기 ────────────────────────────────────────── */
 
-  /** @returns {boolean} false 면 바닥에 그대로 둔다(가방 가득) */
+  /** @returns {boolean} false 면 바닥에 그대로 둔다(가방·바구니 가득) */
   pickup(drop) {
     const item = ITEMS[drop.itemId];
     if (!item) return true;
+    // 특산물은 특산 바구니에, 나머지는 가방에 — 둘 다 넘치면 바닥에 그대로 둔다
+    if (item.forage) {
+      const before = this.progress.forageCount(drop.itemId);
+      const after = this.progress.addForage(drop.itemId, drop.count);
+      const got = after - before;
+      if (got > 0) {
+        this.fx.float(`+${got} ${item.name}`, drop.x, drop.y + 0.85, drop.z, '#5f5470');
+        this.audio.sfxPickup();
+        this.hooks.onPickup?.(drop.itemId, got);
+      }
+      return got >= drop.count;
+    }
     if (this.inventory.roomFor(drop.itemId) <= 0) {
       if (this.time - this.fullWarnAt > 4) {
         this.fullWarnAt = this.time;
@@ -274,6 +327,8 @@ export class Gathering {
           if (node.respawn <= 0) this.#restoreNode(node, true);
           continue;
         }
+        // 열매는 나무에서만 떨어진다
+        if (node.kind !== 'tree') continue;
         node.berryT -= scaledDt;
         if (node.berryT > 0) continue;
         if (this.drops.hasSource(node.key)) {

@@ -294,6 +294,30 @@ export class Farming {
     return { ok: true, crop, n: res.n, total: res.total };
   }
 
+  /**
+   * 6단계: 성장 비료 — 한 칸의 성장 단계를 하나 올린다.
+   * @returns {{ok:boolean, reason?:string, stage?:number}}
+   */
+  fertilize(plot) {
+    const res = this.progress.fertilizePlot(plot.index);
+    if (!res.ok) return res;
+    const crop = CROPS[this.progress.plot(plot.index).crop];
+    this.#syncPlot(plot, true);
+    this.fx.burst(plot.x, plot.y + 0.35, plot.z, '#b6f0a8', 12, { spread: 0.8, up: 1.6 });
+    this.fx.float('🧪 성장 +1', plot.x, plot.y + 0.95, plot.z, '#4f8f45');
+    this.audio.sfxSplash?.(0.35);
+    const stageLabel = ['씨앗', '새싹', '자라는 중', '수확 가능'][res.stage] || '';
+    this.hooks.toast?.(
+      res.stage >= 3
+        ? `🧪 ${crop ? crop.name : '작물'}이(가) 다 자랐어요 — 이제 수확할 수 있어요`
+        : `🧪 비료를 줬어요 — ${crop ? crop.name : '작물'}이(가) ${stageLabel} 단계로 자랐어요`,
+      2500
+    );
+    this.hooks.onFertilize?.(crop, res, plot);
+    this.hooks.save?.();
+    return res;
+  }
+
   /* ── 매 프레임 ────────────────────────────────────────── */
 
   update(dt, scaledDt, camera = null) {

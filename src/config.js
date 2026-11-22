@@ -280,55 +280,191 @@ export const LANDMARKS = [
 ];
 
 /**
- * 남쪽 생활권의 텃밭 — Farming.js 가 3×3 경작지를 까는 자리(타일 간격 farm.pitch)
+ * 남쪽 생활권의 텃밭 — Farming.js 가 4×4 경작지를 까는 자리(타일 간격 farm.pitch)
+ * 6단계(2026-11-22): 3×3(9칸) → **4×4(16칸)**. 타일·울타리·길 사이 간격을 넓히고
+ * 살짝 북쪽으로 옮겨 16칸 모두 길·나무에 닿지 않게 했다(tools/check_layout.mjs 검증).
  */
 export const FARM = {
   id: 'farm',
   name: '텃밭',
   icon: '🌱',
-  /** 3×3 경작지 중심 좌표 (남서쪽) */
-  x: -17.2,
-  z: 8.4,
-  cols: 3,
-  rows: 3,
+  /** 4×4 경작지 중심 좌표 (남서쪽) */
+  x: -17.4,
+  z: 8.0,
+  cols: 4,
+  rows: 4,
   /** 타일 중심 간격 */
-  pitch: 1.9,
+  pitch: 1.75,
   /** 흙 타일 한 변 */
-  tile: 1.62,
+  tile: 1.5,
   /** 입구(남동쪽) — 길이 여기로 닿는다 */
   gate: { x: -15.6, z: 12.2 },
 };
 
 /**
- * 북쪽 개척권의 논(수전) — Paddy.js 가 3×2 물 잠긴 논 타일을 깐다.
+ * 북쪽 개척권의 논(수전) — Paddy.js 가 4×2 물 잠긴 논 타일을 깐다.
  * 볍씨를 자판기에서 사서 심고, 물을 주고, 벼를 거둬 쌀로 팔거나 주먹밥을 짓는다.
  */
 export const PADDY = {
   id: 'paddy',
   name: '논',
   icon: '🌾',
-  /** 3×2 논 중심 좌표 (북쪽 중앙·서편 물가) */
-  x: -3.4,
+  /** 4×2 논 중심 좌표 (북쪽 중앙·서편 물가) */
+  x: -2.6,
   z: -19.0,
-  cols: 3,
+  cols: 4,
   rows: 2,
-  pitch: 2.0,
-  tile: 1.78,
+  pitch: 1.95,
+  tile: 1.75,
   /** 논물 높이 — 흙 위로 얇게 잠긴 물 */
   waterY: 0.09,
   /** 입구(남쪽) — 다리에서 올라오는 길이 여기로 닿는다 */
   gate: { x: -3.4, z: -15.9 },
 };
 
+/**
+ * 6단계 — 새 채집지의 도트 소품 종류
+ *   · 해변(beach): 조개 · 소라 · 유목      · 숲(forest): 송이버섯 · 도토리 · 달콤한 꿀
+ *   · 광맥(mine): 구리광석 · 수정
+ * loot: 이 노드를 다 캤을 때 들어오는 특산물과 가끔 따라오는 보너스
+ * respawn: 다시 자라기까지 초 [최소, 최대] — 수정·꿀이 가장 느리다
+ */
+export const GATHER_TYPES = {
+  shell: {
+    kind: 'beach',
+    sprite: 'shell',
+    name: '조개',
+    icon: '🐚',
+    height: 0.68,
+    collide: 0,
+    loot: { item: 'shell', n: [1, 2], bonus: { item: 'conch', chance: 0.18, n: 1 } },
+    respawn: [55, 85],
+    bucket: 'beach',
+  },
+  conch: {
+    kind: 'beach',
+    sprite: 'conch',
+    name: '소라',
+    icon: '🐌',
+    height: 0.78,
+    collide: 0,
+    loot: { item: 'conch', n: [1, 1], bonus: { item: 'shell', chance: 0.5, n: 1 } },
+    respawn: [110, 160],
+    bucket: 'beach',
+  },
+  driftwood: {
+    kind: 'beach',
+    sprite: 'driftwood',
+    name: '유목',
+    icon: '🪵',
+    height: 0.8,
+    collide: 0.2,
+    loot: { item: 'driftwood', n: [1, 2] },
+    respawn: [90, 140],
+    bucket: 'beach',
+  },
+  pine_mushroom: {
+    kind: 'forest',
+    sprite: 'pine_mushroom',
+    name: '송이버섯',
+    icon: '🍄',
+    height: 0.8,
+    collide: 0.16,
+    loot: { item: 'pine_mushroom', n: [1, 1], bonus: { item: 'acorn', chance: 0.3, n: 1 } },
+    respawn: [100, 150],
+    bucket: 'forest',
+  },
+  acorn: {
+    kind: 'forest',
+    sprite: 'acorn',
+    name: '도토리',
+    icon: '🌰',
+    height: 0.6,
+    collide: 0,
+    loot: { item: 'acorn', n: [1, 2], bonus: { item: 'pine_mushroom', chance: 0.12, n: 1 } },
+    respawn: [60, 95],
+    bucket: 'forest',
+  },
+  honey: {
+    kind: 'forest',
+    sprite: 'honey',
+    name: '달콤한 꿀',
+    icon: '🍯',
+    height: 0.9,
+    collide: 0.22,
+    loot: { item: 'honey', n: [1, 1], bonus: { item: 'star', chance: 0.15, n: 1 } },
+    respawn: [150, 210],
+    bucket: 'forest',
+  },
+  copper: {
+    kind: 'mine',
+    sprite: 'copper',
+    name: '구리광석',
+    icon: '🔶',
+    height: 0.9,
+    collide: 0.26,
+    loot: { item: 'copper', n: [1, 2], bonus: { item: 'stone', chance: 0.45, n: 1 } },
+    respawn: [80, 120],
+    bucket: 'ore',
+  },
+  crystal: {
+    kind: 'mine',
+    sprite: 'crystal',
+    name: '수정',
+    icon: '💎',
+    height: 1.0,
+    collide: 0.28,
+    loot: { item: 'crystal', n: [1, 1], bonus: { item: 'star', chance: 0.3, n: 1 } },
+    respawn: [170, 240],
+    bucket: 'ore',
+  },
+};
+
+/**
+ * 채집 포인트 배치 — 부두~광장 진격로(방어전 동선)와 바다·길을 비켜 놓았다.
+ * 해변은 부두로 가는 길에서 좌우로 치우쳐 걷는 길을 막지 않고,
+ * 숲·채석장은 나무·바위 사이 빈 틈에만 놓아 군락의 풍경을 그대로 둔다.
+ */
+export const GATHER = [
+  // ── 남쪽 모래 해변 (모래가 실제로 깔린 z 30.4~31.4 띠)
+  { type: 'shell', x: -6.8, z: 30.6 },
+  { type: 'shell', x: 6.6, z: 30.5 },
+  { type: 'shell', x: -3.4, z: 31.0 },
+  { type: 'shell', x: 8.6, z: 30.9 },
+  { type: 'shell', x: -9.6, z: 31.2 },
+  { type: 'conch', x: -11.2, z: 30.8 },
+  { type: 'conch', x: 11.4, z: 30.7 },
+  { type: 'driftwood', x: -5.0, z: 31.3 },
+  { type: 'driftwood', x: 5.0, z: 31.2 },
+
+  // ── 북쪽 빼곡한 숲
+  { type: 'pine_mushroom', x: -20.4, z: -17.9 },
+  { type: 'pine_mushroom', x: -16.9, z: -17.9 },
+  { type: 'pine_mushroom', x: -12.8, z: -17.9 },
+  { type: 'acorn', x: -18.2, z: -20.9 },
+  { type: 'acorn', x: -14.4, z: -21.0 },
+  { type: 'acorn', x: -9.4, z: -20.6 },
+  { type: 'honey', x: -23.0, z: -21.0 },
+  { type: 'honey', x: -13.4, z: -24.0 },
+
+  // ── 북동 채석장
+  { type: 'copper', x: 10.4, z: -14.35 },
+  { type: 'copper', x: 17.9, z: -14.35 },
+  { type: 'copper', x: 15.2, z: -20.55 },
+  { type: 'crystal', x: 20.4, z: -18.9 },
+  { type: 'crystal', x: 13.2, z: -23.6 },
+];
+
 /** 구역 표시용 중심 (미니맵·안내) */
 export const ZONES = [
-  { id: 'farm', name: '텃밭', icon: '🌱', x: FARM.x, z: FARM.z, r: 4.6, side: 'south' },
+  { id: 'farm', name: '텃밭', icon: '🌱', x: FARM.x, z: FARM.z, r: 5.0, side: 'south' },
   { id: 'orchard', name: '과수원', icon: '🍎', x: 17.0, z: 16.0, r: 5.6, side: 'south' },
   { id: 'garden', name: '꽃밭', icon: '🌸', x: -17.0, z: 19.6, r: 5.4, side: 'south' },
-  { id: 'beach', name: '모래 해변', icon: '🏖️', x: 0, z: 27.6, r: 4.4, side: 'south' },
+  { id: 'beach', name: '모래 해변', icon: '🏖️', x: 0, z: 30.2, r: 3.6, side: 'south' },
+  { id: 'river', name: '강 낚시터', icon: '🎣', x: 10.2, z: -2.3, r: 2.4, side: 'south' },
   { id: 'forest', name: '빼곡한 숲', icon: '🌲', x: -14.2, z: -20.5, r: 7.6, side: 'north' },
   { id: 'quarry', name: '채석장', icon: '🪨', x: 13.8, z: -18.0, r: 6.4, side: 'north' },
-  { id: 'paddy', name: '논', icon: '🌾', x: PADDY.x, z: PADDY.z, r: 3.6, side: 'north' },
+  { id: 'paddy', name: '논', icon: '🌾', x: PADDY.x, z: PADDY.z, r: 4.2, side: 'north' },
 ];
 
 /**
@@ -507,8 +643,8 @@ export const NATURE = [
   // ── 남서 텃밭 둘레 (경작지 사각형은 비워 둔다)
   { frame: 'fence', x: -21.8, z: 5.2, height: 0.66, collide: 0.28 },
   { frame: 'fence', x: -21.8, z: 9.2, height: 0.66, collide: 0.28 },
-  { frame: 'fence', x: -19.1, z: 4.2, height: 0.66, collide: 0.28 },
-  { frame: 'fence', x: -15.6, z: 4.2, height: 0.66, collide: 0.28 },
+  { frame: 'fence', x: -19.1, z: 3.8, height: 0.66, collide: 0.28 },
+  { frame: 'fence', x: -15.6, z: 3.8, height: 0.66, collide: 0.28 },
   { frame: 'lamp', x: -13.6, z: 14.6, height: 2.0, collide: 0.22 },
   { frame: 'rock', x: -22.0, z: 13.4, height: 0.5, collide: 0.26 },
   { frame: 'flowerbush', x: -20.6, z: 12.8, height: 0.58, collide: 0.24 },

@@ -274,6 +274,26 @@ export class Paddy {
     return { ok: true, crop, n: res.n, total: res.total };
   }
 
+  /** 6단계: 성장 비료 — 논 한 칸의 성장 단계를 하나 올린다 */
+  fertilize(plot) {
+    const res = this.progress.fertilizePaddy(plot.index);
+    if (!res.ok) return res;
+    const st = this.progress.paddyPlot(plot.index);
+    const crop = st ? CROPS[st.crop] : CROPS.rice;
+    this.#syncPlot(plot, true);
+    this.fx.burst(plot.x, plot.y + 0.35, plot.z, '#b6f0a8', 12, { spread: 0.8, up: 1.6 });
+    this.fx.float('🧪 성장 +1', plot.x, plot.y + 0.95, plot.z, '#4f8f45');
+    this.audio.sfxSplash?.(0.35);
+    const stageLabel = ['씨앗', '새싹', '자라는 중', '수확 가능'][res.stage] || '';
+    this.hooks.toast?.(
+      res.stage >= 3 ? `🧪 ${crop.name}이(가) 다 여물었어요 — 이제 수확할 수 있어요` : `🧪 비료를 줬어요 — ${crop.name}이(가) ${stageLabel} 단계로 자랐어요`,
+      2500
+    );
+    this.hooks.onFertilize?.(crop, res, plot);
+    this.hooks.save?.();
+    return res;
+  }
+
   /* ── 매 프레임 ────────────────────────────────────────── */
 
   update(dt, scaledDt, camera = null) {

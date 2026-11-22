@@ -7,7 +7,7 @@
  */
 import { h } from './dom.js';
 import { LANDMARKS } from '../config.js';
-import { BAG, BUILD_NOTES, ITEMS, ITEM_ORDER, RECIPES } from '../systems/items.js';
+import { BAG, BUILD_NOTES, FORAGE_ITEM_ORDER, ITEMS, ITEM_GROUPS, ITEM_ORDER, RECIPES } from '../systems/items.js';
 import { LETTERS } from '../systems/letters.js';
 import { itemIcon, itemName } from '../systems/lifeData.js';
 
@@ -49,11 +49,31 @@ export class Panels {
           )
         : h('div', { class: 'hint' }, '열매가 없어요 — 온전한 나무 밑에 가끔 떨어져요 🍓');
 
+    const p = this.game.progress;
+    // 6단계: 재료가 많아져 종류별로 묶어 보여 준다. 특산물은 가방이 아니라 특산 바구니에서.
+    const basicRows = ITEM_GROUPS.find((g) => g.id === 'basic').items.map((id) => ({ id, n: inv.count(id) + inv.stored(id) }));
+    const forageRows = FORAGE_ITEM_ORDER.map((id) => ({ id, n: p.forageCount(id) }));
+
     const body = h(
       'div',
       {},
       h('div', { class: 'hint' }, `가방 ${inv.usedSlots()}/${inv.slots}칸 · 담긴 재료 ${inv.totalItems()}개 · 한 칸에 ${BAG.stack}개까지`),
       grid,
+      h('div', { class: 'section-label' }, '🧺 기본 재료 (가방 + 창고)'),
+      h(
+        'div',
+        { class: 'chips' },
+        ...basicRows.map((r) => h('span', { class: `lchip ${r.n > 0 ? 'ok' : ''}` }, `${ITEMS[r.id].icon} ${ITEMS[r.id].name} ${r.n}`))
+      ),
+      h('div', { class: 'section-label' }, '🐚 특산 바구니 (가방 칸을 차지하지 않아요)'),
+      h(
+        'div',
+        { class: 'chips' },
+        ...forageRows.map((r) =>
+          h('span', { class: `lchip ${r.n > 0 ? 'warm' : ''}` }, `${ITEMS[r.id].icon} ${ITEMS[r.id].name} ${r.n}`)
+        )
+      ),
+      h('div', { class: 'hint' }, '해변(🐚 조개·소라·유목) · 숲(🍄 송이버섯·도토리·꿀) · 광맥(🔶 구리광석·💎 수정)에서 주운 것은 특산 바구니에 모여요. 가방이 꽉 차도 특산물은 따로 담겨요.'),
       h('div', { class: 'section-label' }, '쓰기'),
       eatRow,
       h('div', { class: 'section-label' }, '재료가 가득 차면'),
@@ -89,14 +109,26 @@ export class Panels {
       );
     };
 
+    const groupLabel = { basic: '🧺 기본 재료', beach: '🐚 해변', forest: '🍄 숲', ore: '💎 광물' };
+    const grouped = (entries, dir) => {
+      const box = h('div', {});
+      for (const group of ITEM_GROUPS) {
+        const list = entries.filter((e) => group.items.includes(e.id));
+        if (!list.length) continue;
+        box.append(h('div', { class: 'section-label' }, groupLabel[group.id] || group.name));
+        box.append(h('div', { class: 'store-list' }, ...list.map((e) => row(e, dir))));
+      }
+      return box;
+    };
+
     const body = h(
       'div',
       {},
       h('div', { class: 'hint' }, '1 은 하나씩, 전체 는 그 재료를 전부 옮겨요 — 오른쪽은 창고로, 왼쪽은 가방으로.'),
       h('div', { class: 'section-label' }, `🎒 가방 → 📦 창고  (${inv.usedSlots()}/${inv.slots}칸)`),
-      bagRows.length ? h('div', { class: 'store-list' }, ...bagRows.map((e) => row(e, 'out'))) : h('div', { class: 'hint' }, '가방이 비어 있어요.'),
+      bagRows.length ? grouped(bagRows, 'out') : h('div', { class: 'hint' }, '가방이 비어 있어요.'),
       h('div', { class: 'section-label' }, '📦 창고 → 🎒 가방'),
-      storeRows.length ? h('div', { class: 'store-list' }, ...storeRows.map((e) => row(e, 'in'))) : h('div', { class: 'hint' }, '창고가 비어 있어요. 모아 둔 재료가 여기 쌓여요.')
+      storeRows.length ? grouped(storeRows, 'in') : h('div', { class: 'hint' }, '창고가 비어 있어요. 모아 둔 재료가 여기 쌓여요.')
     );
 
     return {

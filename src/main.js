@@ -49,11 +49,22 @@ window.__metamong = {
       cropKinds: p.cropKinds(),
       seeds: Object.fromEntries(Object.keys(p.supplies).filter((id) => id.startsWith('seed_')).map((id) => [id, p.supply(id)])),
       farmPlots: p.farmPlots.map((st) =>
-        st ? { crop: st.crop, remain: Math.round(st.remain * 10) / 10, total: st.total, watered: st.watered, ripe: st.remain <= 0 } : null
+        st ? { crop: st.crop, remain: Math.round(st.remain * 10) / 10, total: st.total, watered: st.watered, fert: st.fert || 0, ripe: st.remain <= 0 } : null
       ),
       farmPlanted: p.farmPlots.filter(Boolean).length,
       farmRipe: p.farmPlots.filter((st) => st && st.remain <= 0).length,
       counters: { ...p.counters },
+      // ── 6단계: 특산 바구니 · 성장 비료 · 새 작물 · 새 채집지 · 낚시 자리
+      forage: { ...p.forage },
+      forageKinds: p.forageKinds(),
+      forageTotal: p.forageTotal,
+      fertilizer: p.supply('fertilizer'),
+      newCrops: Object.fromEntries(['tomato', 'corn', 'sweetpotato', 'melon', 'sunflower'].map((id) => [id, p.cropCount(id)])),
+      fishZones: Object.fromEntries(
+        ['sea', 'river_bank', 'river_bridge'].map((id) => [id, { target: game.fishTarget && game.fishTarget.zone === id, fishing: game.fishing && game.fishing.zone.id === id ? game.fishing.state : 'idle' }])
+      ),
+      gatherNodes: game.world && game.world.scenery ? game.world.scenery.nodes.filter((n) => n.bucket).map((n) => ({ kind: n.kind, sprite: n.sprite, bucket: n.bucket, harvested: n.harvested, respawn: Math.round(n.respawn) })) : [],
+      gatherTotal: game.world && game.world.scenery ? game.world.scenery.nodes.filter((n) => n.bucket).length : 0,
       achievements: { unlocked: [...p.achievements.unlocked], claimed: [...p.achievements.claimed] },
       achRows: p.achRows().map((r) => ({ id: r.id, value: r.value, need: r.need, done: r.done, claimed: r.claimed })),
       claimableAchievements: p.claimableAchievements,
@@ -64,7 +75,7 @@ window.__metamong = {
       cartLevel: p.cartLevel,
       bagCapacity: p.inventory.slots,
       paddyPlots: p.paddyPlots.map((st) =>
-        st ? { crop: st.crop, remain: Math.round(st.remain * 10) / 10, total: st.total, watered: st.watered, ripe: st.remain <= 0 } : null
+        st ? { crop: st.crop, remain: Math.round(st.remain * 10) / 10, total: st.total, watered: st.watered, fert: st.fert || 0, ripe: st.remain <= 0 } : null
       ),
       paddyPlanted: p.paddyPlots.filter(Boolean).length,
       paddyRipe: p.paddyPlots.filter((st) => st && st.remain <= 0).length,
@@ -105,6 +116,8 @@ window.__metamong = {
       quests: g.progress.claimableQuests,
       fishing: g.fishing ? g.fishing.state : 'idle',
       defense: g.defense ? g.defense.stats() : null,
+      fishZone: g.fishing ? g.fishing.zone.id : null,
+      fishPhase: g.fishing ? g.fishing.zone.habitat : null,
       settings: { ...g.state.settings },
       player: g.player
         ? {

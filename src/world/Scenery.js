@@ -10,9 +10,10 @@
  * 여기서는 "보이는 상태"만 바꾼다. 복구가 끝난 등대의 밤 불빛도 여기서 켠다.
  */
 import * as THREE from 'three';
-import { LANDMARKS, NATURE } from '../config.js';
+import { GATHER, GATHER_TYPES, LANDMARKS, NATURE } from '../config.js';
 import { Billboard, blobShadow } from '../sprites/Billboard.js';
 import { HARVEST, harvestKindOf } from '../systems/items.js';
+import { gatherSprite, gatherStubTexture } from '../sprites/gatherArt.js';
 import { glowTexture, sproutTexture, stumpTexture } from '../sprites/icons3d.js';
 
 const BUILDING_FRAME = { workshop: 'workshop', lighthouse: 'lighthouse', vending: 'vending', dock: 'dock' };
@@ -58,6 +59,8 @@ export class Scenery {
     this.colliders = [];
     /** @type {Array<object>} 채집 노드 */
     this.nodes = [];
+    /** 6단계: 아틀라스가 아닌 캔버스 도트로 세운 채집지 메시 (매 프레임 카메라를 향한다) */
+    this.customNodes = [];
     this.beacon = null;
     /** 시간대 조명 색 — Game 이 매 프레임 넘겨 준다(건물 색 = 조명 × 복구 상태) */
     this.spriteLight = new THREE.Color(1, 1, 1);
@@ -132,6 +135,31 @@ export class Scenery {
       }
     }
 
+    // ── 6단계: 해변·숲·광맥의 새 채집지 (조개·소라·유목·송이버섯·도토리·꿀·구리·수정)
+    for (const g of GATHER) {
+      const type = GATHER_TYPES[g.type];
+      if (!type) continue;
+      const y = Math.max(terrain.sampleHeight(g.x, g.z), 0.02);
+      const mesh = gatherSprite(type.sprite, type.height);
+      mesh.position.set(g.x, y, g.z);
+      mesh.name = `Gather_${g.type}_${g.x}_${g.z}`;
+      this.group.add(mesh);
+      this.customNodes.push(mesh);
+
+      let collider = null;
+      if (type.collide > 0) {
+        collider = { x: g.x, z: g.z, r: type.collide };
+        this.colliders.push(collider);
+      }
+      const sh = blobShadow((type.collide || 0.18) * 1.3, 0.2);
+      sh.position.set(g.x, y + 0.02, g.z);
+      this.group.add(sh);
+
+      const node = this.#createGatherNode(g, type, y, mesh, collider);
+      mesh.userData.node = node;
+      this.nodes.push(node);
+    }
+
     this.#buildBeacon();
   }
 
@@ -191,6 +219,69 @@ export class Scenery {
     };
   }
 
+  /** 6단계: 캔버스 도트 채집지의 노드 — 기존 노드와 같은 상태 모양을 쓴다 */
+  #createGatherNode(g, type, y, mesh, collider) {
+    const def = HARVEST[type.kind];
+    const [hMin, hMax] = def.hits;
+    const hitsNeeded = hMin + Math.floor(Math.random() * (hMax - hMin + 1));
+
+    const stubSize = type.bucket === 'beach' ? [0.9, 0.5] : type.bucket === 'forest' ? [0.8, 0.6] : [0.8, 0.62];
+    const stub = new THREE.Sprite(
+      new THREE.SpriteMaterial({ map: gatherStubTexture(type.bucket), transparent: true, depthWrite: false, toneMapped: false, opacity: 0 })
+    );
+    stub.scale.set(stubSize[0], stubSize[1], 1);
+    stub.position.set(g.x, y + stubSize[1] * 0.42, g.z);
+    stub.visible = false;
+    stub.renderOrder = 3;
+    this.group.add(stub);
+
+    const sprout = new THREE.Sprite(
+      new THREE.SpriteMaterial({ map: sproutTexture(), transparent: true, depthWrite: false, toneMapped: false })
+    );
+    sprout.scale.set(0.5, 0.5, 1);
+    sprout.position.set(g.x + 0.34, y + 0.26, g.z + 0.36);
+    sprout.renderOrder = 4;
+    sprout.visible = false;
+    this.group.add(sprout);
+
+    return {
+      key: `gather_${type.sprite}@${g.x},${g.z}`,
+      isNode: true,
+      kind: type.kind,
+      frame: type.sprite,
+      sprite: type.sprite,
+      name: type.name,
+      icon: type.icon,
+      bucket: type.bucket,
+      loot: type.loot,
+      respawnRange: type.respawn,
+      x: g.x,
+      z: g.z,
+      y,
+      height: type.height,
+      billboard: null,
+      mesh,
+      collider,
+      baseR: type.collide || 0,
+      hitsNeeded,
+      hitsLeft: hitsNeeded,
+      harvested: false,
+      respawn: 0,
+      berryT: 0,
+      hasBerry: false,
+      scale: 1,
+      targetScale: 1,
+      opacity: 1,
+      targetOpacity: 1,
+      popT: 0,
+      sprout,
+      stub,
+      stubTarget: 0,
+      /** 모래 위 조개는 새싹 대신 모래더미만 남긴다 */
+      showSprout: type.bucket !== 'beach',
+    };
+  }
+
   /* ── 채집 연출 ────────────────────────────────────────── */
 
   /** 타격 한 번 — 스프라이트가 좌우로 부르르 떨린다 */
@@ -204,7 +295,7 @@ export class Scenery {
     node.targetScale = harvested ? STUMP_SCALE : 1;
     node.targetOpacity = harvested ? STUMP_OPACITY : 1;
     node.stubTarget = harvested ? 0.92 : 0;
-    node.sprout.visible = !!harvested;
+    node.sprout.visible = !!harvested && node.showSprout !== false;
     if (harvested) {
       node.mesh.material.transparent = true;
       node.mesh.material.depthWrite = false;
@@ -230,7 +321,7 @@ export class Scenery {
     node.harvested = harvested;
     node.targetScale = harvested ? STUMP_SCALE : 1;
     node.targetOpacity = harvested ? STUMP_OPACITY : 1;
-    node.sprout.visible = harvested;
+    node.sprout.visible = harvested && node.showSprout !== false;
     node.stubTarget = harvested ? 0.92 : 0;
     node.stub.material.opacity = node.stubTarget;
     node.stub.visible = harvested;
@@ -344,7 +435,13 @@ export class Scenery {
 
   /** 모든 빌보드가 카메라를 향하도록 + 채집 노드 애니메이션 */
   update(dt, camera, night = 0) {
-    if (camera) for (const bb of this.billboards) bb.faceCamera(camera);
+    if (camera) {
+      for (const bb of this.billboards) bb.faceCamera(camera);
+      // 캔버스 도트 채집지도 Y축으로만 카메라를 향한다
+      for (const mesh of this.customNodes) {
+        mesh.rotation.y = Math.atan2(camera.position.x - mesh.position.x, camera.position.z - mesh.position.z);
+      }
+    }
     this.#animateSites(dt);
 
     for (const node of this.nodes) {

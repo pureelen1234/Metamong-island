@@ -12,10 +12,8 @@
  * 멈추지 않게 하려는 게 아니라, 모달이 열리면 Game 이 cancel() 을 부르기 때문이다.
  */
 import * as THREE from 'three';
-import { FISH, FISH_WEIGHTS_BAIT, FISHING, sizeLabel } from '../systems/lifeData.js';
+import { FISH, FISHING, FISHING_ZONES, fishPool, sizeLabel } from '../systems/lifeData.js';
 import { glowTexture, rippleTexture } from '../sprites/icons3d.js';
-
-const TOTAL_WEIGHT = Object.values(FISH).reduce((a, f) => a + f.weight, 0);
 
 function pickFish(weights) {
   const total = Object.values(weights).reduce((a, b) => a + b, 0);
@@ -43,6 +41,8 @@ export class Fishing {
     this.lastResult = null;
     this.castFrom = new THREE.Vector3();
     this.rings = [];
+    /** 6단계: 지금 낚시하는 자리 (부두 · 강가 · 다리 위) */
+    this.zone = FISHING_ZONES.sea;
 
     this.#build(scene);
   }
@@ -127,9 +127,11 @@ export class Fishing {
   /* ── 시작 ─────────────────────────────────────────────── */
 
   /** @returns {{ok:boolean, reason?:string}} */
-  start({ bait = false } = {}) {
+  start({ bait = false, zone = 'sea' } = {}) {
     if (this.state !== 'idle') return { ok: false, reason: 'busy' };
-    if (!this.progress.building('dock').done) return { ok: false, reason: 'dock' };
+    const z = FISHING_ZONES[zone] || FISHING_ZONES.sea;
+    if (z.need === 'dock' && !this.progress.building('dock').done) return { ok: false, reason: 'dock' };
+    if (z.need === 'bridge' && !this.progress.bridgeBuilt) return { ok: false, reason: 'bridge' };
     if (this.progress.stamina < FISHING.stamina) return { ok: false, reason: 'stamina' };
 
     let usedBait = false;
@@ -141,6 +143,7 @@ export class Fishing {
     this.progress.useStamina(FISHING.stamina);
     this.progress.fishing.casts += 1;
 
+    this.zone = z;
     this.baitUsed = usedBait;
     this.state = 'cast';
     this.t = 0;
@@ -148,7 +151,7 @@ export class Fishing {
     this.waitFor = FISHING.waitMin + Math.random() * (FISHING.waitMax - FISHING.waitMin);
     this.window = FISHING.biteWindow;
 
-    const spot = FISHING.spot;
+    const spot = z.spot;
     this.castFrom.set(spot.x + 0.1, 0.9, spot.z - 0.6);
     this.group.visible = true;
     this.bobber.position.copy(this.castFrom);
@@ -161,7 +164,7 @@ export class Fishing {
     this.hud?.setFishing?.({ state: 'cast', label: '찌를 던지는 중…' });
     this.#syncAction();
     this.hooks.onStart?.();
-    return { ok: true, bait: usedBait };
+    return { ok: true, bait: usedBait, zone: z.id };
   }
 
   /* ── 회수/성공 ────────────────────────────────────────── */
@@ -186,7 +189,9 @@ export class Fishing {
   }
 
   #catch() {
-    const table = this.baitUsed ? FISH_WEIGHTS_BAIT : Object.fromEntries(Object.keys(FISH).map((id) => [id, FISH[id].weight]));
+    // 지금 시간대·물(바다/민물)에 맞는 어종만 물린다 — 아침/낮/노을/밤마다 풀이 다르다
+    const phase = (this.hooks.getPhase && this.hooks.getPhase()) || 'day';
+    const table = fishPool(this.zone.habitat, phase, this.baitUsed);
     const fish = pickFish(table);
     const size = Math.round(fish.size[0] + Math.random() * (fish.size[1] - fish.size[0]));
     const at = this.bobber.position;
@@ -210,7 +215,7 @@ export class Fishing {
     this.audio?.sfxReel?.();
     if (fish.rare) this.audio?.sfxRare?.();
 
-    this.hooks.onCatch?.(fish, size, { bait: this.baitUsed });
+    this.hooks.onCatch?.(fish, size, { bait: this.baitUsed, zone: this.zone.id });
     this.hud?.setFishing?.({ state: 'reel', label: `${fish.name} ${sizeLabel(fish.id, size)} 획득!` });
     this.#syncAction();
     return { ok: true, fish, size };
@@ -231,7 +236,7 @@ export class Fishing {
 
   update(dt, playerPos) {
     if (!this.active) return;
-    const spot = FISHING.spot;
+    const spot = this.zone.spot;
     const dist = playerPos ? Math.hypot(playerPos.x - spot.x, playerPos.z - spot.z) : 99;
     if (dist > FISHING.leash && this.state !== 'reel' && this.state !== 'lost') {
       this.cancel('찌에서 너무 멀어졌어요 — 낚싯줄을 회수했어요');
@@ -239,7 +244,7 @@ export class Fishing {
     }
 
     this.t += dt;
-    const target = new THREE.Vector3(FISHING.castTo.x, 0.12, FISHING.castTo.z);
+    const target = new THREE.Vector3(this.zone.castTo.x, 0.12, this.zone.castTo.z);
 
     if (this.state === 'cast') {
       const k = Math.min(1, this.t / 0.55);

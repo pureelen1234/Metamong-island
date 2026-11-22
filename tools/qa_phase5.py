@@ -262,7 +262,7 @@ def run():
                 snap(page, '01_title.png')
                 badge = page.locator('.title-badge').inner_text()
                 version = page.locator('.title-version').inner_text()
-                check('타이틀이 Phase 5', 'PHASE 5' in badge and 'Phase 5' in version, f'{badge} / {version}')
+                check('타이틀이 Phase 6 (5단계 회귀 시점)', 'PHASE 6' in badge and 'Phase 6' in version, f'{badge} / {version}')
                 new_island(page)
                 check('플레이 진입', stats(page)['mode'] == 'play', stats(page)['mode'])
                 banner = page.locator('.defense-banner .df-txt').inner_text()
@@ -667,7 +667,7 @@ def run():
                 page.evaluate("() => window.__metamong.game.save()")
                 page.wait_for_timeout(1200)
                 raw = page.evaluate("() => window.__metamong.game.snapshot().version")
-                check('스냅샷 버전 6', raw == 6, raw)
+                check('스냅샷 버전 7 (6단계)', raw == 7, raw)
                 stored = page.evaluate(
                     """async () => {
                       const g = window.__metamong.game;
@@ -810,8 +810,8 @@ def run():
                 new_island(page)
                 check('회귀 · 가방 8칸', life(page)['bagCapacity'] == 8, life(page)['bagCapacity'])
                 check('회귀 · 다리 미완성', life(page)['bridgeBuilt'] is False)
-                check('회귀 · 텃밭 9칸', len(life(page)['farmPlots']) == 9)
-                check('회귀 · 논 6칸', len(life(page)['paddyPlots']) == 6)
+                check('회귀 · 텃밭 16칸 (6단계 4×4)', len(life(page)['farmPlots']) == 16)
+                check('회귀 · 논 8칸 (6단계 4×2)', len(life(page)['paddyPlots']) == 8)
 
                 # 채집 — 나무 한 그루
                 page.evaluate(
@@ -865,7 +865,7 @@ def run():
                 page.wait_for_timeout(520)
                 check('회귀 · 고양이 돌보기', '솜이' in modal_title(page), modal_title(page))
                 close_modal(page)
-                check('회귀 · 업적 17종', len(life(page)['achRows']) == 17, len(life(page)['achRows']))
+                check('회귀 · 업적 23종 (6단계 +6)', len(life(page)['achRows']) == 23, len(life(page)['achRows']))
                 snap(page, '24_regress.png')
 
         except Exception:

@@ -10,7 +10,7 @@
  */
 import * as THREE from 'three';
 import { h } from './dom.js';
-import { BRIDGE, CATS, DEFENSE, FARM, HALF, LANDMARKS, MAILBOX, PADDY, ZONES, riverCenterZ } from '../config.js';
+import { BRIDGE, CATS, DEFENSE, FARM, GATHER, GATHER_TYPES, HALF, LANDMARKS, MAILBOX, PADDY, ZONES, riverCenterZ } from '../config.js';
 import { HEIGHTS, boxDistance, sampleHeight } from '../terrain/Heightmap.js';
 import { ROUTES } from '../world/Path.js';
 
@@ -129,12 +129,40 @@ export function buildMapBase(size) {
 
   // ⑤ 구역 점 — 숲·채석장(개척권) + 과수원·꽃밭(생활권)
   for (const z of ZONES) {
-    if (z.id === 'farm' || z.id === 'paddy' || z.id === 'beach') continue;
+    if (z.id === 'farm' || z.id === 'paddy' || z.id === 'beach' || z.id === 'river') continue;
     ctx.fillStyle =
       z.id === 'orchard' ? 'rgba(120,190,110,0.5)' : z.id === 'garden' ? 'rgba(255,183,214,0.55)' : z.id === 'forest' ? COLOR.forest : COLOR.quarry;
     ctx.beginPath();
     ctx.arc(proj(z.x, size), proj(z.z, size), Math.max(4, scale(z.r, size)), 0, Math.PI * 2);
     ctx.fill();
+  }
+
+  // ⑤-2 6단계: 새 채집지(해변·숲·광맥) 표시 — 종류별 색 점
+  const DOT = { beach: '#ffd0e0', forest: '#e8b98a', ore: '#a8d8ea' };
+  for (const g of GATHER) {
+    const type = GATHER_TYPES[g.type];
+    if (!type) continue;
+    ctx.beginPath();
+    ctx.arc(proj(g.x, size), proj(g.z, size), Math.max(1.2, size * 0.007), 0, Math.PI * 2);
+    ctx.fillStyle = DOT[type.bucket] || '#ffffff';
+    ctx.fill();
+  }
+
+  // ⑤-3 6단계: 강 낚시터 — 작은 낚시 표식
+  const rz = ZONES.find((z) => z.id === 'river');
+  if (rz) {
+    ctx.beginPath();
+    ctx.arc(proj(rz.x, size), proj(rz.z, size), Math.max(3.4, size * 0.026), 0, Math.PI * 2);
+    ctx.fillStyle = '#eafcff';
+    ctx.fill();
+    ctx.lineWidth = Math.max(0.8, size * 0.008);
+    ctx.strokeStyle = '#4a9fb8';
+    ctx.stroke();
+    ctx.font = `${Math.round(Math.max(3.4, size * 0.026) * 1.15)}px "Noto Color Emoji", "Apple Color Emoji", sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#3f7f9a';
+    ctx.fillText('🎣', proj(rz.x, size), proj(rz.z, size) + 0.5);
   }
 
   // ⑥ 강 중심선을 살짝 밝게 — 개울이 어디로 흐르는지 한눈에
@@ -447,10 +475,12 @@ export class Minimap {
     }
     legend.append(row(COLOR.bridgeWood, '🌉 다리', g.progress.bridgeBuilt ? '건널 수 있어요' : '재료를 모아 놓기'));
     legend.append(row(COLOR.mailbox, '📬 우체통', '편지·의뢰 보상'));
-    legend.append(row(COLOR.farm, '🌱 텃밭', `3×3 · ${g.progress.farmPlots.filter(Boolean).length}칸 심음`));
-    legend.append(row(COLOR.paddy, '🌾 논', `3×2 · ${g.progress.paddyPlots.filter(Boolean).length}칸 심음`));
-    legend.append(row(COLOR.forest, '🌲 빼곡한 숲', '통나무 군락'));
-    legend.append(row(COLOR.quarry, '🪨 채석장', '돌·별조각 군락'));
+    legend.append(row(COLOR.farm, '🌱 텃밭', `${FARM.cols}×${FARM.rows} · ${g.progress.farmPlots.filter(Boolean).length}칸 심음`));
+    legend.append(row(COLOR.paddy, '🌾 논', `${PADDY.cols}×${PADDY.rows} · ${g.progress.paddyPlots.filter(Boolean).length}칸 심음`));
+    legend.append(row('#eafcff', '🎣 강 낚시터', '등대 아래 강가 · 민물'));
+    legend.append(row(COLOR.forest, '🌲 빼곡한 숲', '통나무 · 송이버섯 · 도토리 · 꿀'));
+    legend.append(row(COLOR.quarry, '🪨 채석장', '돌 · 구리광석 · 수정'));
+    legend.append(row('#ffd0e0', '🐚 모래 해변', '조개 · 소라 · 유목'));
     for (const def of CATS) {
       const cat = g.cats ? g.cats.find((c) => c.id === def.id) : null;
       legend.append(row(def.id === 'somi' ? '#f7f1e6' : '#6d5a4a', `🐱 ${def.name}`, cat ? `Lv.${g.progress.catRow(def.id).level}` : ''));

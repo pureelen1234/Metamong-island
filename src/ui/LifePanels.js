@@ -7,7 +7,7 @@
  */
 import { h } from './dom.js';
 import { CATS, DITTOS } from '../config.js';
-import { BAG, ITEMS } from '../systems/items.js';
+import { BAG, FORAGE_ITEM_ORDER, ITEMS, ITEM_GROUPS, isForageItem } from '../systems/items.js';
 import {
   ADE_STAMINA,
   CAT_CARE,
@@ -15,12 +15,16 @@ import {
   COOK,
   COOK_ORDER,
   FISH,
+  FISH_HABITAT,
   FISH_ORDER,
+  FISH_TIME,
   GOLDEN_BUFF,
   RANKS,
   SHOP_ORDER,
   TOOLS,
   TOOL_ORDER,
+  fishIn,
+  fishTimeLabel,
   itemIcon,
   itemMeta,
   itemName,
@@ -28,7 +32,7 @@ import {
 } from '../systems/lifeData.js';
 import { recipeLabel } from '../systems/Cooking.js';
 import { sellableEntries, sellPrice, goodsRows } from '../systems/Shop.js';
-import { CROPS, CROP_ORDER, SEEDS, SEED_ORDER } from '../systems/farmData.js';
+import { ALL_CROP_ORDER, CROPS, CROP_ORDER, FARMING, SEEDS, SEED_ORDER } from '../systems/farmData.js';
 
 const chip = (text, cls = '') => h('span', { class: `lchip ${cls}` }, text);
 
@@ -75,6 +79,7 @@ export class LifePanels {
       [
         { id: 'ditto', label: '메타몽' },
         { id: 'fish', label: '물고기' },
+        { id: 'gather', label: '채집' },
         { id: 'cook', label: '요리' },
         { id: 'farm', label: '농사' },
         { id: 'cat', label: '고양이' },
@@ -88,6 +93,7 @@ export class LifePanels {
 
     const body = h('div', { class: 'codex-tabs' }, tabs);
     if (this.codexTab === 'fish') body.append(this.#codexFish());
+    else if (this.codexTab === 'gather') body.append(this.#codexGather());
     else if (this.codexTab === 'cook') body.append(this.#codexCook());
     else if (this.codexTab === 'farm') body.append(this.#codexFarm());
     else if (this.codexTab === 'cat') body.append(this.#codexCat());
@@ -95,9 +101,10 @@ export class LifePanels {
 
     const subtitles = {
       ditto: '점 눈 두 개만 남은 어설픈 위장들',
-      fish: '부두에서 낚은 물고기 기록',
+      fish: '바다 10종 · 민물 5종 — 시간대마다 다른 얼굴',
+      gather: '해변·숲·광맥에서 주운 특산물',
       cook: '공방에서 만들어 본 요리',
-      farm: '텃밭에서 기른 작물 기록',
+      farm: '4×4 텃밭에서 기른 작물 기록',
       cat: '솜이와 옹이의 마음',
     };
 
@@ -139,22 +146,38 @@ export class LifePanels {
 
   #codexFish() {
     const p = this.game.progress;
-    const grid = h('div', { class: 'fish-grid' });
-    for (const id of FISH_ORDER) {
-      const f = FISH[id];
-      const n = p.fishCount(id);
-      const known = n > 0;
-      grid.append(
-        h(
-          'div',
-          { class: `fish-card ${known ? '' : 'locked'} ${f.rare ? 'rare' : ''}` },
-          h('span', { class: 'fico' }, known ? f.icon : '❔'),
-          h('div', { class: 'fmain' }, h('div', { class: 'nm' }, known ? f.name : '아직 못 봄'), h('div', { class: 'meta' }, known ? f.desc : '부두에서 낚시하면 만날 수 있어요')),
-          h('div', { class: 'fright' }, known ? chip(`${n}마리`, 'ok') : chip('미등록'))
-        )
-      );
-    }
     const kinds = FISH_ORDER.filter((id) => p.fishCount(id) > 0).length;
+    const body = h('div', {});
+    let first = true;
+    for (const hab of ['sea', 'river']) {
+      const meta = FISH_HABITAT[hab];
+      const ids = FISH_ORDER.filter((id) => FISH[id].habitat === hab || FISH[id].habitat === 'both');
+      const got = ids.filter((id) => p.fishCount(id) > 0).length;
+      body.append(h('div', { class: 'section-label' }, `${meta.icon} ${meta.name} (${got}/${ids.length})`));
+      const grid = h('div', { class: 'fish-grid' });
+      for (const id of ids) {
+        const f = FISH[id];
+        const n = p.fishCount(id);
+        const known = n > 0;
+        grid.append(
+          h(
+            'div',
+            { class: `fish-card ${known ? '' : 'locked'} ${f.rare ? 'rare' : ''}` },
+            h('span', { class: 'fico' }, known ? f.icon : '❔'),
+            h(
+              'div',
+              { class: 'fmain' },
+              h('div', { class: 'nm' }, known ? f.name : '아직 못 봄'),
+              h('div', { class: 'meta' }, known ? f.desc : hab === 'river' ? '중앙 강에서 낚시하면 만날 수 있어요' : '부두에서 낚시하면 만날 수 있어요'),
+              h('div', { class: 'meta' }, `🕐 ${fishTimeLabel(f)}${f.rare ? ' · 희귀' : ''}`)
+            ),
+            h('div', { class: 'fright' }, known ? chip(`${n}마리`, 'ok') : chip('미등록'))
+          )
+        );
+        first = false;
+      }
+      body.append(grid);
+    }
     return h(
       'div',
       {},
@@ -164,9 +187,55 @@ export class LifePanels {
         { class: 'hint' },
         `등록 ${kinds} / ${FISH_ORDER.length}종 · 낚시 ${p.fishing.casts}회 · 성공 ${p.fishing.catches}회 · 놓침 ${p.fishing.misses}회`
       ),
-      h('div', { class: 'section-label' }, '어종'),
-      grid,
-      h('div', { class: 'hint' }, '별빛 미끼를 쓰면 희귀 어종(별빛해파리·황금잉어) 확률이 올라가요 🪱')
+      h(
+        'div',
+        { class: 'chips' },
+        ...FISH_TIME.map((t) => h('span', { class: 'lchip' }, `${t.icon} ${t.label}`)),
+        h('span', { class: 'lchip warm' }, '🪱 미끼 → 희귀 ↑')
+      ),
+      body
+    );
+  }
+
+  /** 6단계: 특산 채집 도감 — 해변·숲·광맥에서 주운 재료 */
+  #codexGather() {
+    const p = this.game.progress;
+    const total = FORAGE_ITEM_ORDER.length;
+    const known = p.forageKinds();
+    const body = h('div', {});
+    for (const group of ITEM_GROUPS.filter((g) => g.id !== 'basic')) {
+      const rows = group.items.map((id) => ({ id, meta: ITEMS[id], n: p.forageCount(id) }));
+      const got = rows.filter((r) => r.n > 0).length;
+      body.append(h('div', { class: 'section-label' }, `${group.icon} ${group.name} (${got}/${rows.length})`));
+      const list = h('div', { class: 'recipe-list' });
+      for (const r of rows) {
+        const n = r.n;
+        const sample = this.game.world.scenery.nodes.find((node) => node.sprite === r.id);
+        list.append(
+          h(
+            'div',
+            { class: `recipe-card ${n > 0 ? '' : 'locked'}` },
+            h('span', { class: 'rico' }, n > 0 ? r.meta.icon : '❔'),
+            h(
+              'div',
+              { class: 'rmain' },
+              h('div', { class: 'nm' }, n > 0 ? r.meta.name : '아직 못 봄'),
+              h('div', { class: 'meta' }, r.meta.desc),
+              h('div', { class: 'meta' }, sample ? `자판기 판매 🪙 ${sellPrice(r.id)} · 다시 자라기 ${sample.respawnRange[0]}~${sample.respawnRange[1]}초` : `자판기 판매 🪙 ${sellPrice(r.id)}`)
+            ),
+            h('div', { class: 'fright' }, n > 0 ? chip(`바구니 ${n}`, 'ok') : chip('미등록'))
+          )
+        );
+      }
+      body.append(list);
+    }
+    return h(
+      'div',
+      {},
+      this.#bar(Math.round((known / total) * 100)),
+      h('div', { class: 'hint' }, `특산 바구니 ${known} / ${total}종 · 모두 ${p.forageTotal}개 · 가방 칸을 차지하지 않아요`),
+      body,
+      h('div', { class: 'hint' }, '해변은 부두 쪽 모래사장, 숲과 광맥은 다리를 건너 북쪽에 있어요. 자판기 [팔기] 에서 팔거나 공방 요리 재료로 써요.')
     );
   }
 
@@ -209,7 +278,7 @@ export class LifePanels {
     const p = this.game.progress;
     const list = h('div', { class: 'recipe-list' });
     let known = 0;
-    for (const id of CROP_ORDER) {
+    for (const id of ALL_CROP_ORDER) {
       const crop = CROPS[id];
       const have = p.cropCount(id);
       const harvested = p.count('crop');
@@ -234,11 +303,11 @@ export class LifePanels {
     return h(
       'div',
       {},
-      this.#bar(Math.round((known / CROP_ORDER.length) * 100)),
-      h('div', { class: 'hint' }, `바구니에 담긴 작물 ${known} / ${CROP_ORDER.length}종 · 지금까지 수확 ${p.count('crop')}번 · 심은 씨앗 ${p.count('plant')}번`),
+      this.#bar(Math.round((known / ALL_CROP_ORDER.length) * 100)),
+      h('div', { class: 'hint' }, `바구니에 담긴 작물 ${known} / ${ALL_CROP_ORDER.length}종 · 지금까지 수확 ${p.count('crop')}번 · 심은 씨앗 ${p.count('plant')}번`),
       h('div', { class: 'section-label' }, '작물'),
       list,
-      h('div', { class: 'hint' }, `수확물은 가방 8칸을 차지하지 않고 텃밭 바구니에 담겨요. 자판기 [팔기] 에서 개당 ${CROP_ORDER.map((id) => `${CROPS[id].name} ${CROPS[id].price}`).join(' · ')} 코인에 팔려요.`)
+      h('div', { class: 'hint' }, `수확물은 가방 칸을 차지하지 않고 수확 바구니에 담겨요. 자판기 [팔기] 에서 개당 ${ALL_CROP_ORDER.map((id) => `${CROPS[id].name} ${CROPS[id].price}`).join(' · ')} 코인에 팔려요.`)
     );
   }
 
@@ -437,7 +506,7 @@ export class LifePanels {
       const seeds = rows.filter((g) => g.kind === 'seed');
       body.append(h('div', { class: 'section-label' }, '사기'));
       body.append(h('div', { class: 'shop-list' }, ...goods.map(goodRow)));
-      body.append(h('div', { class: 'section-label' }, '🌱 씨앗 (북서 텃밭에 심어요)'));
+      body.append(h('div', { class: 'section-label' }, '🌱 씨앗 (북서 텃밭 4×4 · 북쪽 논)'));
       body.append(h('div', { class: 'shop-list' }, ...seeds.map(goodRow)));
       if (p.supply('ade') > 0) {
         body.append(
@@ -448,7 +517,7 @@ export class LifePanels {
           )
         );
       }
-      body.append(h('div', { class: 'hint' }, '츄르는 고양이 돌보기에서, 별빛 미끼는 낚시할 때 쓰고, 씨앗은 텃밭에서 심어요.'));
+      body.append(h('div', { class: 'hint' }, '츄르는 고양이 돌보기에서, 별빛 미끼는 낚시할 때 쓰고, 씨앗은 텃밭·논에서, 성장 비료는 밭·논 한 칸의 성장 단계를 올려요 🧪'));
     } else {
       const rows = sellableEntries(p);
       const list = h('div', { class: 'shop-list' });
@@ -470,7 +539,7 @@ export class LifePanels {
               h(
                 'div',
                 { class: 'meta' },
-                `개당 🪙 ${row.unit}${row.source === 'fish' ? ' · 낚시 바구니' : row.source === 'crop' ? ' · 텃밭 바구니' : ''}`
+                `개당 🪙 ${row.unit}${row.source === 'fish' ? ' · 낚시 바구니' : row.source === 'crop' ? ' · 수확 바구니' : row.source === 'forage' ? ' · 특산 바구니' : ''}`
               )
             ),
             h('div', { class: 'shop-btns' }, one, all)
@@ -501,7 +570,14 @@ export class LifePanels {
       const r = COOK[id];
       const check = p.canCook(id);
       const items = recipeLabel(r).map((part) => {
-        const have = part.source === 'fish' ? p.fishCount(part.id) : part.source === 'crop' ? p.cropCount(part.id) : p.inventory.count(part.id);
+        const have =
+          part.source === 'fish'
+            ? p.fishCount(part.id)
+            : part.source === 'crop'
+              ? p.cropCount(part.id)
+              : part.source === 'forage'
+                ? p.forageCount(part.id)
+                : p.inventory.count(part.id);
         return h(
           'span',
           { class: `lchip ${have >= part.n ? 'ok' : 'lack'}` },
@@ -534,7 +610,7 @@ export class LifePanels {
       body: h(
         'div',
         {},
-        h('div', { class: 'hint' }, '재료와 물고기를 넣고 요리하면 기력이 회복돼요. 황금 정식은 60초 동안 채집이 가벼워져요.'),
+        h('div', { class: 'hint' }, '재료와 물고기를 넣고 요리하면 기력이 회복돼요. 황금 정식은 60초 동안 채집이 가벼워져요. 특산물(🍄🐚💎)은 특산 바구니에서 꺼내 써요.'),
         list,
         h('div', { class: 'section-label' }, '보유 재료'),
         h(
@@ -542,7 +618,8 @@ export class LifePanels {
           { class: 'chips' },
           ...['log', 'stone', 'petal', 'star', 'berry'].map((id) => chip(`${itemIcon(id)} ${itemName(id)} ${p.inventory.count(id)}`)),
           ...FISH_ORDER.filter((id) => p.fishCount(id) > 0).map((id) => chip(`${itemIcon(id)} ${itemName(id)} ${p.fishCount(id)}`)),
-          ...CROP_ORDER.filter((id) => p.cropCount(id) > 0).map((id) => chip(`${CROPS[id].icon} ${CROPS[id].name} ${p.cropCount(id)}`))
+          ...ALL_CROP_ORDER.filter((id) => p.cropCount(id) > 0).map((id) => chip(`${CROPS[id].icon} ${CROPS[id].name} ${p.cropCount(id)}`)),
+          ...FORAGE_ITEM_ORDER.filter((id) => p.forageCount(id) > 0).map((id) => chip(`${itemIcon(id)} ${itemName(id)} ${p.forageCount(id)}`, 'warm'))
         )
       ),
       actions: [

@@ -14,10 +14,10 @@
  *   ⑧ 5단계: 불청객 상륙 지점·진격로·방어 슬롯 5곳이 땅/길 위에 있고 서로 겹치지 않는가
  */
 import * as THREE from 'three';
-import { NATURE, LANDMARKS, DITTOS, CATS, DEFENSE, FARM, PADDY, SPAWN, ZONES, BRIDGE, RIVER, riverCenterZ, isOnBridgeDeck } from '../src/config.js';
+import { NATURE, LANDMARKS, DITTOS, CATS, DEFENSE, FARM, GATHER, GATHER_TYPES, PADDY, SPAWN, ZONES, BRIDGE, RIVER, riverCenterZ, isOnBridgeDeck } from '../src/config.js';
 import { HEIGHTS, isWalkableAt, islandHeight, setBridgeBuilt } from '../src/terrain/Heightmap.js';
 import { ROUTES } from '../src/world/Path.js';
-import { FISHING } from '../src/systems/lifeData.js';
+import { FISHING_ZONES, FISHING_ZONE_ORDER } from '../src/systems/lifeData.js';
 
 const problems = [];
 const notes = [];
@@ -130,16 +130,28 @@ for (const d of DITTOS) {
 }
 for (const c of CATS) walk(c.x, c.z, `고양이 ${c.name}`);
 
-/* ── ⑤ 부두 · 낚시 ──────────────────────────────────── */
-const spot = FISHING.spot;
-walk(spot.x, spot.z, '낚시 자리');
-const castH = islandHeight(FISHING.castTo.x, FISHING.castTo.z);
-if (castH > -0.1) fail(`낚시 찌(${FISHING.castTo.x}, ${FISHING.castTo.z}) 가 물 위가 아니다 (h=${castH.toFixed(2)})`);
+/* ── ⑤ 부두 · 낚시 자리 3곳 (부두 · 강가 · 다리 위) ────── */
 const dock = LANDMARKS.find((l) => l.id === 'dock');
 const dockH = islandHeight(dock.x, dock.z);
 if (dockH > 0.25 || dockH < -0.25) fail(`부두 발밑 높이가 물가가 아니다 (h=${dockH.toFixed(2)})`);
-const spotToDock = Math.hypot(spot.x - dock.x, spot.z - dock.z);
-if (spotToDock > spot.range) fail(`낚시 자리가 부두에서 반경(${spot.range}) 밖이다 (${spotToDock.toFixed(2)})`);
+
+setBridgeBuilt(true); // 다리 위 자리는 데크 위에 서는 자리 — 놓은 뒤 기준으로 본다
+for (const zoneId of FISHING_ZONE_ORDER) {
+  const zone = FISHING_ZONES[zoneId];
+  walk(zone.spot.x, zone.spot.z, `${zone.name} 자리`);
+  const castH = islandHeight(zone.castTo.x, zone.castTo.z);
+  if (castH > -0.1) fail(`${zone.name} 찌(${zone.castTo.x}, ${zone.castTo.z}) 가 물 위가 아니다 (h=${castH.toFixed(2)})`);
+  const pathD = distToPaths(zone.spot.x, zone.spot.z);
+  if (pathD > 4.8) notes.push(`${zone.name} 자리가 길에서 ${pathD.toFixed(1)} 떨어져 있다`);
+  if (zone.need === 'dock') {
+    const spotToDock = Math.hypot(zone.spot.x - dock.x, zone.spot.z - dock.z);
+    if (spotToDock > zone.spot.range) fail(`부두 낚시 자리가 부두에서 반경(${zone.spot.range}) 밖이다 (${spotToDock.toFixed(2)})`);
+  }
+  if (zone.need === 'bridge') {
+    if (!isOnBridgeDeck(zone.spot.x, zone.spot.z)) fail(`${zone.name} 자리가 다리 데크 위가 아니다`);
+  }
+}
+setBridgeBuilt(false);
 
 /* ── ⑥ 중앙 강 · 다리 ───────────────────────────────── */
 // 강은 동서로 이어져 섬을 두 쪽으로 가른다
@@ -203,6 +215,43 @@ for (const slot of DEFENSE.slots) {
 }
 notes.push(`방어 슬롯 ${DEFENSE.slots.length}곳 · 상륙(${DEFENSE.landing.x}, ${DEFENSE.landing.z}) → 광장(${DEFENSE.plaza.x}, ${DEFENSE.plaza.z})`);
 
+/* ── ⑩ 6단계: 새 채집지(해변·숲·광맥) ───────────────── */
+for (const g of GATHER) {
+  const type = GATHER_TYPES[g.type];
+  if (!type) {
+    fail(`채집지 종류를 알 수 없다: ${g.type}`);
+    continue;
+  }
+  walk(g.x, g.z, `채집지 ${type.name}`);
+  const pathD = distToPaths(g.x, g.z);
+  if (pathD < 0.8) fail(`채집지 ${type.name} (${g.x}, ${g.z}) 이 길 위에 너무 가깝다 (${pathD.toFixed(2)})`);
+  if (nearTiles(g.x, g.z, (type.collide || 0) + 0.1)) fail(`채집지 ${type.name} (${g.x}, ${g.z}) 이 경작지 칸과 겹친다`);
+  for (const c of colliders) {
+    const d = Math.hypot(g.x - c.x, g.z - c.z) - c.r;
+    if (d < 0.3) fail(`채집지 ${type.name} (${g.x}, ${g.z}) 이 ${c.kind}(${c.x},${c.z}) 에 너무 가깝다 (${d.toFixed(2)})`);
+  }
+  for (const lm of LANDMARKS) {
+    if (Math.hypot(g.x - lm.x, g.z - lm.z) < 2.0) fail(`채집지 ${type.name} 이 ${lm.name} 에 너무 가깝다`);
+  }
+  for (const slot of DEFENSE.slots) {
+    if (Math.hypot(g.x - slot.x, g.z - slot.z) < 1.2) fail(`채집지 ${type.name} 이 방어 슬롯 ${slot.id} 와 겹친다`);
+  }
+  for (const r of DEFENSE.route) {
+    if (Math.hypot(g.x - r.x, g.z - r.z) < 1.3) fail(`채집지 ${type.name} 이 불청객 진격로 위에 있다`);
+  }
+  for (const a of [...DITTOS, ...CATS]) {
+    if (Math.hypot(g.x - a.x, g.z - a.z) < 1.2) fail(`채집지 ${type.name} 이 ${a.name} 와 너무 가깝다`);
+  }
+}
+for (let i = 0; i < GATHER.length; i++) {
+  for (let j = i + 1; j < GATHER.length; j++) {
+    if (Math.hypot(GATHER[i].x - GATHER[j].x, GATHER[i].z - GATHER[j].z) < 1.1) {
+      fail(`채집지 ${GATHER_TYPES[GATHER[i].type].name}(${GATHER[i].x},${GATHER[i].z}) 와 ${GATHER_TYPES[GATHER[j].type].name}(${GATHER[j].x},${GATHER[j].z}) 가 너무 가깝다`);
+    }
+  }
+}
+notes.push(`새 채집지 ${GATHER.length}곳 (해변·숲·광맥)`);
+
 /* ── ⑧ 길이 물에 잠기지 않는가 ──────────────────────── */
 for (const [x, z] of PATH_PTS) {
   const h = islandHeight(x, z);
@@ -211,7 +260,7 @@ for (const [x, z] of PATH_PTS) {
 
 /* ── 결과 ───────────────────────────────────────────── */
 console.log(
-  `배치물 ${NATURE.length} · 충돌물 ${colliders.length} · 텃밭 칸 ${farmTiles.length} · 논 칸 ${paddyTiles.length} · 길 샘플 ${PATH_PTS.length}`
+  `배치물 ${NATURE.length} · 충돌물 ${colliders.length} · 텃밭 칸 ${farmTiles.length} · 논 칸 ${paddyTiles.length} · 채집지 ${GATHER.length} · 길 샘플 ${PATH_PTS.length}`
 );
 console.log(`메타몽 ${DITTOS.length} (생활권 ${south.length} · 개척권 ${north.length}) · 강 z(x=0)=${riverCenterZ(0).toFixed(2)}`);
 for (const n of notes) console.log('  · ' + n);

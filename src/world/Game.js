@@ -45,12 +45,17 @@ import {
   EXP_GAIN,
   FISH,
   FISHING,
+  FISHING_ZONES,
+  FISHING_ZONE_ORDER,
+  FISH_TIME,
   GOLDEN_BUFF,
   TOOLS,
+  fishIn,
+  fishTimeLabel,
   itemIcon,
   itemName,
 } from '../systems/lifeData.js';
-import { CROPS, FARMING, PADDY_SEED_ORDER, SEEDS } from '../systems/farmData.js';
+import { CROPS, FARMING, NEW_CROP_ORDER, PADDY_SEED_ORDER, SEEDS } from '../systems/farmData.js';
 import {
   BRIDGE,
   CAMERA,
@@ -59,6 +64,8 @@ import {
   DEFENSE,
   DITTOS,
   FARM,
+  GATHER,
+  GATHER_TYPES,
   INTERACT,
   LANDMARKS,
   PADDY,
@@ -260,6 +267,13 @@ export class Game {
         this.#gainExp('gather', EXP_GAIN.harvest);
         // 한 그루/한 덩이를 다 캐낸 횟수 — 업적이 '두드린 횟수'와 구분해 센다
         if (kind === 'tree' || kind === 'rock' || kind === 'flower') this.progress.bump(kind, 1);
+        // 6단계: 해변·숲·광맥은 종류별로 세고 오늘의 의뢰에도 반영한다
+        if (kind === 'beach' || kind === 'forest' || kind === 'mine') {
+          const counter = kind === 'mine' ? 'ore' : kind;
+          const n = Object.values(gains || {}).reduce((a, b) => a + b, 0) || 1;
+          this.progress.bump(counter, n);
+          this.#event(counter, n, false);
+        }
         if (gains && gains.petal) this.#event('petal', gains.petal);
         this.#refreshHud();
         this.checkAchievements();
@@ -270,7 +284,7 @@ export class Game {
     this.nodeMeshes = this.world.scenery.nodes.map((n) => n.mesh);
     this.siteMeshes = this.world.scenery.sites.map((s) => s.billboard.mesh);
 
-    // ── 2단계: 부두 낚시 (찌·물결·입질)
+    // ── 2단계: 부두 낚시 (찌·물결·입질) — 6단계부터 강가·다리 위에서도
     this.fishing = new Fishing({
       progress: this.progress,
       audio: this.audio,
@@ -282,16 +296,25 @@ export class Game {
         save: () => {
           if (this.mode === 'play') this.save();
         },
-        onCatch: (fish, size) => {
+        /** 지금 시간대(아침·낮·노을·밤)에 맞는 어종만 물게 한다 */
+        getPhase: () => phaseAt(this.state.elapsed).id,
+        onCatch: (fish, size, info) => {
           this.audio.sfxCoin();
           this.#gainExp('fish', FISHING.exp);
           this.#event('fish', 1);
-          const first = this.progress.fishCount(fish.id) + (fish.id === 'star' ? 0 : 0) === 1;
+          const river = fish.habitat === 'river';
+          if (river) {
+            this.progress.bump('riverfish', 1);
+            this.#event('riverfish', 1, false);
+          }
+          const first = this.progress.fishCount(fish.id) === 1;
+          const place = river ? '민물' : '바다';
           this.hud.toast(
-            `${fish.icon} ${fish.name} ${fish.id === 'star' ? '' : `${size}cm`} 낚았다!${first ? ' 도감 등록 📔' : ''}`,
+            `${fish.icon} ${fish.name} ${fish.id === 'star' ? '' : `${size}cm`} 낚았다! (${place})${first ? ' 도감 등록 📔' : ''}`,
             2600
           );
           this.#refreshHud();
+          this.checkAchievements();
           this.save();
         },
         onStart: () => this.#refreshHud(),
@@ -322,6 +345,11 @@ export class Game {
           // 수확 카운터는 Progress.harvestPlot 이 이미 올렸다
           this.#event('crop', 1, false);
           this.audio.sfxCoin();
+        },
+        /** 6단계: 성장 비료 — 농사 경험치를 조금 주고 업적을 다시 본다 */
+        onFertilize: () => {
+          this.#gainExp('farm', 2);
+          this.checkAchievements();
         },
         onRipe: (indexes) => {
           if (!indexes.length) return;
@@ -357,6 +385,10 @@ export class Game {
           this.#gainExp('farm', EXP_GAIN.crop);
           this.#event('crop', 1, false);
           this.audio.sfxCoin();
+        },
+        onFertilize: () => {
+          this.#gainExp('farm', 2);
+          this.checkAchievements();
         },
         onRipe: (indexes) => {
           if (!indexes.length) return;
@@ -1092,20 +1124,28 @@ export class Game {
       }
     }
 
-    // 부두 끝 낚시 자리 — 복구 전에는 복구 안내를 보여 준다
-    const spot = FISHING.spot;
-    const fdist = Math.hypot(spot.x - p.x, spot.z - p.z);
-    if (!inWave && fdist <= spot.range) {
-      this.fishTarget = {
-        kind: 'fish',
-        id: 'dock_fish',
-        x: spot.x,
-        z: spot.z,
-        built: !!this.progress.building('dock').done,
-      };
-      if (fdist < bestDist) {
-        best = this.fishTarget;
-        bestDist = fdist;
+    // 낚시 자리 — 부두(바다)·강가·다리 위(민물). 복구 전에는 복구 안내를 보여 준다
+    if (!inWave) {
+      for (const zoneId of FISHING_ZONE_ORDER) {
+        const zone = FISHING_ZONES[zoneId];
+        // 다리 위 자리는 다리를 놓아야 데크에 설 수 있으니 완성 뒤에만 대상이 된다
+        if (zone.need === 'bridge' && !this.progress.bridgeBuilt) continue;
+        const fdist = Math.hypot(zone.spot.x - p.x, zone.spot.z - p.z);
+        if (fdist > zone.spot.range) continue;
+        const ready = zone.need === 'dock' ? !!this.progress.building('dock').done : zone.need === 'bridge' ? this.progress.bridgeBuilt : true;
+        if (fdist < bestDist) {
+          this.fishTarget = {
+            kind: 'fish',
+            id: `fish_${zone.id}`,
+            zone: zone.id,
+            name: zone.name,
+            x: zone.spot.x,
+            z: zone.spot.z,
+            built: ready,
+          };
+          best = this.fishTarget;
+          bestDist = fdist;
+        }
       }
     }
 
@@ -1181,7 +1221,7 @@ export class Game {
       return;
     }
     if (t.kind === 'fish') {
-      this.openFishSpot();
+      this.openFishSpot(t.zone);
       return;
     }
     this.#activateActor(t);
@@ -1356,10 +1396,11 @@ export class Game {
     } else if (t && t.kind === 'cat') {
       this.hud.setAction({ active: true, icon: '🐾', label: '돌보기' });
     } else if (t && t.kind === 'fish') {
+      const zone = FISHING_ZONES[t.zone] || FISHING_ZONES.sea;
       this.hud.setAction(
         t.built
-          ? { active: true, icon: '🎣', label: '낚시하기' }
-          : { active: true, icon: '⚓', label: '부두 복구 필요' }
+          ? { active: true, icon: zone.icon, label: zone.habitat === 'river' ? '강 낚시하기' : '낚시하기' }
+          : { active: true, icon: zone.icon, label: zone.needLabel || '복구 필요' }
       );
     } else if (t && t.isNode) {
       const def = HARVEST[t.kind];
@@ -2006,6 +2047,29 @@ export class Game {
     return res.ok;
   }
 
+  /** 6단계: 성장 비료 — 텃밭 한 칸 */
+  fertilizePlot(index) {
+    if (!this.farming) return false;
+    const plot = this.farming.plotByIndex(index);
+    if (!plot) return false;
+    const res = this.farming.fertilize(plot);
+    if (!res.ok) {
+      this.audio.sfxDeny();
+      const msg =
+        res.reason === 'no-fertilizer'
+          ? '성장 비료가 없어요 — 자판기 [사기] 탭에서 40코인에 살 수 있어요 🧪'
+          : res.reason === 'max'
+            ? '이 칸에는 비료를 다 줬어요 — 다시 자라는 걸 기다려요'
+            : res.reason === 'ripe'
+              ? '이미 다 자랐어요 — [수확] 해 주세요 🧺'
+              : '지금은 비료를 줄 수 없어요';
+      this.hud.toast(msg, 2300);
+    }
+    this.#refreshHud();
+    if (this.modal.isOpen) this.#openModal(this.phase3.farm());
+    return res.ok;
+  }
+
   /* ── 4단계: 다리 · 논 · 리어카 · 웰컴 미션 ────────── */
 
   /** 논 한 칸의 지금 상태 — 액션 라벨·패널이 같이 본다 */
@@ -2149,6 +2213,29 @@ export class Game {
     if (!res.ok) {
       this.audio.sfxDeny();
       this.hud.toast(res.reason === 'growing' ? '아직 덜 여물었어요 — 조금만 기다려요 🌾' : '빈 논이에요', 2000);
+    }
+    this.#refreshHud();
+    if (this.modal.isOpen) this.#openModal(this.phase4.paddy());
+    return res.ok;
+  }
+
+  /** 6단계: 성장 비료 — 논 한 칸 */
+  fertilizePaddy(index) {
+    if (!this.paddy) return false;
+    const plot = this.paddy.plotByIndex(index);
+    if (!plot) return false;
+    const res = this.paddy.fertilize(plot);
+    if (!res.ok) {
+      this.audio.sfxDeny();
+      const msg =
+        res.reason === 'no-fertilizer'
+          ? '성장 비료가 없어요 — 자판기 [사기] 탭에서 40코인에 살 수 있어요 🧪'
+          : res.reason === 'max'
+            ? '이 칸에는 비료를 다 줬어요 — 다시 여무는 걸 기다려요'
+            : res.reason === 'ripe'
+              ? '이미 다 여물었어요 — [수확] 해 주세요 🧺'
+              : '지금은 비료를 줄 수 없어요';
+      this.hud.toast(msg, 2300);
     }
     this.#refreshHud();
     if (this.modal.isOpen) this.#openModal(this.phase4.paddy());
@@ -2529,12 +2616,19 @@ export class Game {
 
   /* ── 부두 낚시 ────────────────────────────────────────── */
 
-  openFishSpot() {
+  /** 낚시 자리 하나를 연다 — zoneId 는 'sea' · 'river_bank' · 'river_bridge' */
+  openFishSpot(zoneId = 'sea') {
     if (this.mode !== 'play') return;
-    if (!this.progress.building('dock').done) {
+    const zone = FISHING_ZONES[zoneId] || FISHING_ZONES.sea;
+    if (zone.need === 'dock' && !this.progress.building('dock').done) {
       this.audio.sfxDeny();
       this.hud.toast('부두를 먼저 복구해야 낚시할 수 있어요 ⚓', 2200);
       this.#openModal(this.panels.build('dock'));
+      return;
+    }
+    if (zone.need === 'bridge' && !this.progress.bridgeBuilt) {
+      this.audio.sfxDeny();
+      this.hud.toast('다리를 놓아야 다리 위에서 낚시할 수 있어요 🌉', 2200);
       return;
     }
     if (this.fishing.active) {
@@ -2544,10 +2638,38 @@ export class Game {
 
     const p = this.progress;
     const bait = p.supply('bait');
+    const phase = phaseAt(this.state.elapsed);
+    const habitatName = zone.habitat === 'river' ? '민물' : '바다';
+    const nowFish = fishIn(zone.habitat, phase.id);
+
+    // 지금 시간대에 이 물에서 물리는 어종만 — 시간대별 출현을 한눈에 보여 준다
+    const list = h('div', { class: 'fish-grid' });
+    for (const id of nowFish) {
+      const f = FISH[id];
+      list.append(
+        h(
+          'div',
+          { class: `fish-card ${f.rare ? 'rare' : ''}` },
+          h('span', { class: 'fico' }, f.icon),
+          h(
+            'div',
+            { class: 'fmain' },
+            h('div', { class: 'nm' }, f.name),
+            h(
+              'div',
+              { class: 'meta' },
+              f.id === 'star' ? `${fishTimeLabel(f)} · 가방 재료 (별조각)` : `${fishTimeLabel(f)} · ${f.rare ? '희귀' : '흔함'} · 개당 🪙 ${f.price}`
+            )
+          ),
+          h('div', { class: 'fright' }, h('span', { class: 'lchip' }, f.id === 'star' ? '조각' : `${f.size[0]}~${f.size[1]}cm`))
+        )
+      );
+    }
+
     const body = h(
       'div',
       {},
-      h('div', { class: 'hint' }, '부두 끝으로 찌를 던져요. 물결이 퍼지다 입질이 오면 1.4초 안에 화면을 탭!'),
+      h('div', { class: 'hint' }, zone.hint),
       h(
         'div',
         { class: 'row' },
@@ -2560,28 +2682,30 @@ export class Game {
         h('div', {}, h('div', { class: 'label' }, '별빛 미끼'), h('div', { class: 'hint' }, '희귀 어종 확률이 올라가요')),
         h('span', { class: 'hint' }, `${bait}개`)
       ),
-      h('div', { class: 'section-label' }, '오늘의 물빛'),
-      h(
-        'div',
-        { class: 'chips' },
-        ...Object.values(FISH).map((f) => h('span', { class: `lchip ${f.rare ? 'warm' : ''}` }, `${f.icon} ${f.name}`))
-      )
+      h('div', { class: 'section-label' }, `${phase.icon} 지금 ${phase.label} — ${habitatName}에 물리는 ${nowFish.length}종`),
+      list,
+      h('div', { class: 'hint' }, '아침·낮·노을·밤에 따라 물리는 어종이 달라져요. 다른 시간대에 다시 와 보세요.')
     );
 
     const actions = [
-      { label: `🎣 낚시하기 (기력 ${FISHING.stamina})`, kind: 'primary', onClick: () => this.#beginFishing(false) },
+      { label: `${zone.icon} 낚시하기 (기력 ${FISHING.stamina})`, kind: 'primary', onClick: () => this.#beginFishing(false, zone.id) },
     ];
     if (bait > 0) {
-      actions.push({ label: '🪱 별빛 미끼 쓰고 낚시', kind: 'ghost', onClick: () => this.#beginFishing(true) });
+      actions.push({ label: '🪱 별빛 미끼 쓰고 낚시', kind: 'ghost', onClick: () => this.#beginFishing(true, zone.id) });
     }
     actions.push({ label: '닫기', kind: 'ghost', onClick: () => this.modal.close() });
 
-    this.#openModal({ title: '🎣 부두 낚시', subtitle: '찌 · 물결 · 그리고 1.4초', body, actions });
+    this.#openModal({
+      title: `${zone.icon} ${zone.name}`,
+      subtitle: zone.habitat === 'river' ? '중앙 강 — 찌·물결·그리고 1.4초' : '찌 · 물결 · 그리고 1.4초',
+      body,
+      actions,
+    });
   }
 
-  #beginFishing(bait) {
+  #beginFishing(bait, zoneId = 'sea') {
     this.modal.close();
-    const res = this.fishing.start({ bait });
+    const res = this.fishing.start({ bait, zone: zoneId });
     if (!res.ok) {
       this.audio.sfxDeny();
       const msg =
@@ -2589,9 +2713,11 @@ export class Game {
           ? '기력이 부족해요 — 열매나 요리로 채워 주세요 🍓'
           : res.reason === 'dock'
             ? '부두를 먼저 복구해야 해요 ⚓'
-            : res.reason === 'no-bait'
-              ? '별빛 미끼가 없어요'
-              : '지금은 낚시할 수 없어요';
+            : res.reason === 'bridge'
+              ? '다리를 놓아야 다리 위에서 낚시할 수 있어요 🌉'
+              : res.reason === 'no-bait'
+                ? '별빛 미끼가 없어요'
+                : '지금은 낚시할 수 없어요';
       this.hud.toast(msg, 2200);
       return;
     }
@@ -2861,7 +2987,7 @@ export class Game {
     // 노드 상태는 Gathering 이 들고 있다(리젠 카운트다운 포함)
     life.nodes = this.gathering ? this.gathering.toJSON() : {};
     return {
-      version: 6,
+      version: 7,
       savedAt: Date.now(),
       day: this.state.day,
       elapsedSeconds: Math.round(this.state.elapsed * 100) / 100,

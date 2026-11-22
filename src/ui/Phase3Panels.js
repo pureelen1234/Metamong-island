@@ -65,6 +65,25 @@ export class Phase3Panels {
     return btn;
   }
 
+  /** 칸 안의 버튼 줄 — 기본 동작(심기/물/수확) + 성장 비료 */
+  #plotActions(index, info) {
+    const row = h('div', { class: 'fc-acts' }, this.#plotButton(index, info));
+    if (info.state === 'grow') {
+      const fert = this.game.progress.supply('fertilizer');
+      const used = Math.max(0, Math.floor(Number(info.st && info.st.fert) || 0));
+      const can = fert > 0 && used < FARMING.fertilizer.maxPerPlot;
+      const btn = h(
+        'button',
+        { class: `mini fc-fert ${can ? 'on' : ''}`, type: 'button', 'aria-label': `${index + 1}번 밭에 성장 비료`, title: can ? `성장 비료 ${fert}개` : used >= FARMING.fertilizer.maxPerPlot ? '비료를 다 줬어요' : '비료가 없어요' },
+        '🧪'
+      );
+      if (!can) btn.disabled = true;
+      btn.addEventListener('click', () => this.game.fertilizePlot(index));
+      row.append(btn);
+    }
+    return row;
+  }
+
   farm() {
     const p = this.game.progress;
     const can = p.toolInfo('water');
@@ -77,7 +96,7 @@ export class Phase3Panels {
       ...SEED_ORDER.map((id) => {
         const s = SEEDS[id];
         const n = p.supply(id);
-        return chip(`${s.icon} ${s.name} ${n}`, n > 0 ? 'ok' : 'lack');
+        return chip(`${CROPS[s.crop].icon} ${s.name.replace(' 씨앗', '')} ${n}`, n > 0 ? 'ok' : 'lack');
       })
     );
     const basket = h(
@@ -86,7 +105,7 @@ export class Phase3Panels {
       ...CROP_ORDER.map((id) => chip(`${CROPS[id].icon} ${CROPS[id].name} ${p.cropCount(id)}`, p.cropCount(id) > 0 ? 'warm' : ''))
     );
 
-    const grid = h('div', { class: 'farm-grid' });
+    const grid = h('div', { class: 'farm-grid', 'data-cols': String(FARM.cols) });
     for (let i = 0; i < FARM.cols * FARM.rows; i++) {
       const info = this.#plotInfo(i);
       const cell = h(
@@ -95,14 +114,15 @@ export class Phase3Panels {
         h('div', { class: 'fc-head' }, h('span', { class: 'fc-ico' }, info.crop ? info.crop.icon : '·'), h('span', { class: 'fc-name' }, info.crop ? info.crop.name : '빈 밭')),
         h('div', { class: 'fc-stage' }, info.label),
         info.state === 'empty' ? null : this.#bar(info.pct, info.state === 'ripe' ? 'life' : ''),
-        this.#plotButton(i, info)
+        this.#plotActions(i, info)
       );
       grid.append(cell);
     }
 
+    const fert = p.supply('fertilizer');
     return {
       title: '🌱 텃밭',
-      subtitle: `3×3 경작지 · ${planted}칸 심음${ripe ? ` · ${ripe}칸 수확 가능` : ''}`,
+      subtitle: `4×4 경작지 · ${planted}칸 심음${ripe ? ` · ${ripe}칸 수확 가능` : ''}`,
       body: h(
         'div',
         {},
@@ -113,6 +133,22 @@ export class Phase3Panels {
           'button',
           { class: 'btn soft wide', type: 'button', onclick: () => { this.game.life.shopTab = 'buy'; this.game.openVending(); } },
           '🥤 자판기에서 씨앗 사기'
+        ),
+        h('div', { class: 'section-label' }, '🧪 성장 비료'),
+        h(
+          'div',
+          { class: 'row' },
+          h(
+            'div',
+            {},
+            h('div', { class: 'label' }, `보유 ${fert}개`),
+            h('div', { class: 'hint' }, `한 칸에 쓰면 성장 단계가 하나 올라가요 · 칸당 최대 ${FARMING.fertilizer.maxPerPlot}번`),
+          ),
+          h(
+            'button',
+            { class: 'mini', type: 'button', onclick: () => { this.game.life.shopTab = 'buy'; this.game.openVending(); } },
+            '사기'
+          )
         ),
         h('div', { class: 'section-label' }, `🧺 수확 바구니 (가방과 따로 담겨요)`),
         basket,
@@ -130,7 +166,7 @@ export class Phase3Panels {
           ),
           h('button', { class: 'mini', type: 'button', onclick: () => this.game.openUpgrade() }, can.maxed ? '최대' : '강화')
         ),
-        h('div', { class: 'hint' }, ZONES.find((z) => z.id === 'farm') ? '북서쪽 모서리, 울타리 안이 텃밭이에요.' : '')
+        h('div', { class: 'hint' }, ZONES.find((z) => z.id === 'farm') ? '북서쪽 모서리, 울타리 안이 텃밭이에요. 4×4 16칸까지 심을 수 있어요.' : '')
       ),
       actions: [
         { label: '🏆 업적 보기', kind: 'ghost', onClick: () => this.game.openAchievements() },

@@ -8,8 +8,8 @@
 import { Inventory } from './Inventory.js';
 import { Skills } from './Skills.js';
 import { CATS, DEFENSE, FARM, LANDMARKS, PADDY } from '../config.js';
-import { BAG, CART, ITEMS, STAMINA } from './items.js';
-import { ALL_CROP_ORDER, CROPS, FARMING } from './farmData.js';
+import { BAG, CART, FORAGE, HARVEST, ITEMS, STAMINA, isForageItem } from './items.js';
+import { ALL_CROP_ORDER, CROPS, FARMING, NEW_CROP_ORDER, remainForNextStage, stageOfRemain } from './farmData.js';
 import { STRUCTURES, STRUCTURE_ORDER } from './defenseData.js';
 import { ACHIEVEMENTS, achById } from './achievementsData.js';
 import {
@@ -89,6 +89,8 @@ export class Progress {
     this.skills = new Skills();
     /** 낚시 바구니 — 물고기는 가방 칸을 차지하지 않는다 */
     this.fish = {};
+    /** 6단계: 특산 바구니 — 해변·숲·광맥에서 주운 재료(가방 칸을 차지하지 않는다) */
+    this.forage = {};
     /** 자판기에서 산 물건 개수 */
     this.supplies = {};
     for (const id of SHOP_ORDER) this.supplies[id] = 0;
@@ -130,6 +132,13 @@ export class Progress {
       crop: 0,
       /** 4단계: 럭키 드롭(숨은 섬 코인·황금 열매) 횟수 */
       lucky: 0,
+      /** 6단계: 특산 채집(해변·숲·광맥) · 민물 낚시 · 새 작물 수확 */
+      beach: 0,
+      forest: 0,
+      ore: 0,
+      riverfish: 0,
+      newcrop: 0,
+      fertilize: 0,
     };
     /** 업적 — 달성한 id 목록 · 보상을 받은 id 목록 */
     this.achievements = { unlocked: [], claimed: [] };
@@ -308,12 +317,13 @@ export class Progress {
     };
   }
 
-  /** 채집 종류(tree/rock)에 맞는 도구의 기력 배율 */
+  /** 채집 종류(tree/rock/mine …)에 맞는 도구의 기력 배율 */
   staminaMultiplier(kind) {
     let mul = 1;
+    const toolKind = (HARVEST[kind] && HARVEST[kind].toolKind) || kind;
     for (const id of TOOL_ORDER) {
       const def = TOOLS[id];
-      if (def.kind !== kind) continue;
+      if (def.kind !== toolKind) continue;
       mul *= def.stamina[this.toolLevel(id) - 1] ?? 1;
     }
     // 황금 버프
@@ -324,9 +334,10 @@ export class Progress {
   /** 채집 종류별 추가 타격 */
   hitsBonus(kind) {
     let bonus = 0;
+    const toolKind = (HARVEST[kind] && HARVEST[kind].toolKind) || kind;
     for (const id of TOOL_ORDER) {
       const def = TOOLS[id];
-      if (def.kind !== kind) continue;
+      if (def.kind !== toolKind) continue;
       bonus += def.hits[this.toolLevel(id) - 1] || 0;
     }
     return bonus;
@@ -383,6 +394,39 @@ export class Progress {
   /** 바구니에 담긴 작물 종류 수(도감용) */
   cropKinds() {
     return ALL_CROP_ORDER.filter((id) => this.cropCount(id) > 0).length;
+  }
+
+  /* ── 6단계: 특산 바구니 (해변·숲·광맥) ──────────────────── */
+
+  forageCount(id) {
+    return Math.max(0, Math.floor(Number(this.forage[id]) || 0));
+  }
+
+  addForage(id, n = 1) {
+    if (!isForageItem(id)) return 0;
+    const add = Math.max(0, Math.floor(Number(n) || 0));
+    this.forage[id] = Math.min(FORAGE.cap, this.forageCount(id) + add);
+    return this.forage[id];
+  }
+
+  takeForage(id, n = 1) {
+    const want = Math.max(0, Math.floor(Number(n) || 0));
+    const have = this.forageCount(id);
+    const take = Math.min(have, want);
+    if (take <= 0) return 0;
+    const next = have - take;
+    if (next > 0) this.forage[id] = next;
+    else delete this.forage[id];
+    return take;
+  }
+
+  /** 특산물 종류 수(도감용) */
+  forageKinds() {
+    return Object.keys(this.forage).filter((id) => isForageItem(id) && this.forageCount(id) > 0).length;
+  }
+
+  get forageTotal() {
+    return Object.keys(this.forage).reduce((a, id) => a + (isForageItem(id) ? this.forageCount(id) : 0), 0);
   }
 
   /* ── 씨앗 ──────────────────────────────────────────────── */
@@ -530,7 +574,27 @@ export class Progress {
     this.addCrop(crop.id, n);
     list[index] = null;
     this.bump('crop', 1);
+    if (NEW_CROP_ORDER.includes(crop.id)) this.bump('newcrop', 1);
     return { ok: true, crop, n, total: this.cropCount(crop.id) };
+  }
+
+  /**
+   * 6단계: 성장 비료 — 한 번에 성장 단계 하나를 건너뛴다.
+   * 씨앗(0) → 새싹(1) → 자라는 중(2) → 수확 가능(3), 한 칸에 최대 FARMING.fertilizer.maxPerPlot 번.
+   */
+  fertilizeIn(list, index) {
+    const plot = this.tileAt(list, index);
+    if (!plot) return { ok: false, reason: 'empty' };
+    if (plot.remain <= 0) return { ok: false, reason: 'ripe' };
+    if (this.supply('fertilizer') <= 0) return { ok: false, reason: 'no-fertilizer' };
+    const used = Math.max(0, Math.floor(Number(plot.fert) || 0));
+    if (used >= FARMING.fertilizer.maxPerPlot) return { ok: false, reason: 'max' };
+    const next = remainForNextStage(plot.remain, plot.total);
+    plot.remain = Math.max(0, next);
+    plot.fert = used + 1;
+    this.takeSupply('fertilizer', 1);
+    this.bump('fertilize', 1);
+    return { ok: true, remain: plot.remain, stage: stageOfRemain(plot.remain, plot.total), used: plot.fert };
   }
 
   /* ── 텃밭 (남쪽 3×3) ────────────────────────────────── */
@@ -579,6 +643,15 @@ export class Progress {
 
   harvestPaddy(index) {
     return this.harvestIn(this.paddyPlots, index);
+  }
+
+  /** 6단계: 비료 — 텃밭/논 공통 */
+  fertilizePlot(index) {
+    return this.fertilizeIn(this.farmPlots, index);
+  }
+
+  fertilizePaddy(index) {
+    return this.fertilizeIn(this.paddyPlots, index);
   }
 
   /* ── 고양이 호감도 ───────────────────────────────────── */
@@ -632,12 +705,12 @@ export class Progress {
     this.cooked[id] = Math.min(999, this.cookedCount(id) + 1);
   }
 
-  /** 레시피 재료가 모두 있는가 (가방 + 물고기 바구니 + 수확물 바구니) */
+  /** 레시피 재료가 모두 있는가 (가방 + 물고기 바구니 + 수확물 바구니 + 특산 바구니) */
   canCook(id) {
     const recipe = COOK[id];
     if (!recipe) return { ok: false, reason: 'recipe' };
     const lack = [];
-    for (const [item, need] of Object.entries(recipe.need)) {
+    for (const [item, need] of Object.entries(recipe.need || {})) {
       const have = this.inventory.count(item);
       if (have < need) lack.push({ item, need, have });
     }
@@ -648,6 +721,10 @@ export class Progress {
     for (const [crop, need] of Object.entries(recipe.crop || {})) {
       const have = this.cropCount(crop);
       if (have < need) lack.push({ item: crop, need, have });
+    }
+    for (const [forage, need] of Object.entries(recipe.forage || {})) {
+      const have = this.forageCount(forage);
+      if (have < need) lack.push({ item: forage, need, have });
     }
     const full = this.stamina >= STAMINA.max - 0.5;
     return { ok: lack.length === 0 && !full, reason: lack.length ? 'lack' : full ? 'full' : '', lack };
@@ -728,6 +805,42 @@ export class Progress {
 
   /* ── 저장 ─────────────────────────────────────────────── */
 
+  /**
+   * 경작지 배열(텃밭·논)을 읽는다.
+   * v6 이전 세이브의 텃밭은 3×3 · 논은 3×2 였으므로, 행·열을 그대로 새 배치 칸으로
+   * 옮긴다. 심어 둔 작물이 다른 칸으로 튀거나 사라지지 않게 하기 위한 v7 마이그레이션이다.
+   */
+  #loadPlots(saved, cols, rows, oldCols, oldRows, paddyOnly) {
+    const out = new Array(cols * rows).fill(null);
+    const src = Array.isArray(saved) ? saved : [];
+    const legacy = src.length === oldCols * oldRows && (oldCols !== cols || oldRows !== rows);
+    for (let i = 0; i < src.length; i++) {
+      const raw = src[i];
+      if (!raw || typeof raw !== 'object') continue;
+      let at = i;
+      if (legacy) {
+        const r = Math.floor(i / oldCols);
+        const c = i % oldCols;
+        if (r >= rows || c >= cols) continue;
+        at = r * cols + c;
+      }
+      if (at >= out.length) continue;
+      const crop = CROPS[raw.crop];
+      if (!crop) continue;
+      if (paddyOnly !== !!crop.paddyOnly) continue;
+      const total = clamp(raw.total, 1, 600, crop.grow);
+      out[at] = {
+        crop: crop.id,
+        total,
+        remain: clamp(raw.remain, 0, total, total),
+        watered: int(raw.watered, 0, FARMING.maxWater, 0),
+        wet: clamp(raw.wet, 0, FARMING.wetSeconds, 0),
+        fert: int(raw.fert, 0, FARMING.fertilizer.maxPerPlot, 0),
+      };
+    }
+    return out;
+  }
+
   toJSON() {
     const inv = this.inventory.toJSON();
     return {
@@ -741,6 +854,7 @@ export class Progress {
       coins: Math.round(this.coins),
       skills: this.skills.toJSON(),
       fish: { ...this.fish },
+      forage: { ...this.forage },
       supplies: { ...this.supplies },
       tools: { ...this.tools },
       cats: JSON.parse(JSON.stringify(this.cats)),
@@ -758,6 +872,7 @@ export class Progress {
               total: Math.round(p.total * 100) / 100,
               watered: Math.max(0, Math.floor(p.watered || 0)),
               wet: Math.round(Math.max(0, p.wet || 0) * 10) / 10,
+              fert: Math.max(0, Math.floor(p.fert || 0)),
             }
           : null
       ),
@@ -776,6 +891,7 @@ export class Progress {
               total: Math.round(p.total * 100) / 100,
               watered: Math.max(0, Math.floor(p.watered || 0)),
               wet: Math.round(Math.max(0, p.wet || 0) * 10) / 10,
+              fert: Math.max(0, Math.floor(p.fert || 0)),
             }
           : null
       ),
@@ -816,7 +932,6 @@ export class Progress {
   load(json) {
     this.reset();
     if (!json || typeof json !== 'object') return this;
-
     this.stamina = clamp(json.stamina, 0, STAMINA.max, STAMINA.max);
     // 리어카 레벨을 먼저 읽어야 가방 칸 수가 맞춰진다
     this.cartLevel = int(json.cartLevel, 0, CART.maxLevel, 0);
@@ -865,6 +980,16 @@ export class Progress {
         if (!FISH[id]) continue;
         const n = Math.floor(Number(raw));
         if (Number.isFinite(n) && n > 0) this.fish[id] = Math.min(999, n);
+      }
+    }
+
+    // 6단계: 특산 바구니 (v6 이전 세이브에는 없다)
+    this.forage = {};
+    if (json.forage && typeof json.forage === 'object') {
+      for (const [id, raw] of Object.entries(json.forage)) {
+        if (!isForageItem(id)) continue;
+        const n = Math.floor(Number(raw));
+        if (Number.isFinite(n) && n > 0) this.forage[id] = Math.min(FORAGE.cap, n);
       }
     }
 
@@ -949,22 +1074,7 @@ export class Progress {
       }
     }
 
-    this.farmPlots = new Array(FARM.cols * FARM.rows).fill(null);
-    const savedPlots = Array.isArray(json.farmPlots) ? json.farmPlots : [];
-    for (let i = 0; i < this.farmPlots.length; i++) {
-      const src = savedPlots[i];
-      if (!src || typeof src !== 'object') continue;
-      const crop = CROPS[src.crop];
-      if (!crop) continue;
-      const total = clamp(src.total, 1, 600, crop.grow);
-      this.farmPlots[i] = {
-        crop: crop.id,
-        total,
-        remain: clamp(src.remain, 0, total, total),
-        watered: int(src.watered, 0, FARMING.maxWater, 0),
-        wet: clamp(src.wet, 0, FARMING.wetSeconds, 0),
-      };
-    }
+    this.farmPlots = this.#loadPlots(json.farmPlots, FARM.cols, FARM.rows, 3, 3, false);
 
     for (const key of Object.keys(this.counters)) this.counters[key] = int(json.counters && json.counters[key], 0, 999999, 0);
 
@@ -979,22 +1089,7 @@ export class Progress {
       if (Number.isFinite(n) && n > 0) this.bridge.invested[id] = n;
     }
 
-    this.paddyPlots = new Array(PADDY.cols * PADDY.rows).fill(null);
-    const savedPaddy = Array.isArray(json.paddyPlots) ? json.paddyPlots : [];
-    for (let i = 0; i < this.paddyPlots.length; i++) {
-      const src = savedPaddy[i];
-      if (!src || typeof src !== 'object') continue;
-      const crop = CROPS[src.crop];
-      if (!crop || !crop.paddyOnly) continue;
-      const total = clamp(src.total, 1, 600, crop.grow);
-      this.paddyPlots[i] = {
-        crop: crop.id,
-        total,
-        remain: clamp(src.remain, 0, total, total),
-        watered: int(src.watered, 0, FARMING.maxWater, 0),
-        wet: clamp(src.wet, 0, FARMING.wetSeconds, 0),
-      };
-    }
+    this.paddyPlots = this.#loadPlots(json.paddyPlots, PADDY.cols, PADDY.rows, 3, 2, true);
 
     const welcome = json.welcome && typeof json.welcome === 'object' ? json.welcome : {};
     this.welcome = { step: int(welcome.step, 0, 3, 0) };

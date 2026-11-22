@@ -7,7 +7,7 @@
 import { h } from './dom.js';
 import { BRIDGE, PADDY } from '../config.js';
 import { BRIDGE_RECIPE, BAG, CART, ITEMS } from '../systems/items.js';
-import { CROPS, FARMING, PADDY_SEED_ORDER, SEEDS } from '../systems/farmData.js';
+import { ALL_CROP_ORDER, CROPS, FARMING, PADDY_SEED_ORDER, SEEDS } from '../systems/farmData.js';
 import { stageOf } from '../world/Farming.js';
 
 const name = (id) => (ITEMS[id] ? ITEMS[id].name : id);
@@ -134,6 +134,25 @@ export class Phase4Panels {
     return btn;
   }
 
+  /** 칸 안의 버튼 줄 — 기본 동작(심기/물/수확) + 성장 비료 */
+  #plotActions(index, info) {
+    const row = h('div', { class: 'fc-acts' }, this.#plotButton(index, info));
+    if (info.state === 'grow') {
+      const fert = this.game.progress.supply('fertilizer');
+      const used = Math.max(0, Math.floor(Number(info.st && info.st.fert) || 0));
+      const can = fert > 0 && used < FARMING.fertilizer.maxPerPlot;
+      const btn = h(
+        'button',
+        { class: `mini fc-fert ${can ? 'on' : ''}`, type: 'button', 'aria-label': `${index + 1}번 논에 성장 비료`, title: can ? `성장 비료 ${fert}개` : used >= FARMING.fertilizer.maxPerPlot ? '비료를 다 줬어요' : '비료가 없어요' },
+        '🧪'
+      );
+      if (!can) btn.disabled = true;
+      btn.addEventListener('click', () => this.game.fertilizePaddy(index));
+      row.append(btn);
+    }
+    return row;
+  }
+
   paddy() {
     const p = this.game.progress;
     const can = p.toolInfo('water');
@@ -141,7 +160,7 @@ export class Phase4Panels {
     const ripe = p.paddyPlots.filter((st) => st && st.remain <= 0).length;
     const riceSeed = p.supply('seed_rice');
 
-    const grid = h('div', { class: 'farm-grid paddy-grid' });
+    const grid = h('div', { class: 'farm-grid paddy-grid', 'data-cols': String(PADDY.cols) });
     for (let i = 0; i < PADDY.cols * PADDY.rows; i++) {
       const info = this.#plotInfo(i);
       const cell = h(
@@ -150,14 +169,15 @@ export class Phase4Panels {
         h('div', { class: 'fc-head' }, h('span', { class: 'fc-ico' }, info.crop ? info.crop.icon : '·'), h('span', { class: 'fc-name' }, info.crop ? info.crop.name : '빈 논')),
         h('div', { class: 'fc-stage' }, info.label),
         info.state === 'empty' ? null : this.#bar(info.pct, info.state === 'ripe' ? 'life' : ''),
-        this.#plotButton(i, info)
+        this.#plotActions(i, info)
       );
       grid.append(cell);
     }
+    const fert = p.supply('fertilizer');
 
     return {
       title: '🌾 논',
-      subtitle: `다리 건너 3×2 논 · ${planted}칸 심음${ripe ? ` · ${ripe}칸 수확 가능` : ''}`,
+      subtitle: `다리 건너 4×2 논 · ${planted}칸 심음${ripe ? ` · ${ripe}칸 수확 가능` : ''}`,
       body: h(
         'div',
         {},
@@ -169,11 +189,18 @@ export class Phase4Panels {
           { class: 'btn soft wide', type: 'button', onclick: () => { this.game.life.shopTab = 'buy'; this.game.openVending(); } },
           '🥤 자판기에서 볍씨 사기 (20코인)'
         ),
+        h('div', { class: 'section-label' }, '🧪 성장 비료'),
+        h(
+          'div',
+          { class: 'row' },
+          h('div', {}, h('div', { class: 'label' }, `보유 ${fert}개`), h('div', { class: 'hint' }, `논 한 칸의 성장 단계를 하나 올려요 · 칸당 최대 ${FARMING.fertilizer.maxPerPlot}번`)),
+          h('button', { class: 'mini', type: 'button', onclick: () => { this.game.life.shopTab = 'buy'; this.game.openVending(); } }, '사기')
+        ),
         h('div', { class: 'section-label' }, '🧺 수확 바구니'),
         h(
           'div',
           { class: 'chips' },
-          ...['rice', 'strawberry', 'radish', 'pumpkin'].map((id) => {
+          ...ALL_CROP_ORDER.map((id) => {
             const n = p.cropCount(id);
             return h('span', { class: `lchip ${n > 0 ? 'warm' : ''}` }, `${CROPS[id].icon} ${CROPS[id].name} ${n}`);
           })
@@ -188,7 +215,7 @@ export class Phase4Panels {
             'div',
             {},
             h('div', { class: 'label' }, `🚿 물뿌리개 Lv.${can.level}`),
-            h('div', { class: 'hint' }, `한 번에 ${['1칸', '한 줄 3칸', '6칸'][can.level - 1]} · 칸당 기력 ${FARMING.waterStamina}`)
+            h('div', { class: 'hint' }, `한 번에 ${['1칸', '한 줄 4칸', '8칸'][can.level - 1]} · 칸당 기력 ${FARMING.waterStamina}`)
           ),
           h('button', { class: 'mini', type: 'button', onclick: () => this.game.openUpgrade() }, can.maxed ? '최대' : '강화')
         ),

@@ -7,11 +7,12 @@
  *
  * 보상은 코인·별조각 — 받는 것은 유저가 [보상 받기] 를 누를 때다(자동 지급 아님).
  */
-import { CATS, DITTOS, LANDMARKS } from '../config.js';
+import { CATS, DITTOS, FARM, LANDMARKS, PADDY } from '../config.js';
 
 /** 업적 카테고리 — 모달에서 묶어 보여 준다 */
 export const ACH_GROUPS = [
   { id: 'gather', name: '채집', icon: '🪓' },
+  { id: 'forage', name: '특산 채집', icon: '🐚' },
   { id: 'fish', name: '낚시', icon: '🎣' },
   { id: 'cook', name: '요리', icon: '🍳' },
   { id: 'farm', name: '농사', icon: '🌱' },
@@ -193,6 +194,68 @@ export const ACHIEVEMENTS = [
     need: 10,
     value: (p) => Math.max(0, Math.floor(Number(p.defense && p.defense.turretHits) || 0)),
     reward: { coin: 70, star: 1 },
+  },
+
+  // ══ 6단계: 새 채집지 · 민물 낚시 · 넓어진 밭 ══════════════
+  {
+    id: 'ach_beach',
+    group: 'forage',
+    icon: '🐚',
+    name: '해변의 산책자',
+    desc: '모래 해변에서 조개·소라·유목 12개 줍기',
+    event: 'beach',
+    need: 12,
+    reward: { coin: 60, star: 1 },
+  },
+  {
+    id: 'ach_forest',
+    group: 'forage',
+    icon: '🍄',
+    name: '숲의 채집꾼',
+    desc: '빼곡한 숲에서 송이버섯·도토리·꿀 10개 채집하기',
+    event: 'forest',
+    need: 10,
+    reward: { coin: 65, star: 1 },
+  },
+  {
+    id: 'ach_ore',
+    group: 'forage',
+    icon: '💎',
+    name: '광맥의 손',
+    desc: '채석장에서 구리광석·수정 8개 캐기',
+    event: 'ore',
+    need: 8,
+    reward: { coin: 70, star: 1 },
+  },
+  {
+    id: 'ach_river',
+    group: 'fish',
+    icon: '🏞️',
+    name: '민물의 낚시꾼',
+    desc: '중앙 강에서 민물고기 6마리 낚기',
+    event: 'riverfish',
+    need: 6,
+    reward: { coin: 75, star: 2 },
+  },
+  {
+    id: 'ach_farm_full',
+    group: 'farm',
+    icon: '🌱',
+    name: '가득 찬 텃밭',
+    desc: `4×4 텃밭 ${FARM.cols * FARM.rows}칸에 모두 씨앗 심기`,
+    need: FARM.cols * FARM.rows,
+    value: (p) => p.farmPlots.filter(Boolean).length,
+    reward: { coin: 90, star: 2 },
+  },
+  {
+    id: 'ach_paddy_full',
+    group: 'farm',
+    icon: '🌾',
+    name: '황금 들판',
+    desc: `4×2 논 ${PADDY.cols * PADDY.rows}칸에 모두 볍씨 심기`,
+    need: PADDY.cols * PADDY.rows,
+    value: (p) => p.paddyPlots.filter(Boolean).length,
+    reward: { coin: 90, star: 2 },
   },
 ];
 
