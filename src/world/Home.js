@@ -30,6 +30,7 @@ export class Home {
     this.scene = opts.scene;
     this.atlases = opts.atlases;
     this.progress = opts.progress;
+    this.terrain = opts.terrain || null;
     this.hooks = opts.hooks || {};
 
     this.inside = false;
@@ -71,7 +72,9 @@ export class Home {
     );
     this.exterior.scale.set(HOUSE.height * (96 / 84), HOUSE.height, 1);
     this.exterior.renderOrder = 4;
-    this.exterior.position.set(HOUSE.x, 0.02, HOUSE.z);
+    // Sprite 원점은 가운데 — 발밑이 지면에 닿도록 절반 높이만큼 올린다
+    const groundY = this.terrain ? this.terrain.groundY(HOUSE.x, HOUSE.z) : 0;
+    this.exterior.position.set(HOUSE.x, groundY + HOUSE.height / 2, HOUSE.z);
     this.exterior.name = 'HomeExterior';
     this.exterior.visible = true;
   }

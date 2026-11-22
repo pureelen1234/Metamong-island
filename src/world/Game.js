@@ -471,6 +471,7 @@ export class Game {
       progress: this.progress,
       scene: this.scene,
       atlases: this.atlases,
+      terrain: this.world.terrain,
       hooks: {
         toast: (msg, ms) => this.hud && this.hud.toast(msg, ms),
         onChange: (kind) => {
