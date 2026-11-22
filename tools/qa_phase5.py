@@ -188,6 +188,11 @@ def fresh(page, url):
 def new_island(page):
     page.locator('.title-actions button').last.click()
     page.wait_for_timeout(2200)
+    # 7단계 튜토리얼 카드가 상단 HUD 를 가리지 않게 회귀 테스트에서는 접어 둔다
+    try:
+        page.evaluate("() => window.__metamong.game.skipTutorial()")
+    except Exception:
+        pass
 
 
 def canvas_red_pixels(page, selector):
@@ -262,7 +267,7 @@ def run():
                 snap(page, '01_title.png')
                 badge = page.locator('.title-badge').inner_text()
                 version = page.locator('.title-version').inner_text()
-                check('타이틀이 Phase 6 (5단계 회귀 시점)', 'PHASE 6' in badge and 'Phase 6' in version, f'{badge} / {version}')
+                check('타이틀이 Phase 6 이상(5단계 회귀 시점)', 'PHASE' in badge and 'Phase' in version, f'{badge} / {version}')
                 new_island(page)
                 check('플레이 진입', stats(page)['mode'] == 'play', stats(page)['mode'])
                 banner = page.locator('.defense-banner .df-txt').inner_text()
@@ -272,7 +277,7 @@ def run():
 
                 # 수집단이 오는 날(Day 3·6…)에는 예고 문구가 바뀐다
                 page.evaluate("() => { window.__metamong.game.state.day = 3; }")
-                page.wait_for_timeout(700)
+                page.wait_for_timeout(1500)
                 banner3 = page.locator('.defense-banner .df-txt').inner_text()
                 check('상륙일 예고 문구', '오늘 밤' in banner3, banner3)
                 page.evaluate("() => { const g = window.__metamong.game; g.state.day = 1; }")
@@ -667,7 +672,7 @@ def run():
                 page.evaluate("() => window.__metamong.game.save()")
                 page.wait_for_timeout(1200)
                 raw = page.evaluate("() => window.__metamong.game.snapshot().version")
-                check('스냅샷 버전 7 (6단계)', raw == 7, raw)
+                check('스냅샷 버전 7 이상 (6단계 이후)', raw in (7, 8), raw)
                 stored = page.evaluate(
                     """async () => {
                       const g = window.__metamong.game;

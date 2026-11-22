@@ -11,10 +11,13 @@
  *     방어 슬롯 5곳에 세운 설비(종류·체력) · 제작 창고 · 전적(승/패 · 포탑 명중 · 완벽 대피)
  * v7: 6단계 생활 상태 — 넓어진 텃밭 4×4(16칸)·논 4×2(8칸), 새 작물 5종과 성장 비료,
  *     특산 바구니(forage: 조개·소라·유목·송이버섯·도토리·꿀·구리광석·수정), 15종 어종 도감
+ * v8: 7단계 생활 상태 — 하우징(home: 보유 가구·방에 놓은 가구·방문 횟수), 원정
+ *     (expedition: 전용 바구니 6종·마지막 Day·횟수), 단계별 튜토리얼(tutorial),
+ *     방어 설비 6종(화염·얼음 포탑 추가)
  *
  * 어떤 버전이 들어와도 SaveStore 가 읽는 순간 코어 필드를 검사하고, 생활 상태는
- * Progress 로 정규화해 "기본값이 병합된" 한 덩어리로 돌려준다. v1~v6 세이브는
- * v7 필드가 조용히 기본값(빈 특산 바구니 · 남은 밭 칸)으로 채워지므로 그대로 이어서
+ * Progress 로 정규화해 "기본값이 병합된" 한 덩어리로 돌려준다. v1~v7 세이브는
+ * v8 필드가 조용히 기본값(빈 방·빈 원정 바구니·튜토리얼 처음)으로 채워지므로 그대로
  * 플레이할 수 있다. v6 이전의 3×3 텃밭·3×2 논은 Progress #loadPlots 가 행·열을
  * 그대로 새 배치로 옮겨 심어 둔 작물이 사라지지 않는다.
  *
@@ -23,7 +26,7 @@
 import { Progress } from '../systems/Progress.js';
 import { DAY_SECONDS, SPAWN } from '../config.js';
 
-export const SAVE_VERSION = 7;
+export const SAVE_VERSION = 8;
 
 const DEFAULT_SETTINGS = { muted: false, timeScale: 1, fps30: false };
 const SPEEDS = [1, 10, 60];

@@ -94,6 +94,13 @@ export class Hud {
 
     this.buffChip = h('span', { class: 'buff-chip hidden' }, '✨');
 
+    // ── 7단계: 원정 의뢰판 버튼 (통계 줄에 둔다 — 상단 컨트롤은 폭이 좁다)
+    this.expBtn = h(
+      'button',
+      { class: 'icon-btn exp-btn', type: 'button', 'aria-label': '원정 의뢰판 열기', onclick: () => this.handlers.onExpedition?.() },
+      h('span', { class: 'ico' }, '🧭')
+    );
+
     // ── 4단계: 리어카 칩 · 첫 1분 웰컴 3단 미션 배너
     this.cartChip = h('span', { class: 'cart-chip hidden' }, '🛒 16칸');
 
@@ -101,7 +108,7 @@ export class Hud {
       'div',
       { class: 'hud-left' },
       this.pill,
-      h('div', { class: 'hud-stats' }, this.stamina, this.coinChip, this.mailBtn, this.questBtn, this.cartChip, this.buffChip)
+      h('div', { class: 'hud-stats' }, this.stamina, this.coinChip, this.mailBtn, this.questBtn, this.expBtn, this.cartChip, this.buffChip)
     );
 
     // 웰컴 미션 — 상단 HUD 바로 아래의 작은 칩. 탭하면 3단 미션 목록을 연다
@@ -169,10 +176,11 @@ export class Hud {
     this.weaponBar = h('div', { class: 'weapon-bar hidden' }, this.wpSling, this.wpBalloon);
     this.lastWave = '';
 
-    // ── 상단 우측 컨트롤
+    // ── 상단 우측 컨트롤 (도움말 · 음소거 · 일시정지)
+    this.helpBtn = h('button', { class: 'icon-btn', type: 'button', 'aria-label': '도움말 열기', onclick: () => this.handlers.onHelp?.() }, '❓');
     this.muteBtn = h('button', { class: 'icon-btn', type: 'button', 'aria-label': '음소거 토글', onclick: () => this.handlers.onMute?.() }, '🔊');
     this.pauseBtn = h('button', { class: 'icon-btn', type: 'button', 'aria-label': '일시정지 및 설정', onclick: () => this.handlers.onPause?.() }, '⏸');
-    this.top = h('div', { class: 'hud-top' }, this.left, h('div', { class: 'hud-controls' }, this.muteBtn, this.pauseBtn));
+    this.top = h('div', { class: 'hud-top' }, this.left, h('div', { class: 'hud-controls' }, this.helpBtn, this.muteBtn, this.pauseBtn));
 
     // ── 액션 버튼
     this.actionIcon = h('span', { class: 'ico' }, '✋');

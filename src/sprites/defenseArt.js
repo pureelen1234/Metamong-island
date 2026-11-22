@@ -219,6 +219,35 @@ export function structureTexture(kind) {
     // 고무줄 · 노즐
     p(13, 15, 6, 1, '#f0dcb4');
     p(15, 15, 2, 3, '#6b5a48');
+  } else if (kind === 'flame_turret') {
+    // 화염 포탑 — 돌 받침 + 구리 관 + 활활 타는 심장석
+    p(8, 26, 16, 3, '#7c5a4a');
+    p(10, 22, 12, 5, '#a98f7c');
+    p(11, 23, 10, 2, '#c4ab95');
+    p(14, 14, 4, 9, '#b58a5a');
+    p(15, 14, 2, 9, '#d9a86f');
+    // 노즐 — 구리
+    p(16, 10, 8, 3, '#c98f5c');
+    p(17, 11, 7, 1, '#eab987');
+    p(23, 9, 3, 4, '#b0703f');
+    // 불덩이
+    p(12, 2, 4, 6, '#ff8a44');
+    p(9, 4, 5, 7, '#f2663f');
+    p(14, 1, 4, 8, '#ffc184');
+    p(11, 6, 4, 4, '#fff0c8');
+    p(7, 8, 4, 3, '#e0592f');
+  } else if (kind === 'ice_turret') {
+    // 얼음 포탑 — 얼음 기둥 + 결정 촉
+    p(8, 26, 16, 3, '#6aa7bd');
+    p(10, 20, 12, 7, '#9fd6e8');
+    p(11, 21, 10, 2, '#eafcff');
+    p(14, 12, 4, 9, '#bfe3ef');
+    p(15, 12, 2, 9, '#ffffff');
+    p(12, 2, 4, 11, '#5fc0e4');
+    p(16, 0, 4, 13, '#b7ecfc');
+    p(20, 5, 3, 8, '#a5e2f4');
+    p(16, 3, 2, 8, '#ffffff');
+    p(13, 8, 3, 3, '#eafcff');
   } else {
     // ⭐ 별빛 경보등 — 기둥 위의 별
     p(15, 10, 2, 21, '#8a7a6a');
@@ -244,6 +273,49 @@ export function structureTexture(kind) {
 }
 
 /* ── 날아가는 것들 ───────────────────────────────────────── */
+
+/** 7단계: 화염 포탑의 불덩이 */
+export function flameTexture() {
+  const key = 'flame';
+  if (cache.has(key)) return cache.get(key);
+  const { c, ctx } = pixelCanvas(32);
+  const p = painter(ctx, 1);
+  ctx.fillStyle = 'rgba(255,150,80,0.25)';
+  ctx.beginPath();
+  ctx.arc(16, 16, 15, 0, Math.PI * 2);
+  ctx.fill();
+  p(13, 6, 6, 10, '#ffd0a0');
+  p(10, 11, 12, 12, '#ff9a5e');
+  p(12, 9, 8, 16, '#ffb877');
+  p(14, 13, 5, 9, '#fff2cc');
+  p(8, 15, 4, 6, '#f2663f');
+  p(21, 14, 4, 7, '#e0592f');
+  p(13, 21, 6, 3, '#e86a38');
+  const tex = toTexture(c);
+  cache.set(key, tex);
+  return tex;
+}
+
+/** 7단계: 얼음 포탑의 얼음창 */
+export function frostTexture() {
+  const key = 'frost';
+  if (cache.has(key)) return cache.get(key);
+  const { c, ctx } = pixelCanvas(32);
+  const p = painter(ctx, 1);
+  ctx.fillStyle = 'rgba(160,225,255,0.28)';
+  ctx.beginPath();
+  ctx.arc(16, 16, 14, 0, Math.PI * 2);
+  ctx.fill();
+  p(14, 4, 5, 24, '#bfeaff');
+  p(15, 6, 3, 20, '#ffffff');
+  p(9, 12, 5, 5, '#8fd8f0');
+  p(20, 14, 5, 5, '#8fd8f0');
+  p(11, 20, 4, 4, '#a5e2f4');
+  p(21, 8, 4, 4, '#d9f6ff');
+  const tex = toTexture(c);
+  cache.set(key, tex);
+  return tex;
+}
 
 export function balloonTexture() {
   const key = 'balloon';

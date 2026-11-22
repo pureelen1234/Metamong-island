@@ -87,6 +87,19 @@ window.__metamong = {
         stockTotal: Object.values(p.defense.stock).reduce((a, b) => a + b, 0),
       },
       mapGrid: { grid: GRID, half: HALF },
+      // ── 7단계: 하우징 · 원정 · 튜토리얼
+      home: g.home ? g.home.state() : null,
+      expedition: {
+        ...JSON.parse(JSON.stringify(p.expedition || {})),
+        kinds: p.expeditionKinds(),
+        total: p.expeditionTotal,
+        active: !!(g.expedition && g.expedition.active),
+        run: g.expedition ? g.expedition.state() : null,
+      },
+      tutorial: { ...(p.tutorial || {}) },
+      materials: Object.fromEntries(
+        ['log', 'stone', 'petal', 'star', 'berry', 'copper', 'crystal', 'driftwood', 'volcano_heart', 'ice_crystal', 'ancient_gear', 'deep_pearl', 'meteor_shard', 'mist_mushroom'].map((id) => [id, p.materialCount(id)])
+      ),
       fishing: g.fishing
         ? { state: g.fishing.state, active: g.fishing.active, baitUsed: !!g.fishing.baitUsed, last: g.fishing.lastResult ? { id: g.fishing.lastResult.fish.id, size: g.fishing.lastResult.size } : null }
         : null,
@@ -116,6 +129,10 @@ window.__metamong = {
       quests: g.progress.claimableQuests,
       fishing: g.fishing ? g.fishing.state : 'idle',
       defense: g.defense ? g.defense.stats() : null,
+      indoor: !!(g.home && g.home.inside),
+      expeditionActive: !!(g.expedition && g.expedition.active),
+      tutorialCard: !!(g.tutorialUI && g.tutorialUI.visible),
+      tutorialStep: g.progress.tutorial ? g.progress.tutorial.step : 0,
       fishZone: g.fishing ? g.fishing.zone.id : null,
       fishPhase: g.fishing ? g.fishing.zone.habitat : null,
       settings: { ...g.state.settings },

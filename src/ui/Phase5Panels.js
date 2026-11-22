@@ -9,9 +9,10 @@ import { h } from './dom.js';
 import { DEFENSE, DITTOS, isInvasionDay } from '../config.js';
 import { RESULT_TEXT, STRUCTURES, STRUCTURE_NOTES, STRUCTURE_ORDER, CAT_HELP, WEAPONS, supportOf } from '../systems/defenseData.js';
 import { ITEMS } from '../systems/items.js';
+import { EXPEDITION_RESOURCES } from '../systems/expeditionData.js';
 
-const name = (id) => (ITEMS[id] ? ITEMS[id].name : id);
-const icon = (id) => (ITEMS[id] ? ITEMS[id].icon : '❔');
+const name = (id) => (ITEMS[id] ? ITEMS[id].name : EXPEDITION_RESOURCES[id] ? EXPEDITION_RESOURCES[id].name : id);
+const icon = (id) => (ITEMS[id] ? ITEMS[id].icon : EXPEDITION_RESOURCES[id] ? EXPEDITION_RESOURCES[id].icon : '❔');
 
 export class Phase5Panels {
   constructor(game) {
@@ -23,13 +24,13 @@ export class Phase5Panels {
   }
 
   #costChips(cost) {
-    const inv = this.game.progress.inventory;
+    const have = (id) => this.game.haveMaterial(id);
     return h(
       'div',
       { class: 'chips' },
       ...Object.entries(cost).map(([id, n]) => {
-        const have = inv.count(id);
-        return h('span', { class: `lchip ${have >= n ? 'ok' : 'lack'}` }, `${icon(id)} ${name(id)} ${n} (${have})`);
+        const owned = have(id);
+        return h('span', { class: `lchip ${owned >= n ? 'ok' : 'lack'}` }, `${icon(id)} ${name(id)} ${n} (${owned})`);
       })
     );
   }
@@ -181,8 +182,7 @@ export class Phase5Panels {
       const btn = h('button', { class: `mini ${n > 0 ? 'on' : ''}`, type: 'button' }, n > 0 ? '설치' : '없음');
       if (n <= 0 || st) btn.disabled = true;
       btn.addEventListener('click', () => g.installStructure(index, kind));
-      const canMake = Object.entries(def.cost).every(([id, need]) => inv.count(id) >= need);
-      list.append(
+      const canMake = Object.entries(def.cost).every(([id, need]) => g.haveMaterial(id) >= need);      list.append(
         h(
           'div',
           { class: 'df-pick-row' },
@@ -236,7 +236,7 @@ export class Phase5Panels {
     const list = h('div', { class: 'df-pick' });
     for (const kind of STRUCTURE_ORDER) {
       const def = STRUCTURES[kind];
-      const lack = Object.entries(def.cost).filter(([id, n]) => inv.count(id) < n);
+      const lack = Object.entries(def.cost).filter(([id, n]) => p.materialCount(id) < n);
       const btn = h('button', { class: `mini ${lack.length ? '' : 'on'}`, type: 'button' }, lack.length ? '재료 부족' : '제작');
       if (lack.length) btn.disabled = true;
       btn.addEventListener('click', () => g.craftStructure(kind));
@@ -260,11 +260,11 @@ export class Phase5Panels {
 
     return {
       title: '🛠️ 방어 제작',
-      subtitle: '기존 재료만으로 만드는 네 가지 방어 설비',
+      subtitle: '재료와 원정 자원으로 만드는 여섯 가지 방어 설비',
       body: h(
         'div',
         {},
-        h('div', { class: 'hint' }, '만든 설비는 창고에 담기고, 부두~광장 오솔길의 방어 슬롯 5곳에서 [설치] 합니다. 슬롯은 방어 현황에서도 열 수 있어요.'),
+        h('div', { class: 'hint' }, '만든 설비는 창고에 담기고, 부두~광장 오솔길의 방어 슬롯 5곳에서 [설치] 합니다. 화염·얼음 포탑은 원정지에서만 나오는 자원(화산 심장석·얼음 결정·고대 톱니·유성 파편)이 들어요.'),
         list,
         h('div', { class: 'section-label' }, '무기'),
         h(

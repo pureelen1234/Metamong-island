@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "보경이의 어설픈 메타몽 섬 - Phase 6 모바일 웹 HD-2D 도트 (농장 4×4 · 새 작물 5종 · 성장 비료 · 해변/숲/광맥 채집 · 물고기 15종 & 강 낚시)",
+  "description": "보경이의 어설픈 메타몽 섬 - Phase 7 모바일 웹 HD-2D 도트 (하우징 가구 12종 · 원정 3곳·전용 자원 6종·상위 포탑 · 단계별 튜토리얼·실수치 도움말)",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

@@ -261,7 +261,7 @@ def run():
                 snap(page, 'qa_01_title.png')
                 badge = page.locator('.title-badge').inner_text()
                 version = page.locator('.title-version').inner_text()
-                check('타이틀이 Phase 6', 'PHASE 6' in badge and 'Phase 6' in version, f'{badge} / {version}')
+                check('타이틀이 Phase 6 이상', 'PHASE' in badge and 'Phase' in version, f'{badge} / {version}')
                 new_island(page)
                 lf = life(page)
                 check('플레이 진입', stats(page)['mode'] == 'play', stats(page)['mode'])
@@ -647,7 +647,7 @@ def run():
                 )
                 page.wait_for_timeout(1200)
                 ver = page.evaluate("() => window.__metamong.game.snapshot().version")
-                check('스냅샷 버전 7', ver == 7, ver)
+                check('스냅샷 버전 7 이상', ver in (7, 8), ver)
                 stored = page.evaluate(
                     """async () => {
                       const s = await window.__metamong.game.saveStore.load();

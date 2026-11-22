@@ -33,6 +33,7 @@ import {
 import { recipeLabel } from '../systems/Cooking.js';
 import { sellableEntries, sellPrice, goodsRows } from '../systems/Shop.js';
 import { ALL_CROP_ORDER, CROPS, CROP_ORDER, FARMING, SEEDS, SEED_ORDER } from '../systems/farmData.js';
+import { EXPEDITION_ORDER, EXPEDITION_RESOURCES, EXPEDITION_SITES } from '../systems/expeditionData.js';
 
 const chip = (text, cls = '') => h('span', { class: `lchip ${cls}` }, text);
 
@@ -80,6 +81,7 @@ export class LifePanels {
         { id: 'ditto', label: '메타몽' },
         { id: 'fish', label: '물고기' },
         { id: 'gather', label: '채집' },
+        { id: 'expedition', label: '원정' },
         { id: 'cook', label: '요리' },
         { id: 'farm', label: '농사' },
         { id: 'cat', label: '고양이' },
@@ -94,6 +96,7 @@ export class LifePanels {
     const body = h('div', { class: 'codex-tabs' }, tabs);
     if (this.codexTab === 'fish') body.append(this.#codexFish());
     else if (this.codexTab === 'gather') body.append(this.#codexGather());
+    else if (this.codexTab === 'expedition') body.append(this.#codexExpedition());
     else if (this.codexTab === 'cook') body.append(this.#codexCook());
     else if (this.codexTab === 'farm') body.append(this.#codexFarm());
     else if (this.codexTab === 'cat') body.append(this.#codexCat());
@@ -103,6 +106,7 @@ export class LifePanels {
       ditto: '점 눈 두 개만 남은 어설픈 위장들',
       fish: '바다 10종 · 민물 5종 — 시간대마다 다른 얼굴',
       gather: '해변·숲·광맥에서 주운 특산물',
+      expedition: '다른 지역에서만 나오는 원정 자원 6종',
       cook: '공방에서 만들어 본 요리',
       farm: '4×4 텃밭에서 기른 작물 기록',
       cat: '솜이와 옹이의 마음',
@@ -236,6 +240,42 @@ export class LifePanels {
       h('div', { class: 'hint' }, `특산 바구니 ${known} / ${total}종 · 모두 ${p.forageTotal}개 · 가방 칸을 차지하지 않아요`),
       body,
       h('div', { class: 'hint' }, '해변은 부두 쪽 모래사장, 숲과 광맥은 다리를 건너 북쪽에 있어요. 자판기 [팔기] 에서 팔거나 공방 요리 재료로 써요.')
+    );
+  }
+
+  /** 7단계: 원정 자원 도감 — 다른 지역에서만 나오는 6종 */
+  #codexExpedition() {
+    const p = this.game.progress;
+    const total = EXPEDITION_ORDER.length;
+    const known = p.expeditionKinds();
+    const list = h('div', { class: 'recipe-list' });
+    for (const id of EXPEDITION_ORDER) {
+      const r = EXPEDITION_RESOURCES[id];
+      const n = p.expeditionCount(id);
+      const site = r.site ? EXPEDITION_SITES[r.site] : null;
+      list.append(
+        h(
+          'div',
+          { class: `recipe-card ${n > 0 ? '' : 'locked'}` },
+          h('span', { class: 'rico' }, n > 0 ? r.icon : '❔'),
+          h(
+            'div',
+            { class: 'rmain' },
+            h('div', { class: 'nm' }, n > 0 ? r.name : '아직 못 봄'),
+            h('div', { class: 'meta' }, r.desc),
+            h('div', { class: 'meta' }, site ? `${site.icon} ${site.name} 에서만` : '원정에서만')
+          ),
+          h('div', { class: 'fright' }, n > 0 ? chip(`바구니 ${n}`, 'ok') : chip('미등록'))
+        )
+      );
+    }
+    return h(
+      'div',
+      {},
+      this.#bar(Math.round((known / total) * 100)),
+      h('div', { class: 'hint' }, `원정 바구니 ${known} / ${total}종 · 모두 ${p.expeditionTotal}개 · 가방 칸을 차지하지 않아요`),
+      list,
+      h('div', { class: 'hint' }, '원정 의뢰판(🧭)에서 하루 한 번 다른 지역에 다녀오면 이 자원을 얻어요. 본섬 채집·낚시·농사에서는 나오지 않아요.')
     );
   }
 

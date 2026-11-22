@@ -48,8 +48,43 @@ export const STRUCTURES = {
     cooldown: 1.5,
     damage: 9,
     slow: 0.55,
+    /** 자동 사격 설정 — Defense 가 이 값을 보고 포탑을 돌린다 */
+    tower: { projectile: 'balloon', splash: 0 },
     desc: '사거리 안 불청객에게 물풍선을 자동으로 퐁퐁. 맞은 불청객은 잠깐 느려져요.',
-    effect: '사거리 7.2 · 1.5초마다',
+    effect: '사거리 7.2 · 1.5초마다 · 공격 9',
+  },
+  // ── 7단계: 원정 자원으로만 만드는 상위 포탑 2종 ──────────────
+  flame_turret: {
+    id: 'flame_turret',
+    name: '화염 포탑',
+    icon: '🔥',
+    cost: { stone: 6, copper: 2, volcano_heart: 1, meteor_shard: 1 },
+    hp: 96,
+    height: 1.35,
+    range: 7.8,
+    cooldown: 1.25,
+    damage: 26,
+    slow: 0,
+    splash: 1.6,
+    tower: { projectile: 'flame', splash: 1.6 },
+    desc: '화산 심장석의 열을 모아 불덩이를 쏘아요. 물풍선의 세 배에 가까운 위력으로 주변까지 태웁니다.',
+    effect: '사거리 7.8 · 1.25초마다 · 공격 26 · 범위 1.6',
+  },
+  ice_turret: {
+    id: 'ice_turret',
+    name: '얼음 포탑',
+    icon: '🧊',
+    cost: { stone: 5, crystal: 2, ice_crystal: 2, ancient_gear: 1 },
+    hp: 88,
+    height: 1.3,
+    range: 8.2,
+    cooldown: 1.6,
+    damage: 20,
+    slow: 0.3,
+    splash: 1.2,
+    tower: { projectile: 'frost', splash: 1.2 },
+    desc: '얼음 결정의 냉기를 담아 얼음창을 쏴요. 맞은 불청객의 발이 크게 느려져 길목이 막힙니다.',
+    effect: '사거리 8.2 · 1.6초마다 · 공격 20 · 이동 30% 둔화',
   },
   lamp: {
     id: 'lamp',
@@ -66,7 +101,7 @@ export const STRUCTURES = {
   },
 };
 
-export const STRUCTURE_ORDER = ['fence', 'scarecrow', 'turret', 'lamp'];
+export const STRUCTURE_ORDER = ['fence', 'scarecrow', 'turret', 'lamp', 'flame_turret', 'ice_turret'];
 
 /** 제작에 함께 쓰는 안내 — 공방 [방어 제작] 탭에서 보여 준다 */
 export const STRUCTURE_NOTES = {
@@ -74,6 +109,8 @@ export const STRUCTURE_NOTES = {
   scarecrow: '울타리보다 약하지만 불청객을 엉뚱한 곳으로 끌어당겨요.',
   turret: '직접 쏘지 않아도 알아서 쏴요. 경보등 옆에 붙여 두면 훨씬 빨라져요.',
   lamp: '별조각이 들어가요. 포탑 하나만 있어도 옆에 세우면 체감이 확 달라집니다.',
+  flame_turret: '원정지에서 가져온 화산 심장석·유성 파편이 들어가요. 물풍선 포탑과 같은 슬롯에서 훨씬 강하게 쏩니다.',
+  ice_turret: '얼음 결정과 고대 톱니가 들어가요. 위력보다 둔화가 핵심 — 덩치 망토가 길목에서 멈춰요.',
 };
 
 /* ── 주인공 무기 ──────────────────────────────────────────── */

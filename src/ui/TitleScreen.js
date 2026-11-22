@@ -34,7 +34,7 @@ export class TitleScreen {
     this.el = h(
       'div',
       { class: 'title-screen' },
-      h('div', { class: 'title-badge' }, 'PHASE 6 · HD-2D 도트'),
+      h('div', { class: 'title-badge' }, 'PHASE 7 · 하우징·원정·튜토리얼'),
       h(
         'div',
         { class: 'title-panel' },
@@ -49,7 +49,7 @@ export class TitleScreen {
         h('div', { class: 'title-actions' }, this.continueBtn, this.newBtn),
         this.hint
       ),
-      h('div', { class: 'title-version' }, 'GDD v1.7 · Phase 6 · 농장 4×4 · 채집 · 강 낚시')
+      h('div', { class: 'title-version' }, 'GDD v1.7 · Phase 7 · 집 꾸미기 · 원정 · 튜토리얼')
     );
 
     root.append(this.el);

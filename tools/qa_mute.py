@@ -125,7 +125,7 @@ MEASURE = """async (ms) => {
 STATE = """() => {
   const a = window.__metamong.audio;
   const g = window.__metamong.game;
-  const btn = document.querySelector('.hud-controls .icon-btn');
+  const btn = document.querySelector('.hud-controls .icon-btn[aria-label="음소거 토글"]');
   return {
     muted: a.muted,
     masterGain: a.master ? +a.master.gain.value.toFixed(4) : null,
@@ -222,6 +222,11 @@ def run():
             page.goto(url, wait_until='networkidle')
             page.wait_for_timeout(2500)
             page.locator('.title-actions button').last.click(no_wait_after=True)
+            page.wait_for_timeout(1800)
+            try:
+                page.evaluate("() => window.__metamong.game.skipTutorial()")
+            except Exception:
+                pass
             page.wait_for_timeout(2500)
             page.mouse.click(195, 700)  # 제스처(오디오 resume)
             page.wait_for_timeout(300)
@@ -238,7 +243,7 @@ def run():
 
             print('\n[2] 상단 음소거 버튼 클릭')
             st0 = page.evaluate(STATE)
-            page.locator('.hud-controls .icon-btn').first.click(no_wait_after=True)
+            page.locator('.hud-controls .icon-btn[aria-label="음소거 토글"]').first.click(no_wait_after=True)
             page.wait_for_timeout(160)
             st1 = page.evaluate(STATE)
             print('  click 전:', json.dumps(st0, ensure_ascii=False))
@@ -273,7 +278,7 @@ def run():
             check(revived['state'] == 'suspended' and rv.get('peak') == 0, ' 탭·복귀 후에도 suspended·무음 유지')
 
             print('\n[5] 음소거 해제')
-            page.locator('.hud-controls .icon-btn').first.click(no_wait_after=True)
+            page.locator('.hud-controls .icon-btn[aria-label="음소거 토글"]').first.click(no_wait_after=True)
             page.wait_for_timeout(250)
             st2 = page.evaluate(STATE)
             unmuted = page.evaluate(MEASURE, 6000)
@@ -301,7 +306,7 @@ def run():
             page.evaluate("window.__metamong.audio.setPhase('morning')")
 
             print('\n[7] 새로고침(이어하기) 후 음소거 유지')
-            page.locator('.hud-controls .icon-btn').first.click(no_wait_after=True)
+            page.locator('.hud-controls .icon-btn[aria-label="음소거 토글"]').first.click(no_wait_after=True)
             page.wait_for_timeout(500)
             page.evaluate('window.__metamong.game.save()')
             page.wait_for_timeout(500)
@@ -327,7 +332,7 @@ def run():
             page.screenshot(path=os.path.join(OUT, '03_after_reload_muted.png'))
 
             print('\n[8] 오디오 그래프 감사 — 마스터를 우회해 destination 으로 가는 소리')
-            page.locator('.hud-controls .icon-btn').first.click(no_wait_after=True)
+            page.locator('.hud-controls .icon-btn[aria-label="음소거 토글"]').first.click(no_wait_after=True)
             page.wait_for_timeout(800)
             graph = page.evaluate(GRAPH)
             # 테스트가 직접 붙인 측정 탭(게인 0)은 제외하고 본다

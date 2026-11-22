@@ -12,6 +12,8 @@ import { BAG, CART, FORAGE, HARVEST, ITEMS, STAMINA, isForageItem } from './item
 import { ALL_CROP_ORDER, CROPS, FARMING, NEW_CROP_ORDER, remainForNextStage, stageOfRemain } from './farmData.js';
 import { STRUCTURES, STRUCTURE_ORDER } from './defenseData.js';
 import { ACHIEVEMENTS, achById } from './achievementsData.js';
+import { FURNITURE, ROOM } from './homeData.js';
+import { isExpeditionResource } from './expeditionData.js';
 import {
   CAT_LEVELS,
   COOK,
@@ -66,7 +68,8 @@ export class Progress {
     // ── 5단계: 불청객 방어전
     /** 방어 설비 창고 — 공방에서 만든 것을 슬롯에 세운다 */
     this.defense = {
-      stock: { fence: 0, scarecrow: 0, turret: 0, lamp: 0 },
+      // 7단계: 설비가 6종으로 늘어도 STRUCTURE_ORDER 하나만 보면 된다
+      stock: Object.fromEntries(STRUCTURE_ORDER.map((kind) => [kind, 0])),
       /** 슬롯 5곳 — null 이거나 { kind, hp } */
       slots: new Array(DEFENSE.slots.length).fill(null),
       /** 전적 */
@@ -144,6 +147,14 @@ export class Progress {
     this.achievements = { unlocked: [], claimed: [] };
     /** Game 이 매번 동기화하는 도감 발견 수(메타몽 7마리 업적용) */
     this.discoveredCount = 0;
+
+    // ── 7단계: 하우징 · 원정 · 튜토리얼
+    /** 내 집 — 보유 가구(owned)와 방에 놓은 가구(placed). 새 섬은 의자·러그 한 개씩 */
+    this.home = { owned: { chair: 1, rug: 1 }, placed: [], visits: 0 };
+    /** 원정 — 전용 바구니(가방 칸을 차지하지 않는다) · 마지막 원정 Day · 횟수 */
+    this.expedition = { basket: {}, lastDay: 0, runs: 0, totalGathered: 0, lastSite: '', lastTotal: 0 };
+    /** 단계별 튜토리얼 진행 — step · 끝냄 · 건너뜀 */
+    this.tutorial = { step: 0, done: false, skipped: false };
   }
 
   /* ── 기력 ─────────────────────────────────────────────── */
@@ -599,6 +610,71 @@ export class Progress {
 
   /* ── 텃밭 (남쪽 3×3) ────────────────────────────────── */
 
+  /* ── 7단계: 원정 전용 바구니 ──────────────────────── */
+
+  /** 원정 바구니 상태를 보장한다 */
+  #expeditionState() {
+    if (!this.expedition || typeof this.expedition !== 'object') {
+      this.expedition = { basket: {}, lastDay: 0, runs: 0, totalGathered: 0, lastSite: '', lastTotal: 0 };
+    }
+    if (!this.expedition.basket || typeof this.expedition.basket !== 'object') this.expedition.basket = {};
+    return this.expedition;
+  }
+
+  expeditionCount(id) {
+    const e = this.#expeditionState();
+    return Math.max(0, Math.floor(Number(e.basket[id]) || 0));
+  }
+
+  addExpedition(id, n = 1) {
+    if (!isExpeditionResource(id)) return 0;
+    const e = this.#expeditionState();
+    const add = Math.max(0, Math.floor(Number(n) || 0));
+    e.basket[id] = Math.min(999, this.expeditionCount(id) + add);
+    e.totalGathered = Math.min(999999, (Number(e.totalGathered) || 0) + add);
+    return e.basket[id];
+  }
+
+  takeExpedition(id, n = 1) {
+    const e = this.#expeditionState();
+    const have = this.expeditionCount(id);
+    const take = Math.min(have, Math.max(0, Math.floor(Number(n) || 0)));
+    if (take <= 0) return 0;
+    const next = have - take;
+    if (next > 0) e.basket[id] = next;
+    else delete e.basket[id];
+    return take;
+  }
+
+  /** 원정 바구니에 담긴 자원 종류 수(도감용) */
+  expeditionKinds() {
+    return Object.keys(this.#expeditionState().basket).filter((id) => isExpeditionResource(id) && this.expeditionCount(id) > 0).length;
+  }
+
+  get expeditionTotal() {
+    const e = this.#expeditionState();
+    return Object.keys(e.basket).reduce((a, id) => a + (isExpeditionResource(id) ? this.expeditionCount(id) : 0), 0);
+  }
+
+  /* ── 7단계: 어디에 있든 재료 세기 (공방 제작 공용) ──── */
+
+  /** 가방 → 특산 바구니 → 원정 바구니 순서로 재료 보유량을 센다 */
+  materialCount(id) {
+    if (!id) return 0;
+    if (isExpeditionResource(id)) return this.expeditionCount(id);
+    if (isForageItem(id)) return this.forageCount(id);
+    return this.inventory.count(id);
+  }
+
+  /** 재료를 실제로 덜어 낸다 — materialCount 와 같은 순서 */
+  takeMaterial(id, n = 1) {
+    const want = Math.max(0, Math.floor(Number(n) || 0));
+    if (want <= 0) return 0;
+    if (isExpeditionResource(id)) return this.takeExpedition(id, want);
+    if (isForageItem(id)) return this.takeForage(id, want);
+    return this.inventory.take(id, want);
+  }
+
   plot(index) {
     return this.tileAt(this.farmPlots, index);
   }
@@ -898,6 +974,62 @@ export class Progress {
       welcome: { step: Math.max(0, Math.min(3, Math.floor(Number(this.welcome && this.welcome.step) || 0))) },
       // ── 5단계: 방어전
       defense: this.#defenseJson(),
+      // ── 7단계: 하우징 · 원정 · 튜토리얼
+      home: this.#homeJson(),
+      expedition: this.#expeditionJson(),
+      tutorial: {
+        step: Math.max(0, Math.min(30, Math.floor(Number(this.tutorial && this.tutorial.step) || 0))),
+        done: !!this.tutorial.done,
+        skipped: !!this.tutorial.skipped,
+      },
+    };
+  }
+
+  /** 하우징 상태를 저장 모양으로 — 가구 정의에 없는 id 는 버리고, 좌표는 실내 범위로 자른다 */
+  #homeJson() {
+    const src = this.home && typeof this.home === 'object' ? this.home : {};
+    const owned = {};
+    const srcOwned = src.owned && typeof src.owned === 'object' ? src.owned : {};
+    for (const [id, raw] of Object.entries(srcOwned)) {
+      if (!FURNITURE[id]) continue;
+      const n = Math.max(0, Math.min(9, Math.floor(Number(raw) || 0)));
+      if (n > 0) owned[id] = n;
+    }
+    const placed = [];
+    const srcPlaced = Array.isArray(src.placed) ? src.placed : [];
+    for (const d of srcPlaced) {
+      if (!d || !FURNITURE[d.id]) continue;
+      const def = FURNITURE[d.id];
+      const item = { id: d.id };
+      if (def.kind === 'wall') {
+        item.wall = ['back', 'left', 'right'].includes(d.wall) ? d.wall : 'back';
+        item.u = clamp(d.u, 0.06, 0.94, 0.5);
+      }
+      item.x = clamp(d.x, -ROOM.width / 2, ROOM.width / 2, 0);
+      item.z = clamp(d.z, -ROOM.depth / 2, ROOM.depth / 2, 0);
+      item.rot = clamp(d.rot, -Math.PI * 2, Math.PI * 2, 0);
+      placed.push(item);
+      if (placed.length >= ROOM.maxPlaced) break;
+    }
+    return { owned, placed, visits: Math.max(0, Math.min(9999, Math.floor(Number(src.visits) || 0))) };
+  }
+
+  /** 원정 상태를 저장 모양으로 */
+  #expeditionJson() {
+    const e = this.#expeditionState();
+    const basket = {};
+    for (const [id, raw] of Object.entries(e.basket)) {
+      if (!isExpeditionResource(id)) continue;
+      const n = Math.max(0, Math.min(999, Math.floor(Number(raw) || 0)));
+      if (n > 0) basket[id] = n;
+    }
+    return {
+      basket,
+      lastDay: Math.max(0, Math.min(3650, Math.floor(Number(e.lastDay) || 0))),
+      runs: Math.max(0, Math.min(99999, Math.floor(Number(e.runs) || 0))),
+      totalGathered: Math.max(0, Math.min(999999, Math.floor(Number(e.totalGathered) || 0))),
+      lastSite: typeof e.lastSite === 'string' ? e.lastSite : '',
+      lastTotal: Math.max(0, Math.min(9999, Math.floor(Number(e.lastTotal) || 0))),
     };
   }
 
@@ -1121,6 +1253,52 @@ export class Progress {
         hp: int(src.hp, 1, 9999, STRUCTURES[src.kind].hp),
       };
     }
+
+    /* ── 7단계: 하우징 · 원정 · 튜토리얼 (v7 이전 세이브는 기본값) ── */
+    const hsrc = json.home && typeof json.home === 'object' ? json.home : {};
+    this.home = { owned: {}, placed: [], visits: int(hsrc.visits, 0, 9999, 0) };
+    const howned = hsrc.owned && typeof hsrc.owned === 'object' ? hsrc.owned : {};
+    for (const [id, raw] of Object.entries(howned)) {
+      if (!FURNITURE[id]) continue;
+      const n = int(raw, 0, 9, 0);
+      if (n > 0) this.home.owned[id] = n;
+    }
+    const hplaced = Array.isArray(hsrc.placed) ? hsrc.placed : [];
+    for (const d of hplaced) {
+      if (!d || typeof d !== 'object' || !FURNITURE[d.id]) continue;
+      const def = FURNITURE[d.id];
+      const item = { id: d.id };
+      if (def.kind === 'wall') {
+        item.wall = ['back', 'left', 'right'].includes(d.wall) ? d.wall : 'back';
+        item.u = clamp(d.u, 0.06, 0.94, 0.5);
+      }
+      item.x = clamp(d.x, -ROOM.width / 2, ROOM.width / 2, 0);
+      item.z = clamp(d.z, -ROOM.depth / 2, ROOM.depth / 2, 0);
+      item.rot = clamp(d.rot, -Math.PI * 2, Math.PI * 2, 0);
+      this.home.placed.push(item);
+      if (this.home.placed.length >= ROOM.maxPlaced) break;
+    }
+
+    this.expedition = { basket: {}, lastDay: 0, runs: 0, totalGathered: 0, lastSite: '', lastTotal: 0 };
+    const esrc = json.expedition && typeof json.expedition === 'object' ? json.expedition : {};
+    const ebasket = esrc.basket && typeof esrc.basket === 'object' ? esrc.basket : {};
+    for (const [id, raw] of Object.entries(ebasket)) {
+      if (!isExpeditionResource(id)) continue;
+      const n = int(raw, 0, 999, 0);
+      if (n > 0) this.expedition.basket[id] = n;
+    }
+    this.expedition.lastDay = int(esrc.lastDay, 0, 3650, 0);
+    this.expedition.runs = int(esrc.runs, 0, 99999, 0);
+    this.expedition.totalGathered = int(esrc.totalGathered, 0, 999999, 0);
+    this.expedition.lastSite = typeof esrc.lastSite === 'string' ? esrc.lastSite : '';
+    this.expedition.lastTotal = int(esrc.lastTotal, 0, 9999, 0);
+
+    const tsrc = json.tutorial && typeof json.tutorial === 'object' ? json.tutorial : {};
+    this.tutorial = {
+      step: int(tsrc.step, 0, 30, 0),
+      done: !!tsrc.done,
+      skipped: !!tsrc.skipped,
+    };
 
     this.achievements = { unlocked: [], claimed: [] };
     const ach = json.achievements && typeof json.achievements === 'object' ? json.achievements : {};

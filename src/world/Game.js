@@ -36,6 +36,12 @@ import { Defense } from './Defense.js';
 import { setBridgeBuilt } from '../terrain/Heightmap.js';
 import { Phase4Panels } from '../ui/Phase4Panels.js';
 import { Phase5Panels } from '../ui/Phase5Panels.js';
+import { Phase7Panels } from '../ui/Phase7Panels.js';
+import { TutorialUI } from '../ui/TutorialUI.js';
+import { HomeHud } from '../ui/HomeHud.js';
+import { ExpeditionHud } from '../ui/ExpeditionHud.js';
+import { Home } from './Home.js';
+import { Expedition } from './Expedition.js';
 import { stageOf } from './Farming.js';
 import { cook as cookRecipe } from '../systems/Cooking.js';
 import { buy as buyGoods, sell as sellGoods } from '../systems/Shop.js';
@@ -78,6 +84,9 @@ import {
   weatherForDay,
 } from '../config.js';
 import { STRUCTURES } from '../systems/defenseData.js';
+import { FURNITURE, HOUSE, ROOM, furnitureOf } from '../systems/homeData.js';
+import { EXPEDITION, EXPEDITION_RESOURCES, ranToday, siteOf } from '../systems/expeditionData.js';
+import { TUTORIAL_STEPS, TUTORIAL_TOTAL } from '../systems/tutorialData.js';
 
 const DEFAULT_SETTINGS = { muted: false, timeScale: 1, fps30: false };
 const SPEEDS = [1, 10, 60];
@@ -115,6 +124,11 @@ export class Game {
     this.phase3 = null;
     this.phase4 = null;
     this.phase5 = null;
+    this.phase7 = null;
+    this.home = null;
+    this.expedition = null;
+    this.tutorialUI = null;
+    this.tutorialAcc = 0;
     this.defense = null;
     this.minimap = null;
     this.achAcc = 0;
@@ -200,6 +214,8 @@ export class Game {
       this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
       this.renderer.setSize(w, hgt, false);
       if (this.post) this.post.setSize(w, hgt);
+      if (this.home) this.home.fitCamera();
+      if (this.expedition) this.expedition.fitCamera();
     };
     window.addEventListener('resize', this.onResize);
     if (window.visualViewport) window.visualViewport.addEventListener('resize', this.onResize);
@@ -431,6 +447,11 @@ export class Game {
         catLevel: (id) => this.progress.catRow(id).level,
         day: () => this.state.day,
         onWaveStart: () => {
+          // 방어전이 시작되면 실내에 있어도 안전하게 밖으로 나온다
+          if (this.home && this.home.inside) {
+            this.home.exit();
+            this.hud?.toast('🛡️ 수집단이 왔어요 — 집 밖으로 나왔습니다', 2600);
+          }
           this.audioPhase = 'battle';
           this.audio.setPhase('battle');
           this.save();
@@ -442,6 +463,53 @@ export class Game {
           this.#refreshHud();
         },
         onWaveEnd: (res) => this.#onDefenseEnd(res),
+      },
+    });
+
+    // ── 7단계: 내 집(하우징) — 섬 위의 집 그림 + 분리된 실내 씬
+    this.home = new Home({
+      progress: this.progress,
+      scene: this.scene,
+      atlases: this.atlases,
+      hooks: {
+        toast: (msg, ms) => this.hud && this.hud.toast(msg, ms),
+        onChange: (kind) => {
+          if (kind === 'place' || kind === 'remove' || kind === 'rotate') {
+            this.save();
+            // 가구 목록이 열려 있었다면 보유 수를 다시 그린다
+            if (this.modal && this.modal.isOpen && (this.modal.card.textContent || '').includes('가구 고르기')) this.#openModal(this.phase7.furniture());
+            this.#refreshHud();
+          }
+        },
+        onEnter: () => {
+          this.hud?.joystick.setEnabled(false);
+          this.#refreshHud();
+        },
+        onExit: () => {
+          this.hud?.joystick.setEnabled(true);
+          this.#applyRenderTarget();
+          this.#refreshHud();
+          this.save();
+        },
+      },
+    });
+    this.scene.add(this.home.exterior);
+    this.spriteMaterials.push(this.home.exterior.material);
+    this.player.colliders.push({ x: HOUSE.x, z: HOUSE.z, r: HOUSE.collide });
+
+    // ── 7단계: 원정지(다른 지역) — 역시 분리된 씬
+    this.expedition = new Expedition({
+      progress: this.progress,
+      atlases: this.atlases,
+      hooks: {
+        toast: (msg, ms) => this.hud && this.hud.toast(msg, ms),
+        onHarvest: (info) => {
+          if (info && info.res) {
+            const p = this.player.position;
+            if (this.fx) this.fx.float(`${info.res.icon} +${info.n}`, p.x, p.y + 1.9, p.z, '#b2698f');
+          }
+        },
+        onReturn: (res) => this.#onExpeditionReturn(res),
       },
     });
   }
@@ -462,6 +530,8 @@ export class Game {
       onDefense: () => this.openDefense(),
       onDefenseStart: () => this.startDefenseNow(),
       onWeapon: (kind) => this.fireWeapon(kind),
+      onHelp: () => this.openHelp(),
+      onExpedition: () => this.openExpedition(),
     });
     this.hud.hide();
     this.modal = new Modal(this.uiRoot);
@@ -471,6 +541,21 @@ export class Game {
     this.phase3 = new Phase3Panels(this);
     this.phase4 = new Phase4Panels(this);
     this.phase5 = new Phase5Panels(this);
+    this.phase7 = new Phase7Panels(this);
+    this.homeHud = new HomeHud(this.uiRoot, {
+      onFurniture: () => this.openHomeFurniture(),
+      onRotate: () => this.rotateHomeFurniture(),
+      onPlace: () => this.confirmHomePlace(),
+      onPick: () => this.pickHomeFurniture(),
+      onRemove: () => this.removeHomeFurniture(),
+      onExit: () => this.exitHome(),
+    });
+    this.expHud = new ExpeditionHud(this.uiRoot, { onReturn: () => this.returnExpedition() });
+    this.tutorialUI = new TutorialUI(this.uiRoot, {
+      onHelp: () => this.openHelp(),
+      onNext: () => this.tutorialNext(),
+      onSkip: () => this.skipTutorial(),
+    });
     this.minimap = new Minimap(this.hud.container, this);
     if (this.fishing) this.fishing.hud = this.hud;
   }
@@ -656,6 +741,13 @@ export class Game {
     this.#syncCart();
     this.#welcomeSync();
     if (this.defense) this.defense.sync();
+    // ── 7단계: 하우징·원정은 항상 집 밖/섬에서 시작한다
+    if (this.home) {
+      this.home.inside = false;
+      this.home.sync();
+    }
+    this.#applyRenderTarget();
+    this.#syncTutorial(true);
     // 세이브를 복원한 직후 콜라이더(건물·나무·설비) 안에 겹쳐 있으면 밖으로 빼 준다
     // — 울타리 위에서 저장한 세이브를 새로고침해도 이동이 막히지 않는다
     const freed = this.player.unstick();
@@ -698,6 +790,9 @@ export class Game {
       this.defense.sync();
     }
     this.#syncBuilt();
+    // ── 7단계: 새 섬은 가구 한두 개를 들고 시작한다(튜토리얼 하우징 단계용)
+    if (this.home) this.home.sync();
+    this.tutorialAcc = 0;
   }
 
   #applySave(data) {
@@ -752,6 +847,10 @@ export class Game {
 
     // ── 5단계: 방어 슬롯에 세워 둔 설비 복원
     if (this.defense) this.defense.sync();
+    // ── 7단계: 가구 배치·원정 바구니·튜토리얼 단계 복원
+    if (this.home) this.home.sync();
+    this.#applyRenderTarget();
+    this.#syncTutorial(true);
     // 복원된 설비·건물 콜라이더 안에 서 있던 세이브라면 가장 가까운 안전한 자리로
     this.player.unstick();
   }
@@ -820,7 +919,9 @@ export class Game {
   }
 
   #frame(dt) {
-    const playing = this.mode === 'play' && !this.paused && !this.modal.isOpen && !document.hidden;
+    const away = !!(this.expedition && this.expedition.active);
+    const indoor = !!(this.home && this.home.inside);
+    const playing = this.mode === 'play' && !this.paused && !this.modal.isOpen && !document.hidden && !away;
     const scaledDt = playing ? dt * this.state.settings.timeScale : 0;
 
     if (playing) {
@@ -875,7 +976,7 @@ export class Game {
       if (this.defense.waveActive) this.player.speedScale *= this.defense.speedMultiplier;
     }
 
-    const move = this.#inputVector(playing);
+    const move = this.#inputVector(playing && !indoor && !away);
     this.player.update(dt, move, this.world.terrain, this.camera);
 
     // 🛒 리어카가 있으면 플레이어 뒤를 살짝 따라온다
@@ -910,6 +1011,9 @@ export class Game {
     if (this.bridge) this.bridge.update(dt, this.world.palette ? this.world.palette.night : 0);
     if (this.fishing && playing) this.fishing.update(dt, this.player.position);
     if (this.fx) this.fx.update(dt, this.camera);
+    // ── 7단계: 실내 가구 연출 · 원정지 진행(제한 시간·걸어가기·캐기)
+    if (this.home) this.home.update(dt);
+    if (this.expedition && this.expedition.active) this.expedition.update(dt);
 
     // 업적 조건 재검사 — 0.5초에 한 번이면 충분하다
     if (this.mode === 'play') {
@@ -917,6 +1021,12 @@ export class Game {
       if (this.achAcc > 0.5) {
         this.achAcc = 0;
         this.checkAchievements();
+      }
+      // 튜토리얼 — 지금 단계의 실제 행동을 마쳤는지 확인
+      this.tutorialAcc += dt;
+      if (this.tutorialAcc > 0.4) {
+        this.tutorialAcc = 0;
+        this.#tutorialCheck();
       }
     }
 
@@ -931,7 +1041,8 @@ export class Game {
     this.landmarkLabels.update(this.camera, this.mode === 'play');
 
     if (this.mode === 'play') {
-      this.#updateTarget();
+      if (!indoor && !away) this.#updateTarget();
+      else this.target = null;
       this.hudAcc += dt;
       if (this.hudAcc > 0.14) {
         this.hudAcc = 0;
@@ -951,6 +1062,7 @@ export class Game {
     }
 
     if (!this.contextLost) {
+      this.#applyRenderTarget();
       this.renderer.info.reset();
       this.post.render();
     }
@@ -1027,6 +1139,14 @@ export class Game {
   /* ── 상호작용 ──────────────────────────────────────────── */
 
   #updateTarget() {
+    if (this.home && this.home.inside) {
+      this.target = null;
+      return;
+    }
+    if (this.expedition && this.expedition.active) {
+      this.target = null;
+      return;
+    }
     let best = null;
     let bestDist = Infinity;
     const p = this.player.position;
@@ -1114,6 +1234,15 @@ export class Game {
       }
     }
 
+    // 🏠 내 집 문 앞 — [들어가기]. 방어전 중에는 집에 들어가지 않는다
+    if (!inWave) {
+      const dHome = Math.hypot(HOUSE.door.x - p.x, HOUSE.door.z - p.z);
+      if (dHome <= HOUSE.range && dHome < bestDist) {
+        best = { kind: 'home', id: 'home', x: HOUSE.door.x, z: HOUSE.door.z };
+        bestDist = dHome;
+      }
+    }
+
     // 복구 부지 — 공방은 창고 메뉴를 연다
     const site = inWave ? null : this.#nearestSite(p, INTERACT.siteRange);
     if (site) {
@@ -1177,6 +1306,20 @@ export class Game {
   interact() {
     if (this.mode !== 'play' || this.modal.isOpen || this.paused) return;
 
+    // 원정지에서는 액션 버튼이 가까운 자원 캐기
+    if (this.expedition && this.expedition.active) {
+      const res = this.expedition.collectNearby();
+      if (!res.ok) this.hud.toast('가까이에 캘 자원이 없어요 — 자원을 탭해 걸어가 보세요', 1800);
+      return;
+    }
+
+    // 실내에서는 액션 버튼이 놓기/회전/나가기
+    if (this.home && this.home.inside) {
+      if (this.home.ghost) return this.confirmHomePlace();
+      if (this.home.selected >= 0) return this.rotateHomeFurniture();
+      return this.exitHome();
+    }
+
     // 낚시 중에는 액션 버튼이 곧 찌 당기기
     if (this.fishing && this.fishing.active) {
       this.fishing.reel();
@@ -1214,6 +1357,10 @@ export class Game {
     }
     if (t.kind === 'defense_slot') {
       this.openDefenseSlot(t.index);
+      return;
+    }
+    if (t.kind === 'home') {
+      this.enterHome();
       return;
     }
     if (t.kind === 'site') {
@@ -1262,6 +1409,20 @@ export class Game {
 
   #onCanvasTap(e) {
     if (this.mode !== 'play' || this.modal.isOpen) return;
+
+    // 원정지 — 자원이나 바닥을 탭하면 주인공이 걸어간다
+    if (this.expedition && this.expedition.active) {
+      this.expedition.tap(e.clientX, e.clientY);
+      return;
+    }
+
+    // 실내 — 유령 가구 이동 / 놓인 가구 선택
+    if (this.home && this.home.inside) {
+      const res = this.home.onTap(e.clientX, e.clientY);
+      if (res && res.kind === 'select') this.#refreshHud();
+      if (res && res.kind === 'ghost') this.#refreshHud();
+      return;
+    }
 
     // 낚시 중 화면 탭 = 찌 당기기 (대상 판정보다 먼저)
     if (this.fishing && this.fishing.active) {
@@ -1374,6 +1535,43 @@ export class Game {
     this.hud.setAchievements(this.progress.claimableAchievements);
     this.hud.setRipePlots(this.progress.farmPlots.filter((st) => st && st.remain <= 0).length);
     this.#refreshDefenseHud();
+    if (this.defense && this.defense.waveActive) this.tutorialUI.hide();
+
+    // ── 7단계: 실내 조작 바
+    if (this.home && this.home.inside) {
+      const st = this.home.state();
+      const sel = st.selected >= 0 ? st.placed[st.selected] : null;
+      const selDef = sel ? FURNITURE[sel.id] : null;
+      const ghostDef = st.ghost ? FURNITURE[st.ghost.id] : null;
+      this.homeHud.show();
+      this.homeHud.update({
+        ghost: ghostDef ? { name: ghostDef.name } : null,
+        selected: sel,
+        selectedName: selDef ? selDef.name : '',
+        placedCount: st.placedCount,
+      });
+      this.hud.setDefense({ banner: null, wave: null, weapons: null });
+      this.expHud.hide();
+      this.tutorialUI.hide();
+      if (ghostDef) this.hud.setAction({ active: true, icon: '🪑', label: `${ghostDef.name} 놓기` });
+      else if (selDef) this.hud.setAction({ active: true, icon: '🔄', label: `${selDef.name} 회전` });
+      else this.hud.setAction({ active: true, icon: '🚪', label: '나가기' });
+      return;
+    }
+    this.homeHud.hide();
+
+    // ── 7단계: 원정지 머리 띠
+    if (this.expedition && this.expedition.active) {
+      const es = this.expedition.state();
+      const site = siteOf(es.site);
+      this.expHud.show();
+      this.expHud.update({ siteName: site ? site.name : '', icon: site ? site.icon : '', timer: es.timer, collected: es.collected });
+      this.hud.setDefense({ banner: null, wave: null, weapons: null });
+      this.tutorialUI.hide();
+      this.hud.setAction({ active: true, icon: '🧺', label: '자원 캐기' });
+      return;
+    }
+    this.expHud.hide();
 
     // 낚시 중에는 액션 버튼이 낚시 하나만 가리킨다
     if (this.fishing && this.fishing.active) {
@@ -1428,6 +1626,8 @@ export class Game {
           ? { active: true, icon: st.def.icon, label: `${t.index + 1}번 슬롯 관리` }
           : { active: true, icon: '➕', label: `${t.index + 1}번 슬롯 설치` }
       );
+    } else if (t && t.kind === 'home') {
+      this.hud.setAction({ active: true, icon: '🏠', label: '집에 들어가기' });
     } else if (t && t.kind === 'site') {
       const built = !!this.progress.building(t.id).done;
       const openLabel = t.id === 'workshop' ? '공방 열기' : t.id === 'vending' ? '자판기 열기' : `${t.name} 살펴보기`;
@@ -1585,6 +1785,7 @@ export class Game {
       body,
       actions: [
         { label: '계속 걷기', kind: 'primary', onClick: () => this.modal.close() },
+        { label: '📖 도움말', kind: 'ghost', onClick: () => this.openHelp() },
         { label: '타이틀로 돌아가기', kind: 'ghost', onClick: () => this.backToTitle() },
       ],
       onClose: () => this.save(),
@@ -1609,6 +1810,7 @@ export class Game {
     if (id === 'rank') return this.openRank();
     if (id === 'bag') return this.openBag();
     if (id === 'farm') return this.openFarm();
+    if (id === 'help') return this.openHelp();
     if (id !== 'build') return;
 
     if (id === 'build') {
@@ -2295,6 +2497,345 @@ export class Game {
     return true;
   }
 
+  /* ── 7단계: 🏠 하우징 ────────────────────────────── */
+
+  /** 후처리 RenderPass 의 무대를 월드 → 실내 / 원정지로 바꾼다 */
+  #applyRenderTarget() {
+    if (!this.post || !this.post.renderPass) return;
+    const rp = this.post.renderPass;
+    if (this.home && this.home.inside) {
+      rp.scene = this.home.room;
+      rp.camera = this.home.camera;
+      return;
+    }
+    if (this.expedition && this.expedition.active) {
+      rp.scene = this.expedition.scene;
+      rp.camera = this.expedition.camera;
+      return;
+    }
+    rp.scene = this.scene;
+    rp.camera = this.camera;
+  }
+
+  enterHome() {
+    if (this.mode !== 'play' || !this.home) return false;
+    if (this.defense && this.defense.waveActive) {
+      this.audio.sfxDeny();
+      this.hud.toast('🛡️ 방어전 중에는 집에 들어갈 수 없어요', 2000);
+      return false;
+    }
+    if (this.expedition && this.expedition.active) return false;
+    if (this.modal.isOpen) this.modal.close();
+    const ok = this.home.enter();
+    if (!ok) return false;
+    this.paused = false;
+    this.hud.joystick.reset();
+    this.#applyRenderTarget();
+    this.#refreshHud();
+    this.save();
+    return true;
+  }
+
+  exitHome() {
+    if (!this.home || !this.home.inside) return false;
+    this.home.exit();
+    // 문 앞 잔디로 나온다 — 문 앞이 막혔으면 조금 남쪽으로
+    const door = HOUSE.door;
+    const tx = this.world.terrain.isWalkable(door.x, door.z + 0.4) ? door.x : door.x - 1.2;
+    const tz = this.world.terrain.isWalkable(door.x, door.z + 0.4) ? door.z + 0.4 : door.z + 1.0;
+    this.player.teleport(tx, tz);
+    this.player.setYaw(Math.PI);
+    this.#snapCamera();
+    this.#applyRenderTarget();
+    this.hud.toast('🚪 집 밖으로 나왔어요', 1800);
+    this.#syncTutorial(true);
+    this.#refreshHud();
+    this.save();
+    return true;
+  }
+
+  openHomeFurniture() {
+    if (this.mode !== 'play') return;
+    if (!this.home || !this.home.inside) {
+      this.hud.toast('🏠 먼저 집에 들어가야 가구를 놓을 수 있어요', 2000);
+      return;
+    }
+    this.#openModal(this.phase7.furniture());
+    this.hud.joystick.reset();
+  }
+
+  /** 가구 제작 — 공방 복구 + 재료(가방·특산·원정 바구니) + 코인 */
+  craftFurniture(id) {
+    const def = furnitureOf(id);
+    if (!def) return false;
+    if (!this.progress.building('workshop').done) {
+      this.audio.sfxDeny();
+      this.hud.toast('공방을 먼저 복구해야 가구를 만들 수 있어요 🔨', 2200);
+      return false;
+    }
+    const lack = Object.entries(def.cost).filter(([k, n]) => (k === 'coin' ? this.progress.coins : this.progress.materialCount(k)) < n);
+    if (lack.length) {
+      this.audio.sfxDeny();
+      const need = lack.map(([k, n]) => `${k === 'coin' ? '🪙' : ''}${ITEMS[k] ? ITEMS[k].name : EXPEDITION_RESOURCES[k] ? EXPEDITION_RESOURCES[k].name : k} ${n}`).join(' · ');
+      this.hud.toast(`재료가 부족해요 — ${need}`, 2400);
+      return false;
+    }
+    for (const [k, n] of Object.entries(def.cost)) {
+      if (k === 'coin') this.progress.spendCoins(n);
+      else this.progress.takeMaterial(k, n);
+    }
+    this.home.addOwned(id, 1);
+    this.audio.sfxBuild();
+    this.hud.toast(`${def.icon} ${def.name} 제작! 보유 ${this.home.ownedCount(id)}개 — [놓기] 로 방에 두세요`, 2800);
+    this.save();
+    this.#refreshHud();
+    if (this.modal.isOpen) this.#openModal(this.phase7.furniture());
+    return true;
+  }
+
+  /** 보유 가구를 집어 든다 — 가구 목록을 닫고 방에서 탭해 놓는다 */
+  placeFurniture(id) {
+    if (!this.home || !this.home.inside) {
+      this.hud.toast('🏠 먼저 집에 들어가 주세요', 1800);
+      return false;
+    }
+    const res = this.home.beginPlace(id);
+    if (!res.ok) {
+      this.audio.sfxDeny();
+      this.hud.toast(res.reason === 'full' ? `방이 가득 찼어요 (최대 ${ROOM.maxPlaced}개)` : '그 가구가 없어요 — 먼저 제작해 주세요', 2200);
+      return false;
+    }
+    if (this.modal.isOpen) this.modal.close();
+    this.hud.toast(`${res.def.icon} ${res.def.name} — 방을 탭해 자리를 잡아요`, 2400);
+    this.#refreshHud();
+    return true;
+  }
+
+  rotateHomeFurniture() {
+    if (!this.home) return false;
+    const res = this.home.rotate();
+    if (!res.ok) {
+      this.audio.sfxDeny();
+      this.hud.toast('돌릴 가구를 먼저 골라 주세요', 1700);
+      return false;
+    }
+    this.audio.sfxUi();
+    if (res.wallName) this.hud.toast(`🔄 ${res.wallName} 으로 옮겼어요`, 1800);
+    else this.hud.toast(`🔄 ${res.deg}° 회전`, 1500);
+    this.#refreshHud();
+    this.save();
+    return true;
+  }
+
+  confirmHomePlace() {
+    if (!this.home) return false;
+    const res = this.home.confirmPlace();
+    if (!res.ok) {
+      this.audio.sfxDeny();
+      return false;
+    }
+    const def = furnitureOf(res.data.id);
+    this.audio.sfxBuild();
+    this.hud.toast(`${def ? def.icon + ' ' + def.name : '가구'} — 방에 놓았어요!`, 2200);
+    this.#refreshHud();
+    this.save();
+    return true;
+  }
+
+  pickHomeFurniture() {
+    if (!this.home) return false;
+    const res = this.home.pickSelected();
+    if (!res.ok) {
+      this.hud.toast('옮길 가구를 먼저 골라 주세요', 1700);
+      return false;
+    }
+    this.hud.toast('✋ 가구를 다시 들었어요 — 방을 탭해 자리를 잡아요', 2200);
+    this.#refreshHud();
+    return true;
+  }
+
+  removeHomeFurniture() {
+    if (!this.home) return false;
+    const res = this.home.removeSelected();
+    if (!res.ok) {
+      this.hud.toast('치울 가구를 먼저 골라 주세요', 1700);
+      return false;
+    }
+    this.audio.sfxUi();
+    this.hud.toast(`🧹 ${res.name} 을(를) 치웠어요 — 보유 목록으로 돌아갔어요`, 2200);
+    this.#refreshHud();
+    this.save();
+    return true;
+  }
+
+  /* ── 7단계: 🧭 원정 ────────────────────────────────── */
+
+  openExpedition() {
+    if (this.mode !== 'play') return;
+    if (this.home && this.home.inside) this.exitHome();
+    this.#openModal(this.phase7.expedition());
+  }
+
+  /** 원정 출발 — 하루 1회 · 기력 확인 */
+  startExpedition(siteId) {
+    if (this.mode !== 'play' || !this.expedition) return false;
+    if (this.expedition.active) return false;
+    const site = siteOf(siteId);
+    if (!site) return false;
+    if (ranToday(this.progress, this.state.day)) {
+      this.audio.sfxDeny();
+      this.hud.toast(`🧭 오늘(Day ${this.state.day})은 이미 다녀왔어요 — 다음 날 다시 열려요`, 2400);
+      return false;
+    }
+    if (this.defense && this.defense.waveActive) {
+      this.audio.sfxDeny();
+      this.hud.toast('🛡️ 방어전 중에는 원정을 떠날 수 없어요', 2200);
+      return false;
+    }
+    if (!this.progress.useStamina(EXPEDITION.entryStamina)) {
+      this.audio.sfxDeny();
+      this.hud.toast(`💪 기력이 부족해요 — 출발에 ${EXPEDITION.entryStamina} 필요해요`, 2200);
+      return false;
+    }
+    if (this.modal.isOpen) this.modal.close();
+    this.paused = false;
+    const res = this.expedition.start(siteId, this.state.day);
+    if (!res.ok) {
+      this.progress.restStamina(EXPEDITION.entryStamina);
+      return false;
+    }
+    this.audio.sfxRare?.();
+    this.hud.joystick.setEnabled(false);
+    this.hud.toast(`${site.icon} ${site.name} 도착 — 자원을 탭해 캐고, 다 챙기면 [귀환]!`, 3000);
+    this.#applyRenderTarget();
+    this.#refreshHud();
+    return true;
+  }
+
+  /** [귀환] — 챙긴 자원을 들고 돌아온다 */
+  returnExpedition() {
+    if (!this.expedition || !this.expedition.active) return false;
+    this.expedition.stop('manual');
+    return true;
+  }
+
+  /** 원정 결과 → 원정 바구니 · 전적 · 저장 */
+  #onExpeditionReturn(res) {
+    if (!res) return;
+    let total = 0;
+    const labels = [];
+    for (const [id, n] of Object.entries(res.collected || {})) {
+      this.progress.addExpedition(id, n);
+      total += n;
+      const r = EXPEDITION_RESOURCES[id];
+      if (r) labels.push(`${r.icon} ${r.name} ${n}`);
+    }
+    const e = this.progress.expedition;
+    e.runs = (Number(e.runs) || 0) + 1;
+    e.lastDay = Number(res.day) || this.state.day;
+    e.lastSite = res.site || '';
+    e.lastTotal = total;
+    this.audio.sfxFanfare?.();
+    this.hud.toast(
+      total > 0 ? `🧭 원정 귀환 — ${labels.join(' · ')}` : '🧭 원정에서 빈손으로 돌아왔어요 — 다음엔 자원을 탭해 캐 보세요',
+      3200
+    );
+    this.#applyRenderTarget();
+    this.hud.joystick.setEnabled(true);
+    this.checkAchievements();
+    this.save();
+    this.#syncTutorial(true);
+    this.#refreshHud();
+    if (this.mode === 'play') this.#openModal(this.phase7.expeditionResult(res));
+  }
+
+  /* ── 7단계: 📖 튜토리얼 · 도움말 ───────────────────── */
+
+  haveMaterial(id) {
+    return this.progress.materialCount(id);
+  }
+
+  openHelp() {
+    if (this.mode !== 'play') return;
+    this.#openModal(this.phase7.help());
+  }
+
+  /** 튜토리얼 카드를 지금 단계에 맞춘다 */
+  #syncTutorial(force = false) {
+    if (!this.tutorialUI) return;
+    const t = this.progress.tutorial;
+    if (!t || t.done || t.skipped) {
+      this.tutorialUI.hide();
+      return;
+    }
+    const def = TUTORIAL_STEPS[t.step];
+    if (!def) {
+      t.done = true;
+      this.tutorialUI.hide();
+      return;
+    }
+    if (!force && this.tutorialUI.visible) return;
+    this.tutorialUI.show(t.step, TUTORIAL_TOTAL, def);
+  }
+
+  /** 지금 단계의 실제 행동을 마쳤는지 0.4초마다 확인 */
+  #tutorialCheck() {
+    const t = this.progress.tutorial;
+    if (!t || t.done || t.skipped) return;
+    const def = TUTORIAL_STEPS[t.step];
+    if (!def || typeof def.check !== 'function') return;
+    let ok = false;
+    try {
+      ok = !!def.check(this);
+    } catch (err) {
+      ok = false;
+    }
+    if (!ok) return;
+    this.audio.sfxCoin?.();
+    this.hud.toast(`✅ ${def.title} — 다음 안내로 넘어갈게요`, 2400);
+    this.#tutorialAdvance();
+  }
+
+  #tutorialAdvance() {
+    const t = this.progress.tutorial;
+    t.step = Math.min(TUTORIAL_TOTAL, (Number(t.step) || 0) + 1);
+    if (t.step >= TUTORIAL_TOTAL) {
+      t.done = true;
+      this.tutorialUI.hide();
+      this.hud.toast('🎉 단계별 안내를 모두 마쳤어요 — 도움말 ❓에서 언제든 다시 볼 수 있어요', 3400);
+      this.save();
+      return;
+    }
+    this.tutorialUI.show(t.step, TUTORIAL_TOTAL, TUTORIAL_STEPS[t.step]);
+    this.save();
+  }
+
+  /** [다음] — 지금 단계를 건너뛰고 다음으로 */
+  tutorialNext() {
+    const t = this.progress.tutorial;
+    if (!t || t.done) return;
+    this.#tutorialAdvance();
+  }
+
+  /** [건너뛰기] — 안내 카드를 닫는다(도움말에서 언제든 다시 볼 수 있음) */
+  skipTutorial() {
+    const t = this.progress.tutorial;
+    if (!t) return;
+    t.skipped = true;
+    this.tutorialUI.hide();
+    this.hud.toast('📖 안내를 닫았어요 — 도움말(❓)에서 언제든 다시 볼 수 있어요', 2800);
+    this.save();
+  }
+
+  /** [처음부터 다시 보기] */
+  restartTutorial() {
+    this.progress.tutorial = { step: 0, done: false, skipped: false };
+    if (this.modal.isOpen) this.modal.close();
+    this.#syncTutorial(true);
+    this.hud.toast('📖 단계별 안내를 처음부터 다시 보여 드릴게요', 2400);
+    this.save();
+  }
+
   /* ── 🛡️ 5단계: 불청객 방어전 ─────────────────────── */
 
   openDefense() {
@@ -2323,16 +2864,18 @@ export class Game {
   craftStructure(kind) {
     const def = STRUCTURES[kind];
     if (!def) return false;
-    const inv = this.progress.inventory;
-    const lack = Object.entries(def.cost).filter(([id, n]) => inv.count(id) < n);
+    const prog = this.progress;
+    const lack = Object.entries(def.cost).filter(([id, n]) => prog.materialCount(id) < n);
     if (lack.length) {
       this.audio.sfxDeny();
-      const need = lack.map(([id, n]) => `${ITEMS[id] ? ITEMS[id].name : id} ${n}`).join(' · ');
+      const need = lack
+        .map(([id, n]) => `${ITEMS[id] ? ITEMS[id].name : EXPEDITION_RESOURCES[id] ? EXPEDITION_RESOURCES[id].name : id} ${n}`)
+        .join(' · ');
       this.hud.toast(`재료가 부족해요 — ${need}`, 2400);
       if (this.modal.isOpen) this.#openModal(this.phase5.craft());
       return false;
     }
-    for (const [id, n] of Object.entries(def.cost)) inv.take(id, n);
+    for (const [id, n] of Object.entries(def.cost)) prog.takeMaterial(id, n);
     const d = this.progress.defense;
     d.stock[kind] = Math.min(9, (d.stock[kind] || 0) + 1);
     this.audio.sfxBuild();
@@ -2410,6 +2953,8 @@ export class Game {
       return false;
     }
     if (this.modal.isOpen) this.modal.close();
+    // 실내에 있었다면 방어전 전에 밖으로 나온다
+    if (this.home && this.home.inside) this.exitHome();
     const res = this.defense.startWave(this.state.day, 'manual');
     if (!res.ok) {
       this.audio.sfxDeny();
@@ -2987,7 +3532,7 @@ export class Game {
     // 노드 상태는 Gathering 이 들고 있다(리젠 카운트다운 포함)
     life.nodes = this.gathering ? this.gathering.toJSON() : {};
     return {
-      version: 7,
+      version: 8,
       savedAt: Date.now(),
       day: this.state.day,
       elapsedSeconds: Math.round(this.state.elapsed * 100) / 100,

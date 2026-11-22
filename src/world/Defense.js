@@ -30,6 +30,8 @@ import {
   balloonTexture,
   boatTexture,
   decoyTexture,
+  flameTexture,
+  frostTexture,
   pelletTexture,
   raiderTexture,
   safeRingTexture,
@@ -571,11 +573,15 @@ export class Defense {
     return { ok: true, target };
   }
 
-  /** 설치된 포탑 자동 사격 — 경보등이 옆에 있으면 공격 속도가 오른다 */
+  /**
+   * 설치된 포탑 자동 사격 — 경보등이 옆에 있으면 공격 속도가 오른다.
+   * 7단계부터 포탑은 세 종류(물풍선·화염·얼음) — def.tower 가 있는 설비는 모두 자동 사격한다.
+   */
   #updateTurrets(dt) {
-    const def = STRUCTURES.turret;
     for (const st of this.structures) {
-      if (!st || st.kind !== 'turret' || st.hp <= 0) continue;
+      if (!st || st.hp <= 0) continue;
+      const def = st.def;
+      if (!def || !def.tower) continue;
       st.cd = Math.max(0, (st.cd || 0) - dt);
       if (st.cd > 0) continue;
       const target = this.#nearestRaiderFrom(st.x, st.z, def.range);
@@ -584,11 +590,12 @@ export class Defense {
       st.cd = def.cooldown / boost;
       this.#launch({
         source: 'turret',
-        kind: 'balloon',
+        kind: def.tower.projectile || 'balloon',
         from: { x: st.x, y: st.y + 0.95, z: st.z },
         target,
         dmg: def.damage * this.support.power,
         slow: def.slow,
+        splash: def.tower.splash || 0,
       });
     }
   }
@@ -618,8 +625,10 @@ export class Defense {
   }
 
   #launch({ source = 'sling', kind, from, target, dmg, splash = 0, slow = 0, knockback = 0 }) {
-    const tex = kind === 'balloon' ? balloonTexture() : pelletTexture();
-    const size = kind === 'balloon' ? 0.42 : 0.22;
+    const TEX = { balloon: balloonTexture, flame: flameTexture, frost: frostTexture };
+    const SIZE = { balloon: 0.42, flame: 0.44, frost: 0.4 };
+    const tex = TEX[kind] ? TEX[kind]() : pelletTexture();
+    const size = SIZE[kind] || 0.22;
     const sprite = this.#sprite(tex, size, { renderOrder: 6 });
     sprite.position.set(from.x, from.y, from.z);
     this.root.add(sprite);
@@ -632,7 +641,7 @@ export class Defense {
       from,
       to,
       t: 0,
-      dur: clamp(dist / (kind === 'balloon' ? 9 : 14), 0.12, 0.7),
+      dur: clamp(dist / (kind === 'balloon' || kind === 'flame' || kind === 'frost' ? 9 : 14), 0.12, 0.7),
       dmg,
       splash,
       slow,
@@ -660,7 +669,7 @@ export class Defense {
           if (r.state === 'down') continue;
           if (dist2(r.x, r.z, p.to.x, p.to.z) <= p.splash) hits.push(r);
         }
-        this.fx?.burst(p.to.x, p.to.y, p.to.z, '#a9e2f7', 18, { spread: 2.2, up: 2.4, size: 1.2 });
+        this.fx?.burst(p.to.x, p.to.y, p.to.z, p.kind === 'flame' ? '#ffb277' : p.kind === 'frost' ? '#bfeaff' : '#a9e2f7', 18, { spread: 2.2, up: 2.4, size: 1.2 });
       } else if (p.target && p.target.state !== 'down') {
         hits.push(p.target);
       }

@@ -18,6 +18,7 @@ import { NATURE, LANDMARKS, DITTOS, CATS, DEFENSE, FARM, GATHER, GATHER_TYPES, P
 import { HEIGHTS, isWalkableAt, islandHeight, setBridgeBuilt } from '../src/terrain/Heightmap.js';
 import { ROUTES } from '../src/world/Path.js';
 import { FISHING_ZONES, FISHING_ZONE_ORDER } from '../src/systems/lifeData.js';
+import { HOUSE, ROOM } from '../src/systems/homeData.js';
 
 const problems = [];
 const notes = [];
@@ -109,7 +110,26 @@ for (const lm of LANDMARKS) {
   if (pathD > 3.6) notes.push(`${lm.name} 이 길에서 ${pathD.toFixed(1)} 떨어져 있다`);
 }
 
-/* ── ④ 서로 파고들지 않는가 ─────────────────────────── */
+/* ── 7단계: 내 집(하우징) — 문 앞이 길과 닿고, 집이 길·채집지·방어 슬롯을 막지 않는가 ── */
+walk(HOUSE.x, HOUSE.z, '내 집');
+walk(HOUSE.door.x, HOUSE.door.z, '집 문 앞');
+const homePathD = distToPaths(HOUSE.door.x, HOUSE.door.z);
+if (homePathD > 2.4) fail(`집 문 앞이 길에서 너무 멀다 (${homePathD.toFixed(2)})`);
+for (const c of colliders) {
+  const d = Math.hypot(HOUSE.x - c.x, HOUSE.z - c.z);
+  if (d < c.r + HOUSE.collide - 0.1) fail(`내 집이 ${c.kind}(${c.x},${c.z}) 와 겹친다 (${d.toFixed(2)})`);
+}
+for (const g of GATHER) {
+  if (Math.hypot(g.x - HOUSE.x, g.z - HOUSE.z) < HOUSE.collide + 1.0) fail(`채집지(${g.x}, ${g.z}) 가 내 집과 너무 가깝다`);
+}
+for (const slot of DEFENSE.slots) {
+  if (Math.hypot(slot.x - HOUSE.x, slot.z - HOUSE.z) < HOUSE.collide + 1.2) fail(`방어 슬롯 ${slot.id} 이 내 집과 너무 가깝다`);
+}
+if (!(ROOM.width > 0 && ROOM.depth > 0)) fail('실내 크기가 잘못됐다');
+notes.push(`내 집 (${HOUSE.x}, ${HOUSE.z}) · 문 앞 (${HOUSE.door.x}, ${HOUSE.door.z}) · 실내 ${ROOM.width}×${ROOM.depth}`);
+colliders.push({ kind: 'house', x: HOUSE.x, z: HOUSE.z, r: HOUSE.collide });
+
+/* ── 서로 파고들지 않는가 ─────────────────────────── */
 for (let i = 0; i < colliders.length; i++) {
   for (let j = i + 1; j < colliders.length; j++) {
     const a = colliders[i];
