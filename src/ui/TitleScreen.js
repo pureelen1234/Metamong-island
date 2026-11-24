@@ -7,6 +7,7 @@ export class TitleScreen {
     this.onNew = onNew;
     this.hasSave = hasSave;
     this.busy = false;
+    this._ready = false;
 
     this.progressBar = h('i');
     this.progressWrap = h('div', { class: 'title-progress' }, this.progressBar);
@@ -17,7 +18,7 @@ export class TitleScreen {
     this.newBtn = h(
       'button',
       { class: `btn ${hasSave ? 'ghost' : 'primary'}`, type: 'button', disabled: 'disabled' },
-      hasSave ? '새로 시작' : '새로 시작'
+      '새로 시작'
     );
 
     if (this.continueBtn) {
@@ -34,7 +35,7 @@ export class TitleScreen {
     this.el = h(
       'div',
       { class: 'title-screen' },
-      h('div', { class: 'title-badge' }, 'PHASE 7 · 하우징·원정·튜토리얼'),
+      h('div', { class: 'title-badge' }, '🌿 포근한 메타몽 섬 · v1.7'),
       h(
         'div',
         { class: 'title-panel' },
@@ -49,7 +50,7 @@ export class TitleScreen {
         h('div', { class: 'title-actions' }, this.continueBtn, this.newBtn),
         this.hint
       ),
-      h('div', { class: 'title-version' }, 'GDD v1.7 · Phase 7 · 집 꾸미기 · 원정 · 튜토리얼')
+      h('div', { class: 'title-version' }, '포근한 메타몽 섬 · v1.7')
     );
 
     root.append(this.el);
@@ -63,14 +64,15 @@ export class TitleScreen {
   }
 
   setReady(ready) {
+    this._ready = !!ready;
     if (this.busy) return;
     if (this.continueBtn) {
-      if (ready) this.continueBtn.removeAttribute('disabled');
+      if (this._ready) this.continueBtn.removeAttribute('disabled');
       else this.continueBtn.setAttribute('disabled', 'disabled');
     }
-    if (ready) this.newBtn.removeAttribute('disabled');
+    if (this._ready) this.newBtn.removeAttribute('disabled');
     else this.newBtn.setAttribute('disabled', 'disabled');
-    this.progressWrap.style.opacity = ready ? '0' : '1';
+    this.progressWrap.style.opacity = this._ready ? '0' : '1';
   }
 
   #choose(kind) {
@@ -88,7 +90,7 @@ export class TitleScreen {
   show() {
     this.el.classList.remove('hidden');
     this.busy = false;
-    this.setReady(false);
+    this.setReady(this._ready);
   }
 
   destroy() {

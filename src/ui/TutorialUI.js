@@ -1,9 +1,8 @@
 /**
- * TutorialUI.js — 7단계 튜토리얼 카드
+ * TutorialUI.js — 7단계 튜토리얼 카드 (접기/펼치기 지원)
  *
- * 화면 위쪽(HUD 아래)에 한 단계씩 안내를 띄운다. 단계의 실제 행동을 마치면
- * Game 이 자동으로 다음 단계로 넘긴다. [도움말] 로 게임 정보 화면을 열고,
- * [다음] 은 지금 단계를 건너뛰어 다음으로, [건너뛰기] 는 튜토리얼 전체를 닫는다.
+ * 평소에는 한 줄짜리 아담한 목표 필로 표시되어 화면을 가리지 않고,
+ * 탭하면 자세한 안내와 [도움말]·[건너뛰기]·[다음] 버튼이 펼쳐진다.
  */
 import { h } from './dom.js';
 
@@ -12,10 +11,12 @@ export class TutorialUI {
     this.handlers = handlers;
     this.step = -1;
     this.total = 0;
+    this.collapsed = true;
 
     this.ico = h('span', { class: 'tu-ico' }, '📖');
     this.counter = h('span', { class: 'tu-step' }, '1/10');
     this.title = h('div', { class: 'tu-title' }, '');
+    this.chevron = h('span', { class: 'tu-chevron', 'aria-hidden': 'true' }, '▾');
     this.body = h('div', { class: 'tu-body' }, '');
     this.hint = h('div', { class: 'tu-hint' }, '');
     this.dots = h('div', { class: 'tu-dots' });
@@ -24,21 +25,43 @@ export class TutorialUI {
     this.nextBtn = h('button', { class: 'tu-btn', type: 'button', onclick: () => this.handlers.onNext?.() }, '다음');
     this.skipBtn = h('button', { class: 'tu-btn ghost', type: 'button', onclick: () => this.handlers.onSkip?.() }, '건너뛰기');
 
-    this.el = h(
+    this.headBtn = h(
+      'button',
+      {
+        class: 'tu-head',
+        type: 'button',
+        'aria-expanded': 'false',
+        'aria-label': '가이드 펼치기 또는 접기',
+        onclick: () => this.toggle(),
+      },
+      this.ico,
+      h('div', { class: 'tu-headmain' }, this.counter, this.title),
+      this.chevron
+    );
+
+    this.details = h(
       'div',
-      { class: 'tutorial-card hidden', 'data-tutorial': 'card' },
-      h(
-        'div',
-        { class: 'tu-head' },
-        this.ico,
-        h('div', { class: 'tu-headmain' }, this.counter, this.title),
-        this.dots
-      ),
+      { class: 'tu-details' },
+      this.dots,
       this.body,
       this.hint,
       h('div', { class: 'tu-actions' }, this.helpBtn, this.skipBtn, this.nextBtn)
     );
+
+    this.el = h(
+      'div',
+      { class: 'tutorial-card collapsed hidden', 'data-tutorial': 'card' },
+      this.headBtn,
+      this.details
+    );
     root.append(this.el);
+  }
+
+  toggle(force) {
+    this.collapsed = typeof force === 'boolean' ? force : !this.collapsed;
+    this.el.classList.toggle('collapsed', this.collapsed);
+    this.headBtn.setAttribute('aria-expanded', this.collapsed ? 'false' : 'true');
+    this.chevron.textContent = this.collapsed ? '▾' : '▴';
   }
 
   /**
@@ -54,7 +77,7 @@ export class TutorialUI {
     this.step = step;
     this.total = total;
     this.ico.textContent = def.icon || '📖';
-    this.counter.textContent = `${step + 1} / ${total} 단계`;
+    this.counter.textContent = `${step + 1}/${total}`;
     this.title.textContent = def.title || '';
     this.body.textContent = typeof def.body === 'function' ? def.body() : String(def.body || '');
     this.hint.textContent = def.hint ? `👉 ${def.hint}` : '';

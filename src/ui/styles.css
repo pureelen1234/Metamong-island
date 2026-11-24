@@ -2,17 +2,26 @@
    어설픈 메타몽 섬 — 파스텔 UI (S26 세로 화면 기준)
    ───────────────────────────────────────────────────────────── */
 :root {
-  --ink: #57506a;
-  --ink-soft: #857d96;
-  --glass: rgba(255, 255, 255, 0.74);
-  --glass-strong: rgba(255, 253, 251, 0.94);
-  --pink: #ffd7e7;
-  --pink-deep: #f7b7d2;
-  --mint: #cdeedd;
-  --lav: #ded4f7;
-  --sky: #d3ecfb;
-  --shadow: 0 10px 26px rgba(122, 108, 150, 0.16);
-  --shadow-soft: 0 4px 14px rgba(122, 108, 150, 0.12);
+  --paper: #FFFDF2;
+  --cream: #F7F1DE;
+  --ink: #4E3B2B;
+  --ink-soft: #6D5846;
+  --leaf: #58B970;
+  --leaf-dark: #276738;
+  --honey: #F4C44E;
+  --coral: #F2846B;
+  --sky-mint: #7CCFD4;
+  --wood-border: #D8C7A6;
+  --border-warm: #DFCFAF;
+  --glass: rgba(255, 253, 242, 0.92);
+  --glass-strong: #FFFDF2;
+  --pink: #FDE5D7;
+  --pink-deep: #F2846B;
+  --mint: #D7F2DD;
+  --lav: #F7F1DE;
+  --sky: #DDF3F5;
+  --shadow: 0 6px 0 rgba(139, 108, 72, 0.16), 0 12px 24px rgba(90, 68, 42, 0.14);
+  --shadow-soft: 0 3px 0 rgba(139, 108, 72, 0.14), 0 6px 14px rgba(90, 68, 42, 0.1);
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   color-scheme: light;
@@ -34,9 +43,9 @@ body {
   -webkit-user-select: none;
   user-select: none;
   -webkit-touch-callout: none;
-  background: #eef7fd;
+  background: #F7F1DE;
   color: var(--ink);
-  font-family: 'Noto Sans CJK KR', 'Apple SD Gothic Neo', 'Malgun Gothic', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-family: 'Gowun Dodum', 'Noto Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', system-ui, sans-serif;
   font-size: 15px;
   -webkit-font-smoothing: antialiased;
 }
@@ -104,7 +113,7 @@ canvas#scene {
 }
 
 .pill .day {
-  color: #a07ab5;
+  color: #276738;
 }
 
 .pill .clock {
@@ -118,7 +127,7 @@ canvas#scene {
   padding: 2px 6px;
   border-radius: 999px;
   background: #ffe3ef;
-  color: #b96a8f;
+  color: #276738;
   font-size: 11px;
   font-weight: 800;
 }
@@ -154,7 +163,7 @@ canvas#scene {
 /* 음소거 중 — 버튼만 봐도 '꺼져 있다'는 걸 알 수 있게 */
 .icon-btn[aria-pressed='true'] {
   background: #ffeef6;
-  color: #b96a8f;
+  color: #276738;
   box-shadow: inset 0 0 0 2px rgba(214, 140, 176, 0.45);
 }
 
@@ -237,7 +246,7 @@ canvas#scene {
   border-radius: 50%;
   background: linear-gradient(155deg, #ffe7f1, #ffc9e0);
   box-shadow: 0 12px 24px rgba(235, 148, 188, 0.38), inset 0 2px 0 rgba(255, 255, 255, 0.8);
-  color: #8a5670;
+  color: #4E3B2B;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -355,7 +364,7 @@ canvas#scene {
 }
 
 .landmark-pill .lm-day {
-  color: #a897b5;
+  color: #6D5846;
   font-weight: 700;
 }
 
@@ -453,7 +462,7 @@ canvas#scene {
   font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.14em;
-  color: #bf9dc6;
+  color: #7A6350;
   margin: 0 0 8px;
 }
 
@@ -629,7 +638,7 @@ canvas#scene {
   height: 34px;
   border: none;
   border-radius: 12px;
-  background: #f2ecf6;
+  background: #EFE7D2;
   color: #8a7f99;
   font-size: 16px;
   font-weight: 800;
@@ -638,7 +647,7 @@ canvas#scene {
 
 .modal-body {
   font-size: 13.5px;
-  color: #6f6680;
+  color: #4E3B2B;
   line-height: 1.7;
 }
 
@@ -659,7 +668,7 @@ canvas#scene {
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.08em;
-  color: #b09abd;
+  color: #7A6350;
   margin: 14px 0 6px;
 }
 
@@ -684,7 +693,7 @@ canvas#scene {
 
 .row .hint {
   font-size: 11.5px;
-  color: #9a90a8;
+  color: #6D5846;
   font-weight: 600;
   margin-top: 2px;
 }
@@ -692,7 +701,7 @@ canvas#scene {
 .seg {
   display: flex;
   gap: 4px;
-  background: #f2ecf6;
+  background: #EFE7D2;
   padding: 3px;
   border-radius: 12px;
 }
@@ -705,13 +714,13 @@ canvas#scene {
   font-family: inherit;
   font-size: 12px;
   font-weight: 800;
-  color: #90879e;
+  color: #6D5846;
   cursor: pointer;
 }
 
 .seg button.on {
   background: #fff;
-  color: #b2698f;
+  color: #276738;
   box-shadow: 0 2px 6px rgba(150, 130, 170, 0.18);
 }
 
@@ -783,7 +792,6 @@ canvas#scene {
   background-color: rgba(246, 241, 249, 0.85);
   background-repeat: no-repeat;
   background-position: center;
-  image-rendering: pixelated;
   display: grid;
   place-items: center;
   font-size: 18px;
@@ -808,7 +816,7 @@ canvas#scene {
 
 .codex-card .meta {
   font-size: 10.5px;
-  color: #a096ae;
+  color: #6D5846;
   margin-top: 3px;
 }
 
@@ -857,7 +865,7 @@ canvas#scene {
 
 .site-item .site-meta {
   font-size: 11px;
-  color: #9a90a8;
+  color: #6D5846;
   margin-top: 2px;
 }
 
@@ -1050,7 +1058,7 @@ canvas#scene {
   top: 3px;
   font-size: 9px;
   font-weight: 800;
-  color: #b2698f;
+  color: #276738;
   background: #ffe6f0;
   border-radius: 999px;
   padding: 0 4px;
@@ -1120,7 +1128,7 @@ canvas#scene {
 .bag-slot .nm {
   font-size: 9.5px;
   font-weight: 700;
-  color: #9a90a8;
+  color: #6D5846;
 }
 
 .bag-slot.tap {
@@ -1191,7 +1199,7 @@ canvas#scene {
 
 .mini:active {
   background: #ffe6f0;
-  color: #b2698f;
+  color: #276738;
 }
 
 /* ── 복구 ──────────────────────────────────────────────── */
@@ -1230,7 +1238,7 @@ canvas#scene {
 
 .req-row .sub {
   font-size: 10.5px;
-  color: #9a90a8;
+  color: #6D5846;
   margin-top: 1px;
 }
 
@@ -1264,7 +1272,7 @@ canvas#scene {
 .done-banner .sub {
   font-size: 12px;
   font-weight: 700;
-  color: #9a90a8;
+  color: #6D5846;
   margin-top: 7px;
   line-height: 1.6;
 }
@@ -1338,7 +1346,7 @@ canvas#scene {
 
 .mail-from {
   font-size: 10.5px;
-  color: #9a90a8;
+  color: #6D5846;
   margin-top: 3px;
   font-weight: 600;
 }
@@ -1359,7 +1367,7 @@ canvas#scene {
 .letter-from {
   font-size: 11px;
   font-weight: 800;
-  color: #b09abd;
+  color: #7A6350;
   margin-bottom: 9px;
 }
 
@@ -1367,7 +1375,7 @@ canvas#scene {
   margin: 0 0 10px;
   font-size: 13px;
   line-height: 1.75;
-  color: #6f6680;
+  color: #4E3B2B;
 }
 
 .gift-box {
@@ -1380,7 +1388,7 @@ canvas#scene {
 .gift-head {
   font-size: 12px;
   font-weight: 800;
-  color: #b2698f;
+  color: #276738;
   margin-bottom: 8px;
 }
 
@@ -1427,16 +1435,6 @@ canvas#scene {
    ───────────────────────────────────────────────────────────── */
 
 /* ── HUD 추가 칩 (코인 · 의뢰 · 버프) ───────────────────── */
-.hud-stats {
-  flex-wrap: wrap;
-  gap: 5px;
-}
-
-/* 코인·의뢰까지 한 줄에 들어가도록 HUD 통계 요소를 살짝 조인다 */
-.hud-stats .icon-btn {
-  width: 40px;
-  height: 40px;
-}
 
 .coin-chip {
   display: inline-flex;
@@ -1461,7 +1459,7 @@ canvas#scene {
 }
 
 .coin-chip.rich {
-  color: #b2698f;
+  color: #276738;
 }
 
 .quest-btn {
@@ -1609,7 +1607,7 @@ canvas#scene {
   padding: 4px;
   margin: 4px 0 2px;
   border-radius: 14px;
-  background: #f2ecf6;
+  background: #EFE7D2;
 }
 
 .tab {
@@ -1621,14 +1619,14 @@ canvas#scene {
   font-family: inherit;
   font-size: 12.5px;
   font-weight: 800;
-  color: #90879e;
+  color: #6D5846;
   cursor: pointer;
   white-space: nowrap;
 }
 
 .tab.on {
   background: #fff;
-  color: #b2698f;
+  color: #276738;
   box-shadow: 0 2px 6px rgba(150, 130, 170, 0.18);
 }
 
@@ -1733,7 +1731,7 @@ canvas#scene {
 .rmain .meta {
   font-size: 10.5px;
   font-weight: 600;
-  color: #9a90a8;
+  color: #6D5846;
   line-height: 1.5;
   margin-top: 2px;
 }
@@ -1754,7 +1752,6 @@ canvas#scene {
   border-radius: 16px;
   background-color: #f7f2fa;
   background-repeat: no-repeat;
-  image-rendering: pixelated;
   box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.9);
 }
 
@@ -1781,7 +1778,7 @@ canvas#scene {
 
 .cmain .meta {
   font-size: 10.5px;
-  color: #9a90a8;
+  color: #6D5846;
   font-weight: 600;
   line-height: 1.5;
   margin-top: 3px;
@@ -1808,7 +1805,7 @@ canvas#scene {
 .cat-info .meta {
   font-size: 11px;
   font-weight: 700;
-  color: #9a90a8;
+  color: #6D5846;
   margin-top: 4px;
 }
 
@@ -1964,7 +1961,7 @@ canvas#scene {
 
 .smain .meta {
   font-size: 10.5px;
-  color: #9a90a8;
+  color: #6D5846;
   font-weight: 700;
   margin-top: 3px;
 }
@@ -1973,7 +1970,7 @@ canvas#scene {
   flex: none;
   font-size: 11.5px;
   font-weight: 900;
-  color: #b2698f;
+  color: #276738;
 }
 
 /* ── 의뢰 ──────────────────────────────────────────────── */
@@ -2021,7 +2018,7 @@ canvas#scene {
 .qmain .meta {
   font-size: 10.5px;
   font-weight: 700;
-  color: #9a90a8;
+  color: #6D5846;
   margin-top: 3px;
 }
 
@@ -2086,7 +2083,7 @@ canvas#scene {
 .gmain .meta {
   font-size: 10.5px;
   font-weight: 600;
-  color: #9a90a8;
+  color: #6D5846;
   margin-top: 2px;
   line-height: 1.4;
 }
@@ -2139,7 +2136,7 @@ canvas#scene {
 .menu-entry .mmain .meta {
   font-size: 10.5px;
   font-weight: 600;
-  color: #9a90a8;
+  color: #6D5846;
   margin-top: 2px;
 }
 
@@ -2176,7 +2173,7 @@ canvas#scene {
   padding: 9px 0;
   border-radius: 12px;
   background: #fff1f7;
-  color: #b2698f;
+  color: #276738;
   font-weight: 900;
   font-size: 12px;
   border: 1px solid #ffdbe8;
@@ -2224,7 +2221,7 @@ canvas#scene {
 .tool-row .tmain .meta {
   font-size: 10.5px;
   font-weight: 600;
-  color: #9a90a8;
+  color: #6D5846;
   line-height: 1.45;
   margin-top: 3px;
 }
@@ -2259,7 +2256,6 @@ canvas#scene {
   display: block;
   width: 104px;
   height: 104px;
-  image-rendering: pixelated;
 }
 
 .minimap-pin {
@@ -2409,7 +2405,7 @@ canvas#scene {
   min-height: 13px;
   font-size: 9.5px;
   font-weight: 700;
-  color: #9a90a8;
+  color: #6D5846;
   line-height: 1.35;
 }
 
@@ -2541,7 +2537,7 @@ canvas#scene {
   margin-top: 3px;
   font-size: 10px;
   font-weight: 600;
-  color: #9a90a8;
+  color: #6D5846;
   line-height: 1.45;
 }
 
@@ -2580,7 +2576,6 @@ canvas#scene {
 .minimap-big {
   display: block;
   width: 100%;
-  image-rendering: pixelated;
 }
 
 .map-legend {
@@ -2598,7 +2593,7 @@ canvas#scene {
   background: #fff;
   font-size: 11px;
   font-weight: 700;
-  color: #6f6680;
+  color: #4E3B2B;
 }
 
 .legend-row .sw {
@@ -2612,7 +2607,7 @@ canvas#scene {
   margin-left: auto;
   font-size: 10px;
   font-weight: 600;
-  color: #9a90a8;
+  color: #6D5846;
 }
 
 /* 낮은 화면(가로·작은 폰)에서는 미니맵을 조금 줄인다 */
@@ -2677,7 +2672,7 @@ canvas#scene {
   content: '›';
   font-size: 12px;
   font-weight: 900;
-  color: #b09abd;
+  color: #7A6350;
   margin-left: 1px;
 }
 
@@ -2768,7 +2763,7 @@ canvas#scene {
 .welcome-row .wmain .meta {
   font-size: 10.5px;
   font-weight: 600;
-  color: #9a90a8;
+  color: #6D5846;
   margin-top: 2px;
   line-height: 1.4;
   word-break: keep-all;
@@ -2778,8 +2773,8 @@ canvas#scene {
   flex: none;
   padding: 3px 7px;
   border-radius: 999px;
-  background: #f2ecf6;
-  color: #9a90a8;
+  background: #EFE7D2;
+  color: #6D5846;
   font-size: 10px;
   font-weight: 800;
   white-space: nowrap;
@@ -2796,9 +2791,7 @@ canvas#scene {
 }
 
 /* ── 🌾 논 타일 (물 잠긴 흙) ────────────────────────────── */
-.paddy-grid {
-  grid-template-columns: repeat(3, 1fr);
-}
+/* paddy-grid uses 4 columns matching PADDY.cols = 4 */
 
 .farm-cell.paddy {
   background: linear-gradient(160deg, #f4fbfc, #e6f4f6);
@@ -2950,7 +2943,7 @@ canvas#scene {
   border: none;
   border-radius: 20px;
   background: linear-gradient(155deg, #fff6fa, #ffe3ef);
-  color: #8a5670;
+  color: #4E3B2B;
   box-shadow: 0 8px 18px rgba(214, 150, 180, 0.35), inset 0 2px 0 rgba(255, 255, 255, 0.8);
   font-family: inherit;
   font-size: 10px;
@@ -3011,7 +3004,7 @@ canvas#scene {
   gap: 9px;
   padding: 10px 11px;
   border-radius: 16px;
-  background: linear-gradient(135deg, #f4f8ff, #fff4f8);
+  background: linear-gradient(135deg, #f4f8ff, #FBF5E4);
   box-shadow: var(--shadow-soft);
 }
 
@@ -3033,7 +3026,7 @@ canvas#scene {
 .df-summary .df-sum-text .meta {
   font-size: 10.5px;
   font-weight: 600;
-  color: #9a90a8;
+  color: #6D5846;
   margin-top: 2px;
 }
 
@@ -3071,7 +3064,7 @@ canvas#scene {
   width: 20px;
   height: 20px;
   border-radius: 999px;
-  background: #f2ecf6;
+  background: #EFE7D2;
   color: #8a7d99;
   font-size: 10px;
   font-weight: 900;
@@ -3100,7 +3093,7 @@ canvas#scene {
 .df-slot .ds-main .meta {
   font-size: 10.5px;
   font-weight: 600;
-  color: #9a90a8;
+  color: #6D5846;
   margin-top: 2px;
 }
 
@@ -3108,7 +3101,7 @@ canvas#scene {
   flex: none;
   font-size: 10px;
   font-weight: 800;
-  color: #b2698f;
+  color: #276738;
 }
 
 /* ── 슬롯 관리 · 방어 제작 ──────────────────────────────── */
@@ -3145,7 +3138,7 @@ canvas#scene {
 .df-result .main .meta {
   font-size: 10.5px;
   font-weight: 600;
-  color: #9a90a8;
+  color: #6D5846;
   margin-top: 2px;
   line-height: 1.4;
   word-break: keep-all;
@@ -3189,7 +3182,7 @@ canvas#scene {
 .df-pick-row .main .meta {
   font-size: 10.5px;
   font-weight: 600;
-  color: #9a90a8;
+  color: #6D5846;
   margin-top: 2px;
   line-height: 1.4;
   word-break: keep-all;
@@ -3268,7 +3261,7 @@ canvas#scene {
   font-size: 10.5px;
   font-weight: 800;
   letter-spacing: 0.04em;
-  color: #b96a8f;
+  color: #276738;
 }
 
 .tu-title {
@@ -3288,7 +3281,7 @@ canvas#scene {
   width: 6px;
   height: 6px;
   border-radius: 999px;
-  background: #e6dced;
+  background: #DFCFAF;
 }
 
 .tu-dots i.on {
@@ -3312,7 +3305,7 @@ canvas#scene {
   margin-top: 7px;
   padding: 6px 9px;
   border-radius: 10px;
-  background: #fff4f8;
+  background: #FBF5E4;
   color: #a8658a;
   font-size: 11.5px;
   font-weight: 700;
@@ -3588,4 +3581,784 @@ canvas#scene {
   color: var(--ink-soft);
   line-height: 1.45;
   word-break: keep-all;
+}
+
+
+/* ═════════════════════════════════════════════════════════════
+   🌿 Animal Crossing (모동숲) Storybook UI Theme & P0/P1/P2 Fixes
+   ═════════════════════════════════════════════════════════════ */
+
+/* ── Global Accessibility & Reduced Motion ────────────────── */
+:focus-visible {
+  outline: 3px solid var(--leaf);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ── Playful Rounded Display Typography (Jua) ─────────────── */
+.title-heading,
+.title-badge,
+.modal-title,
+.section-label,
+.btn,
+.mini,
+.pill,
+.tab,
+.action-btn,
+.quick,
+.tu-title,
+.tu-step,
+.done-banner,
+.wallet strong {
+  font-family: 'Jua', 'Gowun Dodum', 'Noto Sans KR', sans-serif;
+  letter-spacing: 0.01em;
+}
+
+/* ── Tactile Cream Paper HUD Pills & Controls ─────────────── */
+.pill {
+  background: var(--paper);
+  border: 2px solid var(--border-warm);
+  box-shadow: var(--shadow-soft);
+  color: var(--ink);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.pill .day {
+  color: var(--leaf-dark);
+}
+
+.pill .speed {
+  background: #FFF1C9;
+  color: #8A5B14;
+  border: 1px solid #EBD08A;
+}
+
+.icon-btn {
+  background: var(--paper);
+  border: 2px solid var(--border-warm);
+  box-shadow: var(--shadow-soft);
+  color: var(--ink);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.icon-btn:active {
+  transform: translateY(2px) scale(0.96);
+  background: var(--cream);
+}
+
+.icon-btn[aria-pressed='true'] {
+  background: #FDE9DF;
+  color: #B44D36;
+  border-color: #E8A692;
+  box-shadow: inset 0 2px 4px rgba(180, 77, 54, 0.16);
+}
+
+/* ── HUD Stats & Touch Targets >= 44px ────────────────────── */
+.hud-stats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.hud-stats .icon-btn {
+  min-width: 44px;
+  min-height: 44px;
+  width: 44px;
+  height: 44px;
+  border-radius: 15px;
+}
+
+.stamina,
+.coin-chip,
+.cart-chip,
+.buff-chip {
+  background: var(--paper);
+  border: 2px solid var(--border-warm);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.stamina .bar {
+  background: #EAE0C8;
+}
+
+.stamina .bar i {
+  background: linear-gradient(90deg, #58B970, #7CCFD4);
+}
+
+.coin-chip {
+  color: #7D5618;
+  padding: 6px 10px;
+  font-size: 12.5px;
+}
+
+/* ── Title Screen Storybook Card ──────────────────────────── */
+.title-badge {
+  background: var(--paper);
+  border: 2px solid var(--border-warm);
+  color: var(--leaf-dark);
+  box-shadow: var(--shadow-soft);
+  padding: 7px 16px;
+  border-radius: 999px;
+}
+
+.title-panel {
+  background: var(--paper);
+  border: 2.5px solid var(--border-warm);
+  border-radius: 28px;
+  box-shadow: var(--shadow), inset 0 0 0 3px rgba(255, 253, 242, 0.85);
+  outline: 1.5px dashed rgba(216, 199, 166, 0.65);
+  outline-offset: -8px;
+}
+
+.title-eyebrow {
+  color: var(--leaf-dark);
+}
+
+.title-heading {
+  color: var(--ink);
+}
+
+.title-sub,
+.title-hint,
+.title-version {
+  color: var(--ink-soft);
+}
+
+.title-progress {
+  background: #EDE3CC;
+}
+
+.title-progress i {
+  background: linear-gradient(90deg, var(--leaf), var(--honey));
+}
+
+/* ── Joystick Fixes (No Drag Lag, Hide Home on Desktop) ───── */
+.joystick-zone.active .joystick-knob {
+  transition: none !important;
+}
+
+.joystick-knob {
+  background: linear-gradient(155deg, #FFFDF2, #F4C44E);
+  border: 2.5px solid #FFFDF2;
+  box-shadow: 0 4px 10px rgba(139, 108, 72, 0.32);
+}
+
+.joystick-base {
+  background: rgba(255, 253, 242, 0.42);
+  border: 2px solid rgba(255, 253, 242, 0.88);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .joystick-home {
+    display: none !important;
+  }
+}
+
+/* ── Action Button & Quickbar (Tactile Leaf / Wood) ───────── */
+.action-btn {
+  background: linear-gradient(155deg, #74CF89, #58B970);
+  color: #FFFDF2;
+  border: 3px solid #FFFDF2;
+  box-shadow: 0 6px 0 rgba(39, 103, 56, 0.28), 0 10px 20px rgba(78, 59, 43, 0.22);
+}
+
+.action-btn:disabled {
+  background: linear-gradient(155deg, #F7F1DE, #EAE0C8);
+  color: var(--ink-soft);
+  border-color: var(--border-warm);
+  box-shadow: var(--shadow-soft);
+  opacity: 0.82;
+}
+
+.quickbar {
+  background: var(--paper);
+  border: 2px solid var(--border-warm);
+  box-shadow: var(--shadow);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.quick {
+  color: var(--ink);
+}
+
+.quick:active {
+  background: var(--cream);
+}
+
+.quick-badge {
+  background: var(--honey);
+  color: var(--ink);
+  border: 1.5px solid var(--paper);
+}
+
+.quick-badge.ripe {
+  background: var(--leaf);
+  color: #FFFDF2;
+}
+
+.quick-badge.ach {
+  background: var(--coral);
+  color: #FFFDF2;
+}
+
+/* ── Speech-Bubble Toasts (Clear of Action/Joystick/HomeHUD) ─ */
+.toasts {
+  bottom: calc(var(--safe-bottom) + 198px);
+  max-width: min(88vw, 380px);
+  z-index: 35;
+}
+
+.toast {
+  position: relative;
+  padding: 11px 18px;
+  border-radius: 22px;
+  background: var(--paper);
+  border: 2px solid var(--border-warm);
+  box-shadow: var(--shadow-soft);
+  color: var(--ink);
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
+.toast::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -7px;
+  width: 12px;
+  height: 12px;
+  background: var(--paper);
+  border-right: 2px solid var(--border-warm);
+  border-bottom: 2px solid var(--border-warm);
+  transform: translateX(-50%) rotate(45deg);
+}
+
+@media (max-height: 600px) {
+  .toasts {
+    bottom: auto;
+    top: calc(var(--safe-top) + 14px);
+  }
+  .toast::after {
+    display: none;
+  }
+}
+
+/* ── Tactile Paper Modal & Spring Pop-In ──────────────────── */
+.modal {
+  background: rgba(78, 59, 43, 0.36);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.modal-card {
+  background: var(--paper);
+  border: 2.5px solid var(--border-warm);
+  border-radius: 28px 28px 22px 22px;
+  box-shadow: var(--shadow);
+  outline: 1.5px dashed rgba(216, 199, 166, 0.55);
+  outline-offset: -8px;
+  color: var(--ink);
+}
+
+.modal.open .modal-card {
+  animation: acModalPop 0.28s cubic-bezier(0.22, 1.25, 0.36, 1) both;
+}
+
+@keyframes acModalPop {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.modal-title {
+  color: var(--ink);
+  font-size: 20px;
+}
+
+.modal-sub {
+  color: var(--ink-soft);
+}
+
+.modal-close {
+  min-width: 44px;
+  min-height: 44px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--cream);
+  border: 2px solid var(--border-warm);
+  color: var(--ink);
+  font-size: 17px;
+  display: grid;
+  place-items: center;
+}
+
+.modal-close:active {
+  transform: scale(0.94);
+  background: #EFE4C8;
+}
+
+/* ── Pill-Shaped Wooden / Leaf Buttons ────────────────────── */
+.btn {
+  border-radius: 999px;
+  min-height: 44px;
+  padding: 10px 18px;
+  border: 2px solid var(--border-warm);
+  background: var(--cream);
+  color: var(--ink);
+  box-shadow: 0 3px 0 rgba(139, 108, 72, 0.16);
+  transition: transform 0.1s ease, box-shadow 0.1s ease, background 0.15s ease;
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 rgba(139, 108, 72, 0.16);
+}
+
+.btn.primary {
+  background: linear-gradient(180deg, #68C77F, #58B970);
+  border-color: #469B5B;
+  color: #FFFDF2;
+  box-shadow: 0 4px 0 rgba(39, 103, 56, 0.32);
+}
+
+.btn.soft {
+  background: linear-gradient(180deg, #FFE49B, #F4C44E);
+  border-color: #D9A735;
+  color: #4E3B2B;
+  box-shadow: 0 4px 0 rgba(163, 118, 22, 0.28);
+}
+
+.btn.ghost {
+  background: var(--paper);
+  border-color: var(--wood-border);
+  color: var(--ink);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+.mini {
+  border-radius: 999px;
+  background: var(--cream);
+  border: 1.5px solid var(--wood-border);
+  color: var(--ink);
+  min-height: 36px;
+  padding: 6px 12px;
+}
+
+.mini.on,
+.mini.up.on {
+  background: var(--leaf);
+  border-color: #469B5B;
+  color: #FFFDF2;
+}
+
+.section-label {
+  color: var(--leaf-dark);
+  font-size: 13px;
+}
+
+.progress-line {
+  background: #EDE3CC;
+}
+
+.progress-line i {
+  background: linear-gradient(90deg, var(--leaf), var(--sky-mint));
+}
+
+.progress-line.life i {
+  background: linear-gradient(90deg, #58B970, #F4C44E);
+}
+
+.lchip {
+  background: var(--cream);
+  border: 1px solid var(--border-warm);
+  color: var(--ink);
+}
+
+.lchip.ok {
+  background: #DFF5E4;
+  border-color: #A7DCBA;
+  color: var(--leaf-dark);
+}
+
+.lchip.warm {
+  background: #FFF2CC;
+  border-color: #EBD08A;
+  color: #7D5618;
+}
+
+.lchip.lack {
+  background: #FDECE7;
+  border-color: #F0BEB0;
+  color: #9E3E29;
+}
+
+/* ── Horizontal Scrollable Tabbar ─────────────────────────── */
+.tabbar {
+  display: flex;
+  gap: 5px;
+  padding: 5px;
+  border-radius: 16px;
+  background: var(--cream);
+  border: 1.5px solid var(--border-warm);
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.tabbar::-webkit-scrollbar {
+  display: none;
+}
+
+.tab {
+  flex: 0 0 auto;
+  min-width: 60px;
+  min-height: 36px;
+  padding: 7px 12px;
+  border-radius: 12px;
+  color: var(--ink-soft);
+}
+
+.tab.on {
+  background: var(--paper);
+  color: var(--leaf-dark);
+  box-shadow: 0 2px 0 rgba(139, 108, 72, 0.14);
+}
+
+/* ── Minimap Tactile Frame ────────────────────────────────── */
+.minimap {
+  background: var(--paper);
+  border: 2.5px solid var(--border-warm);
+  box-shadow: var(--shadow-soft);
+}
+
+/* ── Defense Banner Touch Target >= 44px & Landscape Fix ──── */
+.defense-banner .df-main {
+  background: var(--paper);
+  border: 2px solid var(--border-warm);
+  color: var(--ink);
+  min-height: 38px;
+}
+
+.defense-banner .df-go {
+  min-width: 44px;
+  min-height: 44px;
+  width: 44px;
+  height: 44px;
+  background: linear-gradient(155deg, #F69D88, #F2846B);
+  color: #FFFDF2;
+  border: 2px solid #FFFDF2;
+  box-shadow: var(--shadow-soft);
+  font-size: 14px;
+  display: grid;
+  place-items: center;
+}
+
+@media (max-height: 560px) {
+  .weapon-bar {
+    flex-direction: row;
+    right: 112px;
+    bottom: calc(var(--safe-bottom) + 92px);
+    gap: 8px;
+  }
+}
+
+/* ── Collapsible Animal Crossing Objective Pill (TutorialUI) ─ */
+.tutorial-card {
+  position: static;
+  top: auto;
+  left: auto;
+  right: auto;
+  width: fit-content;
+  max-width: min(260px, calc(100vw - 134px));
+  max-height: none;
+  overflow: visible;
+  padding: 0;
+  border-radius: 20px;
+  background: var(--paper);
+  border: 2px solid var(--border-warm);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  pointer-events: auto;
+  z-index: 6;
+}
+
+.tutorial-card:not(.collapsed) {
+  width: min(300px, calc(100vw - 134px));
+  max-height: 44vh;
+  overflow-y: auto;
+}
+
+.tutorial-card .tu-head {
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 8px 12px;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  text-align: left;
+  cursor: pointer;
+  color: var(--ink);
+  font-family: inherit;
+}
+
+.tutorial-card .tu-ico {
+  font-size: 16px;
+  flex: none;
+}
+
+.tutorial-card .tu-headmain {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+
+.tutorial-card .tu-step {
+  flex: none;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #DFF5E4;
+  color: var(--leaf-dark);
+  font-size: 11px;
+}
+
+.tutorial-card .tu-title {
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--ink);
+}
+
+.tutorial-card:not(.collapsed) .tu-title {
+  white-space: normal;
+}
+
+.tutorial-card .tu-chevron {
+  flex: none;
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+.tutorial-card.collapsed .tu-details {
+  display: none;
+}
+
+.tutorial-card .tu-details {
+  padding: 0 12px 11px;
+  border-top: 1.5px dashed var(--border-warm);
+  padding-top: 9px;
+}
+
+.tutorial-card .tu-dots {
+  margin-bottom: 6px;
+}
+
+.tutorial-card .tu-dots i.on {
+  background: #9AD7A9;
+}
+
+.tutorial-card .tu-dots i.cur {
+  background: var(--leaf);
+}
+
+.tutorial-card .tu-hint {
+  background: var(--cream);
+  color: var(--leaf-dark);
+  border: 1px solid var(--border-warm);
+}
+
+.tutorial-card .tu-btn {
+  border-radius: 999px;
+  background: var(--leaf);
+  color: #FFFDF2;
+  border: none;
+  padding: 6px 12px;
+  font-family: 'Jua', sans-serif;
+  font-size: 12px;
+}
+
+.tutorial-card .tu-btn.ghost {
+  background: var(--cream);
+  color: var(--ink);
+  border: 1.5px solid var(--border-warm);
+}
+
+/* ── Farm & Paddy Tap-to-Select Cards + 44px Action Bars ──── */
+.farm-bulk-bar {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.farm-bulk-bar .btn {
+  min-height: 44px;
+  font-size: 13px;
+  padding: 8px 10px;
+}
+
+.farm-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 7px;
+  margin-bottom: 10px;
+}
+
+.farm-cell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-height: 76px;
+  padding: 7px 4px;
+  border-radius: 16px;
+  border: 2px solid var(--border-warm);
+  background: var(--cream);
+  color: var(--ink);
+  font-family: inherit;
+  cursor: pointer;
+  text-align: center;
+  transition: transform 0.1s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.farm-cell:active {
+  transform: scale(0.96);
+}
+
+.farm-cell.selected {
+  border-color: var(--leaf);
+  box-shadow: 0 0 0 3px rgba(88, 185, 112, 0.28);
+  background: #F4FCF5;
+}
+
+.farm-cell.ripe {
+  background: #FFF9E3;
+  border-color: var(--honey);
+}
+
+.farm-cell.ripe.selected {
+  border-color: var(--leaf);
+  box-shadow: 0 0 0 3px rgba(88, 185, 112, 0.34);
+}
+
+.farm-cell .fc-num {
+  position: absolute;
+  top: 4px;
+  left: 6px;
+  font-size: 9.5px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.farm-cell .fc-ico {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.farm-cell .fc-name {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--ink);
+  line-height: 1.15;
+}
+
+.farm-cell .fc-stage {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.farm-cell .progress-line {
+  width: 82%;
+  height: 5px;
+  margin-top: 2px;
+}
+
+.farm-action-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 12px;
+  margin-bottom: 10px;
+  border-radius: 18px;
+  background: var(--cream);
+  border: 2px solid var(--border-warm);
+}
+
+.farm-action-bar .fab-info {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.farm-action-bar .fab-ico {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.farm-action-bar .fab-text .nm {
+  font-family: 'Jua', sans-serif;
+  font-size: 14.5px;
+  color: var(--ink);
+}
+
+.farm-action-bar .fab-text .meta {
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+.farm-action-bar .fab-btns {
+  display: flex;
+  gap: 8px;
+}
+
+.farm-action-bar .fab-btns .btn {
+  flex: 1;
+  min-height: 44px;
+  font-size: 13.5px;
+}
+
+/* ── Home Furniture Interaction Bar (Bed / Dresser) ───────── */
+.home-interact-bar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.home-interact-bar .btn {
+  flex: 1;
+  min-height: 44px;
+  font-size: 13.5px;
 }

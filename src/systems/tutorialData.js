@@ -32,7 +32,7 @@ export const TUTORIAL_STEPS = [
     icon: '📬',
     title: '우체통부터 열어 봐요',
     body: () =>
-      `우체통에는 섬에 도착한 편지와 선물이 있어요. 선물을 받으면 첫 코인이 생겨요. 첫 3단 미션(웰컴)은 단계마다 코인 +${WELCOME.reward} 를 줍니다.`,
+      `우체통에는 섬에 도착한 편지와 선물(열매·별조각·딸기 씨앗)이 있어요. 첫 코인은 웰컴 3단 미션을 단계마다 완료하면 코인 +${WELCOME.reward}씩 받을 수 있어요.`,
     hint: '📬 우체통 → 편지의 [선물 받기]',
     check: (g) => g.progress.mailbox.claimed.length > 0,
   },
@@ -60,7 +60,7 @@ export const TUTORIAL_STEPS = [
     title: '공방 복구하기',
     body: () =>
       '공방은 통나무 4 · 돌 3 이면 Day 1에도 바로 복구돼요. 복구하면 창고·요리·도구 강화가 열리고, 그다음부터 모든 제작이 여기서 시작됩니다.',
-    hint: '지도 🏗️ 건축 → 공방 → [재료 넣기] → [복구]',
+    hint: '지도 🏗️ 건축 → 공방 → [재료 투입] → [복구 완료!]',
     check: (g) => !!(g.progress.building('workshop') && g.progress.building('workshop').done),
   },
   {
@@ -69,7 +69,8 @@ export const TUTORIAL_STEPS = [
     title: '씨앗 심고 물 주기',
     body: () => {
       const strawberry = CROPS.strawberry;
-      return `자판기에서 씨앗을 사서 텃밭 4×4(16칸)에 심어요. 딸기는 ${sec(strawberry.grow)}, 방울토마토는 ${sec(CROPS.tomato.grow)}, 황금호박은 ${sec(CROPS.pumpkin.grow)} 만에 익어요. 물을 한 번 줄 때마다 남은 시간이 절반(${FARMING.waterHalve * 100}%)으로 줄고, 한 칸에 ${FARMING.maxWater}번까지 줄 수 있어요.`;
+      const pctCut = Math.round((1 - FARMING.waterHalve) * 100);
+      return `자판기에서 씨앗을 사서 텃밭 4×4(16칸)에 심어요. 딸기는 ${sec(strawberry.grow)}, 방울토마토는 ${sec(CROPS.tomato.grow)}, 황금호박은 ${sec(CROPS.pumpkin.grow)} 만에 익어요. 물을 한 번 줄 때마다 남은 시간이 ${pctCut}% 줄고, 한 칸에 ${FARMING.maxWater}번까지 줄 수 있어요.`;
     },
     hint: '🌱 텃밭 → 빈 칸 [심기] → [물주기]',
     check: (g) => g.progress.count('plant') >= 1 && g.progress.count('water') >= 1,
@@ -79,8 +80,8 @@ export const TUTORIAL_STEPS = [
     icon: '🎣',
     title: '낚시 한 번',
     body: () =>
-      `부두(바다)나 강가(민물)에서 찌를 던져요. 1회에 기력 ${FISHING.stamina} 이 들고, 입질이 오면 ${FISHING.biteWindow}초 안에 화면을 탭해야 잡혀요. 물고기는 ${Object.keys(FISH).length - 1}종 + 별조각 1종 — 아침·낮·노을·밤에 따라 물리는 종이 달라집니다.`,
-    hint: '부두를 복구하고 [낚시하기] → 입질 순간 탭!',
+      `남쪽 강가(민물)나 복구한 부두(바다)에서 찌를 던져요. 1회에 기력 ${FISHING.stamina} 이 들고, 입질이 오면 ${FISHING.biteWindow}초 안에 화면을 탭해야 잡혀요. 물고기는 ${Object.keys(FISH).length - 1}종 + 별조각 1종 — 아침·낮·노을·밤에 따라 물리는 종이 달라집니다.`,
+    hint: '남쪽 강가에서 바로 [낚시하기] (또는 부두 복구 후) → 입질 순간 탭!',
     check: (g) => (g.progress.fishing.catches || 0) >= 1,
   },
   {
@@ -165,7 +166,7 @@ export function helpSections() {
         ...Object.entries(GATHER_TYPES).map(([id, t]) =>
           row(`${t.icon} ${t.name}`, `${t.respawn[0]}~${t.respawn[1]}초 뒤 리젠 · ${t.loot.n[0]}~${t.loot.n[1]}개 (${t.kind === 'beach' ? '해변' : t.kind === 'forest' ? '숲' : '광맥'})`)
         ),
-        row('나무 열매', '나무 밑에 45~75초마다 떨어져요 — 먹으면 기력 +30'),
+        row('나무 열매', `나무 밑에 45~75초마다 떨어져요 — 먹으면 기력 +${STAMINA.eat}`),
       ],
     },
     {
@@ -178,7 +179,7 @@ export function helpSections() {
         ...Object.values(CROPS).map((c) =>
           row(`${c.icon} ${c.name}`, `${sec(c.grow)} 성장 · 수확 ${c.yield[0]}~${c.yield[1]}개 · 씨앗 ${c.seedPrice}코인 · 개당 ${c.price}코인${c.paddyOnly ? ' · 논 전용' : ''}`)
         ),
-        row('성장 비료', `${FARMING.fertilizer.price}코인 · 한 칸에 ${FARMING.fertilizer.maxPerPlot}번 · 성장 단계 하나 건너뛰기`),
+        row('성장 비료', `${FARMING.fertilizer.price}코인 · 한 칸에 ${FARMING.fertilizer.maxPerPlot}번 · 성장 단계 하나 건너뛰기 + 수확 +${FARMING.fertilizerBonus}`),
       ],
     },
     {

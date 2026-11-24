@@ -11,7 +11,7 @@
  * 문워크가 됐다. 아래 wrapAngle()이 그 누적을 막는다.
  */
 import * as THREE from 'three';
-import { PLAYER } from '../config.js';
+import { PLAYER, SPAWN } from '../config.js';
 import { Billboard, blobShadow } from '../sprites/Billboard.js';
 
 const WALK_FPS = 9.5;
@@ -55,6 +55,12 @@ export class Player {
     this.shadow = blobShadow(0.4, 0.34);
     this.group.position.copy(this.position);
 
+    this._tmpMat = new THREE.Matrix4();
+    this._tmpPos = new THREE.Vector3();
+    this._tmpQuat = new THREE.Quaternion();
+    this._tmpScale = new THREE.Vector3();
+    this._dustActive = false;
+
     this.dust = this.#buildDust();
     this.sprites = [this.billboard.material];
   }
@@ -84,6 +90,7 @@ export class Player {
   }
 
   #puff(x, y, z, forward) {
+    this._dustActive = true;
     const p = this.dustParts[this.dustCursor];
     this.dustCursor = (this.dustCursor + 1) % DUST_COUNT;
     p.x = x + (Math.random() - 0.5) * 0.16;
@@ -98,10 +105,13 @@ export class Player {
   }
 
   #updateDust(dt) {
-    const m = new THREE.Matrix4();
-    const v = new THREE.Vector3();
-    const q = new THREE.Quaternion();
-    const s = new THREE.Vector3();
+    if (!this._dustActive) return;
+    const m = this._tmpMat;
+    const v = this._tmpPos;
+    const q = this._tmpQuat;
+    const s = this._tmpScale;
+    const drag = Math.exp(-2.2 * dt);
+    let anyActive = false;
     for (let i = 0; i < this.dustParts.length; i++) {
       const p = this.dustParts[i];
       if (p.life <= 0) {
@@ -110,19 +120,21 @@ export class Player {
         continue;
       }
       p.life = Math.max(0, p.life - dt);
+      if (p.life > 0) anyActive = true;
       const t = 1 - p.life / p.max;
       p.x += p.vx * dt;
       p.y += p.vy * dt;
       p.z += p.vz * dt;
       p.vy -= 0.35 * dt;
-      p.vx *= 1 - dt * 2.2;
-      p.vz *= 1 - dt * 2.2;
-      const size = p.size * (0.55 + t * 1.15) * Math.min(1, (1 - t) * 1.9);
+      p.vx *= drag;
+      p.vz *= drag;
+      const size = p.life > 0 ? p.size * (0.55 + t * 1.15) * Math.min(1, (1 - t) * 1.9) : 0;
       v.set(p.x, p.y, p.z);
       s.set(size, size, size);
       m.compose(v, q, s);
       this.dust.setMatrixAt(i, m);
     }
+    this._dustActive = anyActive;
     this.dust.instanceMatrix.needsUpdate = true;
   }
 
@@ -184,13 +196,8 @@ export class Player {
   }
 
   #animate(mag) {
-    if (this.emoteT > 0) {
-      this.frameName = this.emoteT > 0.85 ? 'wave' : 'idle';
-      this.billboard.setFrame(this.frameName, false);
-      return;
-    }
-
     if (mag > 0.06) {
+      if (this.emoteT > 0) this.emoteT = 0;
       const idx = Math.floor(this.walkT * WALK_FPS) % 4;
       // 감싼 yaw의 x성분 = 바라보는 좌우, z성분 = 앞뒤
       const sx = Math.sin(this.yaw); // +1 오른쪽, -1 왼쪽
@@ -210,12 +217,24 @@ export class Player {
       this.frameName = name;
       this.flip = flip;
       this.billboard.setFrame(name, flip);
+    } else if (this.emoteT > 0) {
+      this.frameName = this.emoteT > 0.85 ? 'wave' : 'idle';
+      this.billboard.setFrame(this.frameName, false);
     } else {
-      if (this.frameName !== 'idle') {
-        this.frameName = 'idle';
-        this.flip = false;
-        this.facing = 'front';
-        this.billboard.setFrame('idle', false);
+      let restFrame = 'idle';
+      let restFlip = false;
+      if (this.facing === 'back') restFrame = 'back1';
+      else if (this.facing === 'left') {
+        restFrame = 'side1';
+        restFlip = false;
+      } else if (this.facing === 'right') {
+        restFrame = 'side1';
+        restFlip = true;
+      }
+      if (this.frameName !== restFrame || this.flip !== restFlip) {
+        this.frameName = restFrame;
+        this.flip = restFlip;
+        this.billboard.setFrame(restFrame, restFlip);
       }
     }
   }
@@ -299,7 +318,10 @@ export class Player {
         best = p;
       }
     }
-    if (!best) return null;
+    if (!best) {
+      this.teleport(SPAWN.x, SPAWN.z, t);
+      return { x: SPAWN.x, z: SPAWN.z };
+    }
     this.teleport(best.x, best.z, t);
     return { x: best.x, z: best.z };
   }

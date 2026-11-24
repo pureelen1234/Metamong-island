@@ -6,6 +6,7 @@
  * 자라는가"만 계산해 가방(Inventory)에 넣고, 남는 수량은 바닥에 내려놓는다.
  */
 import { HARVEST, ITEMS, STAMINA, gainsLabel, rollDrops } from '../systems/items.js';
+import { EXP_GAIN } from '../systems/lifeData.js';
 
 const HIT_COOLDOWN = 0.12;
 
@@ -125,17 +126,19 @@ export class Gathering {
       return { ok: false, reason: 'stamina' };
     }
 
-    // 강화한 도구는 한 번에 두 번 분량을 깎는다
-    node.hitsLeft = Math.max(0, node.hitsLeft - 1 - this.progress.hitsBonus(node.kind));
+    // 강화한 도구는 한 번에 여러 번 분량을 깎는다 — 기본 재료·럭키·경험치도 dmg 배로 반영
+    const dmg = Math.min(node.hitsLeft, 1 + this.progress.hitsBonus(node.kind));
+    node.hitsLeft = Math.max(0, node.hitsLeft - dmg);
     this.scenery.pop(node);
     this.fx.burst(node.x, node.y + node.height * 0.42, node.z, this.#tint(node), 11, { spread: 1.1, up: 2.0 });
     this.audio.sfxHit(node.kind);
     this.hooks.onHit?.(node.kind, cost);
 
-    // ── 타격 한 번에 기본 재료 1개가 바로 나온다 (`+통나무 1` 둥둥)
+    // ── 타격 분량(dmg)만큼 기본 재료가 바로 나온다
     const base = BASE_ITEM[node.kind];
-    if (base) this.#grant(base, 1, node, node.y + node.height * 0.95);
-    this.#lucky(node);
+    if (base) this.#grant(base, dmg, node, node.y + node.height * 0.95);
+    for (let k = 0; k < dmg; k++) this.#lucky(node);
+    this.progress.gainExp?.('gather', EXP_GAIN.harvest * dmg);
 
     if (node.hitsLeft > 0) {
       return { ok: true, harvest: false };
@@ -290,6 +293,10 @@ export class Gathering {
         this.audio.sfxPickup();
         this.hooks.onPickup?.(drop.itemId, got);
       }
+      if (got > 0 && got < drop.count) {
+        drop.count -= got;
+        return false;
+      }
       return got >= drop.count;
     }
     if (this.inventory.roomFor(drop.itemId) <= 0) {
@@ -305,6 +312,10 @@ export class Gathering {
       this.fx.float(`+${got} ${item.name}`, drop.x, drop.y + 0.85, drop.z, '#5f5470');
       this.audio.sfxPickup();
       this.hooks.onPickup?.(drop.itemId, got);
+    }
+    if (leftover > 0) {
+      drop.count = leftover;
+      return false;
     }
     return true;
   }

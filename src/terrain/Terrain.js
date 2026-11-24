@@ -10,16 +10,16 @@ import { valueNoise } from './Noise.js';
 import { toonMaterial } from '../render/toon.js';
 
 const C = {
-  deepSand: new THREE.Color('#dcc79c'),
-  wetSand: new THREE.Color('#f2dfb4'),
-  sand: new THREE.Color('#ffe6b8'),
-  sandLight: new THREE.Color('#fff1d2'),
-  grassA: new THREE.Color('#98dd78'),
-  grassB: new THREE.Color('#b6ec96'),
-  grassC: new THREE.Color('#82d46c'),
-  grassMint: new THREE.Color('#abe4bd'),
-  stone: new THREE.Color('#e7ddc9'),
-  stoneHigh: new THREE.Color('#f2ead8'),
+  deepSand: new THREE.Color('#e2cb9d'),
+  wetSand: new THREE.Color('#f3d8a0'),
+  sand: new THREE.Color('#F8E0A6'),
+  sandLight: new THREE.Color('#FFF0C8'),
+  grassA: new THREE.Color('#8FD86B'),
+  grassB: new THREE.Color('#A8E47E'),
+  grassC: new THREE.Color('#7BC95E'),
+  grassMint: new THREE.Color('#9CE2A6'),
+  stone: new THREE.Color('#ebe2cf'),
+  stoneHigh: new THREE.Color('#f5efe0'),
 };
 
 const tmpColor = new THREE.Color();
@@ -31,23 +31,72 @@ const tmpColor = new THREE.Color();
 let grassTex = null;
 function grassTexture() {
   if (grassTex) return grassTex;
-  const size = 64;
+  const size = 128;
   const c = document.createElement('canvas');
   c.width = c.height = size;
   const ctx = c.getContext('2d');
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, size, size);
-  const shades = ['#f4f7f0', '#fbfdf8', '#eef4ea', '#ffffff', '#f7faf3'];
-  for (let i = 0; i < 220; i++) {
-    const x = Math.floor(Math.random() * size);
-    const y = Math.floor(Math.random() * size);
-    ctx.fillStyle = shades[Math.floor(Math.random() * shades.length)];
-    ctx.fillRect(x, y, Math.random() < 0.25 ? 2 : 1, Math.random() < 0.25 ? 2 : 1);
+
+  // 부드러운 동물의 숲 스타일 둥근 삼각형 잔디 패치 + 세잎 클로버
+  const drawRoundedTri = (cx, cy, r, flip, fill) => {
+    ctx.fillStyle = fill;
+    const pts = [];
+    for (let k = 0; k < 3; k++) {
+      const a = -Math.PI / 2 + (flip ? Math.PI : 0) + (k * Math.PI * 2) / 3;
+      pts.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r]);
+    }
+    ctx.beginPath();
+    for (let k = 0; k < 3; k++) {
+      const p0 = pts[k];
+      const p1 = pts[(k + 1) % 3];
+      const p2 = pts[(k + 2) % 3];
+      const m1x = p0[0] + (p1[0] - p0[0]) * 0.26;
+      const m1y = p0[1] + (p1[1] - p0[1]) * 0.26;
+      const m2x = p0[0] + (p2[0] - p0[0]) * 0.26;
+      const m2y = p0[1] + (p2[1] - p0[1]) * 0.26;
+      if (k === 0) ctx.moveTo(m2x, m2y);
+      ctx.quadraticCurveTo(p0[0], p0[1], m1x, m1y);
+      const nextM2x = p1[0] + (p0[0] - p1[0]) * 0.26;
+      const nextM2y = p1[1] + (p0[1] - p1[1]) * 0.26;
+      ctx.lineTo(nextM2x, nextM2y);
+    }
+    ctx.closePath();
+    ctx.fill();
+  };
+
+  const drawClover = (cx, cy, r, fill) => {
+    ctx.fillStyle = fill;
+    for (let k = 0; k < 3; k++) {
+      const a = -Math.PI / 2 + (k * Math.PI * 2) / 3;
+      ctx.beginPath();
+      ctx.arc(cx + Math.cos(a) * r * 0.55, cy + Math.sin(a) * r * 0.55, r * 0.52, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  };
+
+  // 타일 경계에서도 자연스럽게 이어지도록 주기적으로 배치
+  const step = 32;
+  for (let row = 0; row < 4; row++) {
+    for (let col = 0; col < 4; col++) {
+      const x = col * step + (row % 2 ? step * 0.5 : 0) + 12;
+      const y = row * step + 14;
+      const fill = (row + col) % 2 === 0 ? '#eef7e6' : '#f4fae9';
+      const r = (row + col) % 3 === 0 ? 7.5 : 6.2;
+      drawRoundedTri(x % size, y % size, r, (row + col) % 2 === 1, fill);
+    }
   }
+  const clovers = [
+    [22, 26, 4.4], [86, 18, 4.8], [54, 72, 4.2], [110, 96, 4.6], [18, 104, 4.0], [74, 114, 4.4],
+  ];
+  for (const [cx, cy, r] of clovers) {
+    drawClover(cx, cy, r, '#e6f4dc');
+  }
+
   grassTex = new THREE.CanvasTexture(c);
   grassTex.colorSpace = THREE.SRGBColorSpace;
   grassTex.wrapS = grassTex.wrapT = THREE.RepeatWrapping;
-  grassTex.magFilter = THREE.NearestFilter;
+  grassTex.magFilter = THREE.LinearFilter;
   grassTex.minFilter = THREE.LinearMipmapLinearFilter;
   grassTex.generateMipmaps = true;
   grassTex.anisotropy = 4;

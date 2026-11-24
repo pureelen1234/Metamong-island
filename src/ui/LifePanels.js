@@ -113,6 +113,7 @@ export class LifePanels {
     };
 
     return {
+      id: `codex_${this.codexTab}`,
       title: '📔 도감',
       subtitle: subtitles[this.codexTab] || '',
       body,
@@ -205,29 +206,33 @@ export class LifePanels {
   #codexGather() {
     const p = this.game.progress;
     const total = FORAGE_ITEM_ORDER.length;
-    const known = p.forageKinds();
+    const known = FORAGE_ITEM_ORDER.filter((id) => p.hasDiscoveredForage?.(id) || p.forageCount(id) > 0).length;
     const body = h('div', {});
     for (const group of ITEM_GROUPS.filter((g) => g.id !== 'basic')) {
-      const rows = group.items.map((id) => ({ id, meta: ITEMS[id], n: p.forageCount(id) }));
-      const got = rows.filter((r) => r.n > 0).length;
+      const rows = group.items.map((id) => {
+        const n = p.forageCount(id);
+        return { id, meta: ITEMS[id], n, discovered: !!(p.hasDiscoveredForage?.(id) || n > 0) };
+      });
+      const got = rows.filter((r) => r.discovered).length;
       body.append(h('div', { class: 'section-label' }, `${group.icon} ${group.name} (${got}/${rows.length})`));
       const list = h('div', { class: 'recipe-list' });
       for (const r of rows) {
         const n = r.n;
+        const ok = r.discovered;
         const sample = this.game.world.scenery.nodes.find((node) => node.sprite === r.id);
         list.append(
           h(
             'div',
-            { class: `recipe-card ${n > 0 ? '' : 'locked'}` },
-            h('span', { class: 'rico' }, n > 0 ? r.meta.icon : '❔'),
+            { class: `recipe-card ${ok ? '' : 'locked'}` },
+            h('span', { class: 'rico' }, ok ? r.meta.icon : '❔'),
             h(
               'div',
               { class: 'rmain' },
-              h('div', { class: 'nm' }, n > 0 ? r.meta.name : '아직 못 봄'),
+              h('div', { class: 'nm' }, ok ? r.meta.name : '아직 못 봄'),
               h('div', { class: 'meta' }, r.meta.desc),
               h('div', { class: 'meta' }, sample ? `자판기 판매 🪙 ${sellPrice(r.id)} · 다시 자라기 ${sample.respawnRange[0]}~${sample.respawnRange[1]}초` : `자판기 판매 🪙 ${sellPrice(r.id)}`)
             ),
-            h('div', { class: 'fright' }, n > 0 ? chip(`바구니 ${n}`, 'ok') : chip('미등록'))
+            h('div', { class: 'fright' }, ok ? chip(n > 0 ? `바구니 ${n}` : '등록됨', 'ok') : chip('미등록'))
           )
         );
       }
@@ -247,25 +252,26 @@ export class LifePanels {
   #codexExpedition() {
     const p = this.game.progress;
     const total = EXPEDITION_ORDER.length;
-    const known = p.expeditionKinds();
+    const known = EXPEDITION_ORDER.filter((id) => p.hasDiscoveredExpedition?.(id) || p.expeditionCount(id) > 0).length;
     const list = h('div', { class: 'recipe-list' });
     for (const id of EXPEDITION_ORDER) {
       const r = EXPEDITION_RESOURCES[id];
       const n = p.expeditionCount(id);
+      const ok = !!(p.hasDiscoveredExpedition?.(id) || n > 0);
       const site = r.site ? EXPEDITION_SITES[r.site] : null;
       list.append(
         h(
           'div',
-          { class: `recipe-card ${n > 0 ? '' : 'locked'}` },
-          h('span', { class: 'rico' }, n > 0 ? r.icon : '❔'),
+          { class: `recipe-card ${ok ? '' : 'locked'}` },
+          h('span', { class: 'rico' }, ok ? r.icon : '❔'),
           h(
             'div',
             { class: 'rmain' },
-            h('div', { class: 'nm' }, n > 0 ? r.name : '아직 못 봄'),
+            h('div', { class: 'nm' }, ok ? r.name : '아직 못 봄'),
             h('div', { class: 'meta' }, r.desc),
             h('div', { class: 'meta' }, site ? `${site.icon} ${site.name} 에서만` : '원정에서만')
           ),
-          h('div', { class: 'fright' }, n > 0 ? chip(`바구니 ${n}`, 'ok') : chip('미등록'))
+          h('div', { class: 'fright' }, ok ? chip(n > 0 ? `바구니 ${n}` : '등록됨', 'ok') : chip('미등록'))
         )
       );
     }
@@ -298,7 +304,7 @@ export class LifePanels {
             { class: 'rmain' },
             h('div', { class: 'nm' }, r.name),
             h('div', { class: 'meta' }, ing),
-            h('div', { class: 'meta' }, r.stamina >= 100 ? `기력 ${r.stamina} 회복 + ${GOLDEN_BUFF.seconds}초 버프` : `기력 +${r.stamina}`)
+            h('div', { class: 'meta' }, r.buff > 0 ? `기력 ${r.stamina} 회복 + ${GOLDEN_BUFF.seconds}초 버프` : `기력 +${r.stamina}`)
           ),
           h('div', { class: 'fright' }, n > 0 ? chip(`${n}번`, 'ok') : chip('미등록'))
         )
@@ -321,22 +327,22 @@ export class LifePanels {
     for (const id of ALL_CROP_ORDER) {
       const crop = CROPS[id];
       const have = p.cropCount(id);
-      const harvested = p.count('crop');
-      if (have > 0) known += 1;
+      const ok = !!(p.hasDiscoveredCrop?.(id) || have > 0);
+      if (ok) known += 1;
       const seed = SEEDS[crop.seedId];
       list.append(
         h(
           'div',
-          { class: `recipe-card ${have > 0 ? '' : 'locked'}` },
-          h('span', { class: 'rico' }, have > 0 ? crop.icon : '❔'),
+          { class: `recipe-card ${ok ? '' : 'locked'}` },
+          h('span', { class: 'rico' }, ok ? crop.icon : '❔'),
           h(
             'div',
             { class: 'rmain' },
-            h('div', { class: 'nm' }, crop.name),
+            h('div', { class: 'nm' }, ok ? crop.name : '아직 못 봄'),
             h('div', { class: 'meta' }, `${seed.icon} ${seed.name} ${seed.price}코인 · ${Math.round(crop.grow)}초 · ${crop.yield[0]}~${crop.yield[1]}개`),
-            h('div', { class: 'meta' }, have > 0 ? crop.desc : '텃밭에서 기르면 여기에 기록돼요')
+            h('div', { class: 'meta' }, ok ? crop.desc : '텃밭에서 기르면 여기에 기록돼요')
           ),
-          h('div', { class: 'fright' }, have > 0 ? chip(`바구니 ${have}`, 'ok') : chip('미등록'))
+          h('div', { class: 'fright' }, ok ? chip(have > 0 ? `바구니 ${have}` : '등록됨', 'ok') : chip('미등록'))
         )
       );
     }
@@ -429,6 +435,7 @@ export class LifePanels {
 
     const ach = p.claimableAchievements;
     return {
+      id: 'rank',
       title: '🌱 생활 랭크',
       subtitle: `${title.name} · 총 ${title.total} EXP`,
       body,
@@ -486,6 +493,7 @@ export class LifePanels {
     const rows = p.questRows();
     const done = rows.filter((q) => q.done && !q.claimed).length;
     return {
+      id: 'quests',
       title: '📋 오늘의 의뢰',
       subtitle: `Day ${p.quests.day} · ${rows.length}건${done ? ` · 받을 보상 ${done}건` : ''}`,
       body: h(
@@ -594,6 +602,7 @@ export class LifePanels {
     }
 
     return {
+      id: `vending_${this.shopTab}`,
       title: '🥤 메타몽 자판기',
       subtitle: '팔고, 사고 — 섬 코인이 오가는 곳',
       body,
@@ -645,6 +654,7 @@ export class LifePanels {
     }
 
     return {
+      id: 'cooking',
       title: '🍳 공방 요리',
       subtitle: `지금 기력 ${Math.round(p.stamina)} / 100`,
       body: h(
@@ -712,6 +722,7 @@ export class LifePanels {
       );
     }
     return {
+      id: 'upgrade',
       title: '🪓 도구 강화',
       subtitle: '재료와 코인을 넣으면 한 번에 더 많이 캐요',
       body: h(

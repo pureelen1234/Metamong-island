@@ -63,18 +63,21 @@ const fragmentShader = /* glsl */ `
     // 지평선 쪽 따뜻한 번짐
     col += uBottom * 0.08 * (1.0 - smoothstep(0.0, 0.14, abs(h)));
 
-    // ── 솜사탕 구름 (낮에만 또렷하게)
-    if (h > 0.015) {
-      vec2 uv = dir.xz / (h + 0.85);
-      uv = uv * 1.6 + vec2(uTime * 0.004, uTime * 0.0015);
-      float n = fbm(uv * 1.15 + vec2(11.0, 4.0));
-      float n2 = fbm(uv * 2.3 - vec2(6.0, 8.0));
-      float shape = smoothstep(0.48, 0.6, n * 0.72 + n2 * 0.38);
-      float band = smoothstep(0.04, 0.22, h) * (1.0 - smoothstep(0.5, 0.98, h) * 0.6);
+    // ── 포근한 동화풍 적운 구름 (낮에 몽글몽글 따뜻하게)
+    if (h > 0.012) {
+      vec2 uv = dir.xz / (h + 0.78);
+      uv = uv * 1.45 + vec2(uTime * 0.0036, uTime * 0.0012);
+      float n = fbm(uv * 1.05 + vec2(11.0, 4.0));
+      float n2 = fbm(uv * 2.15 - vec2(6.0, 8.0));
+      float puff = n * 0.68 + n2 * 0.42;
+      float shape = smoothstep(0.45, 0.62, puff);
+      float crest = smoothstep(0.54, 0.72, puff);
+      float band = smoothstep(0.03, 0.2, h) * (1.0 - smoothstep(0.54, 0.98, h) * 0.55);
       float cloudA = shape * band * (1.0 - uNight * 0.85);
-      vec3 cloudCol = mix(vec3(1.0), uCloud, 0.18);
-      cloudCol = mix(cloudCol, uBottom, 0.06);
-      col = mix(col, cloudCol, cloudA * 0.95);
+      vec3 warmCream = mix(vec3(1.0, 0.99, 0.96), uDisc, 0.16);
+      vec3 cloudCol = mix(uCloud, warmCream, 0.55 + crest * 0.45);
+      cloudCol = mix(cloudCol, uBottom, 0.08 * (1.0 - crest));
+      col = mix(col, cloudCol, cloudA * 0.96);
     }
 
     // 해 / 달

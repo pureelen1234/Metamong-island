@@ -1,8 +1,7 @@
 /**
  * Phase4Panels.js — 4단계 화면(다리 · 논 · 리어카)
  *
- * 다른 패널과 같은 규약: Game 이 돌려받은 {title, subtitle, body, actions} 를 Modal 에
- * 그대로 넘기고, 상태를 바꾸는 일은 Game 의 메서드가 맡는다(재료 투입·완성·심기·수확).
+ * 4×2 논도 텃밭과 동일하게 탭-선택 카드 + 하단 44px 액션 바 + 상단 일괄 버튼 구조로 제공한다.
  */
 import { h } from './dom.js';
 import { BRIDGE, PADDY } from '../config.js';
@@ -16,6 +15,7 @@ const icon = (id) => (ITEMS[id] ? ITEMS[id].icon : '❔');
 export class Phase4Panels {
   constructor(game) {
     this.game = game;
+    this.selectedPaddy = 0;
   }
 
   #bar(pct, cls = '') {
@@ -58,7 +58,7 @@ export class Phase4Panels {
       ? h(
           'div',
           {},
-          h('div', { class: 'done-banner' }, '🌉 다리 완성', h('div', { class: 'sub' }, '강 위로 널빤지 데크가 놓였어요.') ),
+          h('div', { class: 'done-banner' }, '🌉 다리 완성', h('div', { class: 'sub' }, '강 위로 널빤지 데크가 놓였어요.')),
           h('div', { class: 'hint' }, '이제 다리 위를 걸어 북쪽 개척권으로 건널 수 있어요 — 빼곡한 숲 · 채석장 · 논이 기다려요.')
         )
       : h(
@@ -86,6 +86,7 @@ export class Phase4Panels {
     actions.push({ label: '닫기', kind: st.built || !ready ? 'primary' : 'ghost', onClick: () => g.modal.close() });
 
     return {
+      id: 'bridge',
       title: `${BRIDGE.icon} ${BRIDGE.name}`,
       subtitle: st.built ? '이미 놓인 다리예요' : '강 중앙 길목 — 재료만 모으면 바로 놓을 수 있어요',
       body,
@@ -98,13 +99,14 @@ export class Phase4Panels {
   #plotInfo(index) {
     const p = this.game.progress;
     const st = p.paddyPlot(index);
-    if (!st) return { state: 'empty', label: '볍씨를 심어 보세요', stage: -1, pct: 0, crop: null, st: null };
+    if (!st) return { state: 'empty', label: '빈 논', stage: -1, pct: 0, crop: null, st: null };
     const crop = CROPS[st.crop] || CROPS.rice;
     const stage = stageOf(st);
     const pct = Math.round((1 - st.remain / Math.max(1, st.total)) * 100);
     return {
       state: st.remain > 0 ? 'grow' : 'ripe',
-      label: st.remain > 0 ? `${['새싹', '자라는 중', '여무는 중'][Math.max(0, stage)]} · ${Math.ceil(st.remain)}초` : '수확 가능',
+      label: st.remain > 0 ? `${['새싹', '자라는 중', '여무는 중'][Math.max(0, stage)]} · ${Math.ceil(st.remain)}초` : '수확 가능!',
+      shortLabel: st.remain > 0 ? `${Math.ceil(st.remain)}초` : '수확!',
       stage,
       pct,
       crop,
@@ -112,89 +114,148 @@ export class Phase4Panels {
     };
   }
 
-  #plotButton(index, info) {
-    if (info.state === 'empty') {
-      const btn = h('button', { class: 'mini farm-btn', type: 'button' }, '🌾 심기');
-      btn.addEventListener('click', () => this.game.openPaddySeedPicker(index));
-      return btn;
-    }
-    if (info.state === 'ripe') {
-      const btn = h('button', { class: 'mini farm-btn on', type: 'button' }, '🧺 수확');
-      btn.addEventListener('click', () => this.game.harvestPaddy(index));
-      return btn;
-    }
-    const canWater = info.st.watered < FARMING.maxWater;
-    const btn = h(
-      'button',
-      { class: `mini farm-btn ${canWater ? 'water' : ''}`, type: 'button' },
-      canWater ? `💧 물 ${FARMING.maxWater - info.st.watered}` : '💧 끝'
-    );
-    if (!canWater) btn.disabled = true;
-    btn.addEventListener('click', () => this.game.waterPaddy(index));
-    return btn;
-  }
-
-  /** 칸 안의 버튼 줄 — 기본 동작(심기/물/수확) + 성장 비료 */
-  #plotActions(index, info) {
-    const row = h('div', { class: 'fc-acts' }, this.#plotButton(index, info));
-    if (info.state === 'grow') {
-      const fert = this.game.progress.supply('fertilizer');
-      const used = Math.max(0, Math.floor(Number(info.st && info.st.fert) || 0));
-      const can = fert > 0 && used < FARMING.fertilizer.maxPerPlot;
-      const btn = h(
-        'button',
-        { class: `mini fc-fert ${can ? 'on' : ''}`, type: 'button', 'aria-label': `${index + 1}번 논에 성장 비료`, title: can ? `성장 비료 ${fert}개` : used >= FARMING.fertilizer.maxPerPlot ? '비료를 다 줬어요' : '비료가 없어요' },
-        '🧪'
-      );
-      if (!can) btn.disabled = true;
-      btn.addEventListener('click', () => this.game.fertilizePaddy(index));
-      row.append(btn);
-    }
-    return row;
-  }
-
   paddy() {
     const p = this.game.progress;
+    const totalPlots = PADDY.cols * PADDY.rows;
+    if (this.selectedPaddy < 0 || this.selectedPaddy >= totalPlots) this.selectedPaddy = 0;
+
     const can = p.toolInfo('water');
     const planted = p.paddyPlots.filter(Boolean).length;
-    const ripe = p.paddyPlots.filter((st) => st && st.remain <= 0).length;
+    const ripeCount = p.paddyPlots.filter((st) => st && st.remain <= 0).length;
+    const waterableCount = p.paddyPlots.filter((st) => st && st.remain > 0 && st.watered < FARMING.maxWater).length;
     const riceSeed = p.supply('seed_rice');
-
-    const grid = h('div', { class: 'farm-grid paddy-grid', 'data-cols': String(PADDY.cols) });
-    for (let i = 0; i < PADDY.cols * PADDY.rows; i++) {
-      const info = this.#plotInfo(i);
-      const cell = h(
-        'div',
-        { class: `farm-cell ${info.state} paddy`, 'data-plot': String(i) },
-        h('div', { class: 'fc-head' }, h('span', { class: 'fc-ico' }, info.crop ? info.crop.icon : '·'), h('span', { class: 'fc-name' }, info.crop ? info.crop.name : '빈 논')),
-        h('div', { class: 'fc-stage' }, info.label),
-        info.state === 'empty' ? null : this.#bar(info.pct, info.state === 'ripe' ? 'life' : ''),
-        this.#plotActions(i, info)
-      );
-      grid.append(cell);
-    }
     const fert = p.supply('fertilizer');
 
+    const harvestAllBtn = h(
+      'button',
+      {
+        class: `btn ${ripeCount > 0 ? 'primary' : 'ghost'}`,
+        type: 'button',
+        onclick: () => this.game.harvestAllPaddy(),
+      },
+      `🧺 전체 수확 (${ripeCount})`
+    );
+    if (ripeCount <= 0) harvestAllBtn.disabled = true;
+
+    const waterAllBtn = h(
+      'button',
+      {
+        class: `btn ${waterableCount > 0 ? 'soft' : 'ghost'}`,
+        type: 'button',
+        onclick: () => this.game.waterAllPaddy(),
+      },
+      `💧 전체 물대기 (${waterableCount})`
+    );
+    if (waterableCount <= 0) waterAllBtn.disabled = true;
+
+    const bulkBar = h('div', { class: 'farm-bulk-bar' }, harvestAllBtn, waterAllBtn);
+
+    const grid = h('div', { class: 'farm-grid paddy-grid', 'data-cols': String(PADDY.cols) });
+    for (let i = 0; i < totalPlots; i++) {
+      const info = this.#plotInfo(i);
+      const isSelected = i === this.selectedPaddy;
+      const cell = h(
+        'button',
+        {
+          class: `farm-cell ${info.state} paddy ${isSelected ? 'selected' : ''}`,
+          type: 'button',
+          'data-plot': String(i),
+          'aria-pressed': isSelected ? 'true' : 'false',
+          'aria-label': `${i + 1}번 논 ${info.crop ? info.crop.name : '빈 논'} ${info.label}`,
+        },
+        h('span', { class: 'fc-num' }, String(i + 1)),
+        h('span', { class: 'fc-ico' }, info.crop ? info.crop.icon : '🌾'),
+        h('div', { class: 'fc-name' }, info.crop ? info.crop.name : '빈 논'),
+        h('div', { class: 'fc-stage' }, info.shortLabel || info.label),
+        info.state === 'empty' ? null : this.#bar(info.pct, info.state === 'ripe' ? 'life' : '')
+      );
+      cell.addEventListener('click', () => {
+        if (this.selectedPaddy === i && info.state === 'empty') {
+          this.game.openPaddySeedPicker(i);
+          return;
+        }
+        this.selectedPaddy = i;
+        this.game.openPaddy();
+      });
+      grid.append(cell);
+    }
+
+    // 하단 선택 논 44px 액션 바
+    const sel = this.selectedPaddy;
+    const selInfo = this.#plotInfo(sel);
+    const barActions = h('div', { class: 'fab-btns' });
+
+    if (selInfo.state === 'empty') {
+      const plantBtn = h(
+        'button',
+        { class: 'btn primary', type: 'button', onclick: () => this.game.openPaddySeedPicker(sel) },
+        '🌾 볍씨 심기'
+      );
+      barActions.append(plantBtn);
+    } else if (selInfo.state === 'ripe') {
+      const harvBtn = h(
+        'button',
+        { class: 'btn primary', type: 'button', onclick: () => this.game.harvestPaddy(sel) },
+        '🧺 수확하기'
+      );
+      barActions.append(harvBtn);
+    } else {
+      const canWater = selInfo.st.watered < FARMING.maxWater;
+      const waterBtn = h(
+        'button',
+        { class: `btn ${canWater ? 'primary' : 'ghost'}`, type: 'button', onclick: () => this.game.waterPaddy(sel) },
+        canWater ? `💧 물대기 (${FARMING.maxWater - selInfo.st.watered})` : '💧 물대기 완료'
+      );
+      if (!canWater) waterBtn.disabled = true;
+
+      const usedFert = Math.max(0, Math.floor(Number(selInfo.st && selInfo.st.fert) || 0));
+      const canFert = fert > 0 && usedFert < FARMING.fertilizer.maxPerPlot;
+      const fertBtn = h(
+        'button',
+        { class: `btn ${canFert ? 'soft' : 'ghost'}`, type: 'button', onclick: () => this.game.fertilizePaddy(sel) },
+        usedFert >= FARMING.fertilizer.maxPerPlot ? '🧪 비료 완료' : `🧪 비료 (${fert})`
+      );
+      if (!canFert) fertBtn.disabled = true;
+
+      barActions.append(waterBtn, fertBtn);
+    }
+
+    const actionBar = h(
+      'div',
+      { class: 'farm-action-bar' },
+      h(
+        'div',
+        { class: 'fab-info' },
+        h('span', { class: 'fab-ico' }, selInfo.crop ? selInfo.crop.icon : '🌾'),
+        h(
+          'div',
+          { class: 'fab-text' },
+          h('div', { class: 'nm' }, `${sel + 1}번 논 · ${selInfo.crop ? selInfo.crop.name : '빈 논'}`),
+          h('div', { class: 'meta' }, selInfo.state === 'empty' ? '볍씨를 심어 보세요' : selInfo.label)
+        )
+      ),
+      barActions
+    );
+
     return {
+      id: 'paddy',
       title: '🌾 논',
-      subtitle: `다리 건너 4×2 논 · ${planted}칸 심음${ripe ? ` · ${ripe}칸 수확 가능` : ''}`,
+      subtitle: `다리 건너 4×2 논 · ${planted}칸 심음${ripeCount ? ` · ${ripeCount}칸 수확 가능` : ''}`,
       body: h(
         'div',
         {},
-        h('div', { class: 'hint' }, '볍씨를 논에 심고 물을 대면 남은 시간이 절반으로 줄어요. 다 여문 벼는 수확 바구니에 담기고, 자판기 [팔기] 에서 쌀로 팔 수 있어요.'),
+        h('div', { class: 'hint' }, '볍씨를 논에 심고 물을 대면 남은 시간이 절반으로 줄어요. 칸을 눌러 선택한 뒤 아래 버튼으로 편하게 가꿔 보세요.'),
+        h('div', { class: 'section-label' }, '한 번에 관리'),
+        bulkBar,
+        h('div', { class: 'section-label' }, '논 타일 (칸을 눌러 선택)'),
+        grid,
+        actionBar,
         h('div', { class: 'section-label' }, '내 볍씨'),
         h('div', { class: 'chips' }, h('span', { class: `lchip ${riceSeed > 0 ? 'ok' : 'lack'}` }, `🌾 볍씨 ${riceSeed}`)),
         h(
           'button',
           { class: 'btn soft wide', type: 'button', onclick: () => { this.game.life.shopTab = 'buy'; this.game.openVending(); } },
-          '🥤 자판기에서 볍씨 사기 (20코인)'
-        ),
-        h('div', { class: 'section-label' }, '🧪 성장 비료'),
-        h(
-          'div',
-          { class: 'row' },
-          h('div', {}, h('div', { class: 'label' }, `보유 ${fert}개`), h('div', { class: 'hint' }, `논 한 칸의 성장 단계를 하나 올려요 · 칸당 최대 ${FARMING.fertilizer.maxPerPlot}번`)),
-          h('button', { class: 'mini', type: 'button', onclick: () => { this.game.life.shopTab = 'buy'; this.game.openVending(); } }, '사기')
+          '🥤 자판기에서 볍씨·비료 사기'
         ),
         h('div', { class: 'section-label' }, '🧺 수확 바구니'),
         h(
@@ -205,8 +266,6 @@ export class Phase4Panels {
             return h('span', { class: `lchip ${n > 0 ? 'warm' : ''}` }, `${CROPS[id].icon} ${CROPS[id].name} ${n}`);
           })
         ),
-        h('div', { class: 'section-label' }, '논 타일'),
-        grid,
         h('div', { class: 'section-label' }, '물뿌리개'),
         h(
           'div',
@@ -254,6 +313,7 @@ export class Phase4Panels {
       );
     }
     return {
+      id: `paddy_seed_picker_${index}`,
       title: `🌾 ${index + 1}번 논에 심기`,
       subtitle: '볍씨를 논에 뿌려요',
       body: h(
@@ -297,6 +357,7 @@ export class Phase4Panels {
     });
 
     return {
+      id: 'cart',
       title: '🛒 리어카',
       subtitle: has ? '가방이 넓어졌어요' : '짊어지는 가방을 두 배로',
       body: has

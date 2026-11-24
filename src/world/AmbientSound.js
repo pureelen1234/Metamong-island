@@ -195,7 +195,10 @@ export class AmbientSound {
   constructor() {
     this.ctx = null;
     this.master = null;
+    this.bgmBus = null;
+    this.sfxBus = null;
     this.noteBus = null;
+    this.wetGain = null;
     this.started = false;
     this.muted = false;
     this.phase = 'morning';
@@ -233,15 +236,16 @@ export class AmbientSound {
       this.master.connect(comp);
       comp.connect(ctx.destination);
 
-      // ── 음 하나가 지나가는 버스: 부드러운 로우패스 + 옅은 룸 딜레이
-      this.noteBus = ctx.createGain();
-      this.noteBus.gain.value = 1;
+      // ── BGM 버스: 부드러운 로우패스 + 옅은 룸 딜레이
+      this.bgmBus = ctx.createGain();
+      this.bgmBus.gain.value = 1;
+      this.noteBus = this.bgmBus;
 
       const tone = ctx.createBiquadFilter();
       tone.type = 'lowpass';
       tone.frequency.value = 2400; // 고음의 '째는' 느낌을 걷어 낸다
       tone.Q.value = 0.32;
-      this.noteBus.connect(tone);
+      this.bgmBus.connect(tone);
       tone.connect(this.master);
 
       const delay = ctx.createDelay(0.8);
@@ -250,11 +254,17 @@ export class AmbientSound {
       feedback.gain.value = 0.22;
       const wet = ctx.createGain();
       wet.gain.value = 0.13;
+      this.wetGain = wet;
       tone.connect(delay);
       delay.connect(feedback);
       feedback.connect(delay);
       delay.connect(wet);
       wet.connect(this.master);
+
+      // ── SFX 버스: 로우패스·딜레이 없이 마스터로 직결(선명하고 깔끔한 타격·UI음)
+      this.sfxBus = ctx.createGain();
+      this.sfxBus.gain.value = 1;
+      this.sfxBus.connect(this.master);
 
       this.started = true;
       this.step = 0;
@@ -347,7 +357,7 @@ export class AmbientSound {
     out.gain.linearRampToValueAtTime(peak, when + 0.035);
     out.gain.exponentialRampToValueAtTime(Math.max(0.00012, peak * 0.62), when + 0.34);
     out.gain.exponentialRampToValueAtTime(0.0001, when + dur);
-    out.connect(this.noteBus);
+    out.connect(this.bgmBus);
 
     // 기음 + 아주 약한 배음 + 살짝 어긋난 쌍둥이(따뜻한 맥놀이)
     const partials = soft
@@ -459,7 +469,7 @@ export class AmbientSound {
     g.gain.exponentialRampToValueAtTime(0.0001, when + dur);
     src.connect(filter);
     filter.connect(g);
-    g.connect(this.noteBus);
+    g.connect(this.sfxBus || this.bgmBus);
     src.start(when);
     src.stop(when + dur + 0.03);
     this.#trackVoice(src);
@@ -477,7 +487,7 @@ export class AmbientSound {
     g.gain.exponentialRampToValueAtTime(Math.max(0.001, level), when + 0.012);
     g.gain.exponentialRampToValueAtTime(0.0001, when + dur);
     osc.connect(g);
-    g.connect(this.noteBus);
+    g.connect(this.sfxBus || this.bgmBus);
     osc.start(when);
     osc.stop(when + dur + 0.04);
     this.#trackVoice(osc);
@@ -611,6 +621,56 @@ export class AmbientSound {
     this.#pluck(hz(88), t + 0.42, 1.3, 0.07);
   }
 
+  /* ── 3~7단계: 농사 · 방어전 · 하우징 효과음 (드라이 SFX 버스) ── */
+
+  /** 물주기 — 찰랑이는 물줄기 + 방울 */
+  sfxWater() {
+    if (!this.sfxReady) return;
+    const t = this.ctx.currentTime + 0.005;
+    this.#noise(t, 0.2, { type: 'bandpass', freq: 1850, q: 0.9, level: 0.11 });
+    this.#tone(t + 0.02, 520, 0.1, 0.06, 'sine', 760);
+    this.#tone(t + 0.09, 680, 0.09, 0.05, 'sine', 920);
+  }
+
+  /** 씨앗 심기 — 토독 흙 다지기 + 새싹 팝 */
+  sfxPlant() {
+    if (!this.sfxReady) return;
+    const t = this.ctx.currentTime + 0.005;
+    this.#noise(t, 0.09, { type: 'lowpass', freq: 950, q: 0.8, level: 0.12 });
+    this.#tone(t + 0.03, 390, 0.1, 0.075, 'triangle', 580);
+  }
+
+  /** 새총 · 물풍선 발사 */
+  sfxShoot(kind = 'sling') {
+    if (!this.sfxReady) return;
+    const t = this.ctx.currentTime + 0.004;
+    if (kind === 'balloon') {
+      this.#noise(t, 0.14, { type: 'bandpass', freq: 1100, q: 0.8, level: 0.09 });
+      this.#tone(t, 360, 0.14, 0.075, 'sine', 640);
+    } else {
+      this.#tone(t, 520, 0.09, 0.08, 'triangle', 260);
+      this.#noise(t, 0.06, { type: 'highpass', freq: 1600, q: 0.7, level: 0.06 });
+    }
+  }
+
+  /** 불청객 명중 — 경쾌한 타격 팝 */
+  sfxHitRaider() {
+    if (!this.sfxReady) return;
+    const t = this.ctx.currentTime + 0.004;
+    this.#tone(t, 280, 0.09, 0.1, 'triangle', 150);
+    this.#tone(t + 0.03, 660, 0.07, 0.055, 'sine', 880);
+    this.#noise(t, 0.07, { type: 'bandpass', freq: 1400, q: 1.0, level: 0.08 });
+  }
+
+  /** 가구 · 방어 설비 배치 — 포근한 나무 톡 + 확인음 */
+  sfxPlace() {
+    if (!this.sfxReady) return;
+    const t = this.ctx.currentTime + 0.005;
+    this.#noise(t, 0.09, { type: 'lowpass', freq: 720, q: 0.9, level: 0.13 });
+    this.#tone(t, 240, 0.08, 0.09, 'sine', 180);
+    this.#tone(t + 0.06, 784, 0.1, 0.055, 'sine');
+  }
+
   /* ── 외부 제어 ────────────────────────────────────────── */
 
   /**
@@ -633,6 +693,12 @@ export class AmbientSound {
     g.cancelScheduledValues(0);
     g.setValueAtTime(g.value, now);
     g.linearRampToValueAtTime(0, now + 0.06); // 60ms — 딸깍 소리 없이 바로 끊는다
+    if (this.wetGain) {
+      const wg = this.wetGain.gain;
+      wg.cancelScheduledValues(0);
+      wg.setValueAtTime(wg.value, now);
+      wg.linearRampToValueAtTime(0, now + 0.05);
+    }
     this.#stopClock();
     this.#stopVoices(now + 0.07);
     // 남은 꼬리까지 0 이 된 뒤 컨텍스트 자체를 잠근다
@@ -654,6 +720,12 @@ export class AmbientSound {
       g.cancelScheduledValues(0);
       g.setValueAtTime(0, now);
       g.linearRampToValueAtTime(this.volume, now + 0.9); // 팝 없이 스며들 듯
+      if (this.wetGain) {
+        const wg = this.wetGain.gain;
+        wg.cancelScheduledValues(0);
+        wg.setValueAtTime(0, now);
+        wg.linearRampToValueAtTime(0.13, now + 0.6);
+      }
       this.step = 0;
       this.nextTime = now + 0.18;
       this.#startClock();

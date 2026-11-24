@@ -26,6 +26,7 @@ const GradeShader = {
     uSaturation: { value: POST.saturation },
     uContrast: { value: POST.contrast },
     uVignette: { value: POST.vignette },
+    uAspect: { value: window.innerWidth / Math.max(1, window.innerHeight) },
   },
   vertexShader: /* glsl */ `
     varying vec2 vUv;
@@ -40,6 +41,7 @@ const GradeShader = {
     uniform float uSaturation;
     uniform float uContrast;
     uniform float uVignette;
+    uniform float uAspect;
 
     void main() {
       vec4 src = texture2D( tDiffuse, vUv );
@@ -53,14 +55,12 @@ const GradeShader = {
       vec3 s = col * col * ( 3.0 - 2.0 * col );
       col = mix( col, s, uContrast );
 
-      // 은은한 비네트
+      // 세로 모바일 화면에서도 찌그러지지 않는 원형 비네트
       vec2 d = vUv - 0.5;
+      if ( uAspect < 1.0 ) d.x *= uAspect;
+      else d.y /= uAspect;
       float vig = 1.0 - dot( d, d ) * uVignette * 2.0;
       col *= clamp( vig, 0.0, 1.0 );
-
-      // 아주 옅은 종이 그레인 (밴딩 방지)
-      float g = fract( sin( dot( vUv * vec2( 1.0, 1.3 ) + uVignette, vec2( 12.9898, 78.233 ) ) ) * 43758.5453 );
-      col += ( g - 0.5 ) * 0.008;
 
       gl_FragColor = vec4( col, src.a );
     }
@@ -118,6 +118,7 @@ export function createPost(renderer, scene, camera) {
     setSize(w, h) {
       composer.setPixelRatio(renderer.getPixelRatio());
       composer.setSize(w, h);
+      grade.uniforms.uAspect.value = w / Math.max(1, h);
     },
     render() {
       composer.render();

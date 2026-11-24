@@ -19,6 +19,7 @@ function openDB() {
     try {
       req = indexedDB.open(SAVE.dbName, 1);
     } catch (err) {
+      dbPromise = null;
       reject(err);
       return;
     }
@@ -26,9 +27,25 @@ function openDB() {
       const db = req.result;
       if (!db.objectStoreNames.contains(SAVE.store)) db.createObjectStore(SAVE.store);
     };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error || new Error('IndexedDB open error'));
-    req.onblocked = () => reject(new Error('IndexedDB blocked'));
+    req.onsuccess = () => {
+      const db = req.result;
+      db.onclose = () => {
+        dbPromise = null;
+      };
+      db.onversionchange = () => {
+        db.close();
+        dbPromise = null;
+      };
+      resolve(db);
+    };
+    req.onerror = () => {
+      dbPromise = null;
+      reject(req.error || new Error('IndexedDB open error'));
+    };
+    req.onblocked = () => {
+      dbPromise = null;
+      reject(new Error('IndexedDB blocked'));
+    };
   });
   return dbPromise;
 }

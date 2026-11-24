@@ -1,11 +1,11 @@
 /**
  * farmData.js — 3단계 텃밭 농사의 단일 데이터 원천
  *
- * 씨앗 3종 · 성장 시간 · 수확량 · 자판기 판매가가 모두 여기에 있다.
+ * 씨앗 · 성장 시간 · 수확량 · 자판기 판매가가 모두 여기에 있다.
  * 화면(FarmPanels)·규칙(Farming/Progress/Shop)·3D 연출이 이 파일만 본다.
  *
  * 성장 루프 (사용자 확정 사항)
- *   자판기에서 씨앗 구매 → 텃밭에 심기 → (물주기 1회당 남은 시간 50%) → 수확
+ *   자판기에서 씨앗 구매 → 텃밭에 심기 → (물주기 1회당 남은 시간 30% 단축) → 수확
  *   → 수확물은 가방 8칸이 아니라 **별도 바구니(progress.crops)** 에 담긴다
  *   → 자판기 팔기 탭에서 개당 정가로 판다
  */
@@ -16,12 +16,12 @@ export const CROPS = {
     name: '딸기',
     icon: '🍓',
     tint: '#ff6f8f',
-    /** 씨앗 15코인 → 27초 → 2~3개 → 개당 18코인 */
+    /** 씨앗 15코인 → 27초 → 2~3개 → 개당 13코인 */
     seedId: 'seed_strawberry',
     seedPrice: 15,
     grow: 27,
     yield: [2, 3],
-    price: 18,
+    price: 13,
     desc: '텃밭에서 제일 먼저 익는 빨간 열매. 금방 자라서 손이 자주 간다.',
   },
   radish: {
@@ -33,7 +33,7 @@ export const CROPS = {
     seedPrice: 25,
     grow: 42,
     yield: [1, 2],
-    price: 38,
+    price: 44,
     desc: '땅속에서 달게 여무는 무. 잎까지 싱싱하다.',
   },
   pumpkin: {
@@ -45,7 +45,7 @@ export const CROPS = {
     seedPrice: 50,
     grow: 60,
     yield: [1, 2],
-    price: 75,
+    price: 84,
     desc: '해를 오래 먹어 노랗게 익은 호박. 제일 늦게, 제일 값지게.',
   },
   // ── 4단계: 북쪽 논에서 기르는 벼 (물 잠긴 논 타일 전용)
@@ -71,10 +71,10 @@ export const CROPS = {
     icon: '🍅',
     tint: '#ff7a6b',
     seedId: 'seed_tomato',
-    seedPrice: 20,
+    seedPrice: 18,
     grow: 30,
     yield: [2, 3],
-    price: 16,
+    price: 18,
     desc: '줄기에 주렁주렁 매단 작은 빨간 열매. 자주 익어서 손이 즐겁다.',
   },
   corn: {
@@ -86,7 +86,7 @@ export const CROPS = {
     seedPrice: 30,
     grow: 48,
     yield: [1, 2],
-    price: 44,
+    price: 52,
     desc: '키가 훤칠한 줄기 끝에 누렇게 여문 알알이.',
   },
   sweetpotato: {
@@ -98,7 +98,7 @@ export const CROPS = {
     seedPrice: 32,
     grow: 54,
     yield: [2, 3],
-    price: 26,
+    price: 35,
     desc: '땅속에서 통통하게 여무는 붉은 살. 구우면 꿀처럼 달아요.',
   },
   melon: {
@@ -110,7 +110,7 @@ export const CROPS = {
     seedPrice: 55,
     grow: 74,
     yield: [1, 2],
-    price: 92,
+    price: 108,
     desc: '그물무늬 껍질 안에 향이 가득 찬 과일. 제일 느긋하게 익는다.',
   },
   sunflower: {
@@ -122,7 +122,7 @@ export const CROPS = {
     seedPrice: 42,
     grow: 62,
     yield: [1, 2],
-    price: 58,
+    price: 82,
     desc: '고개를 들어 해를 따라가는 노란 꽃. 씨앗을 볶으면 고소한 간식.',
   },
 };
@@ -230,12 +230,14 @@ export const FARM_STAGES = ['빈 밭', '씨앗', '새싹', '자라는 중', '수
 export const FARMING = {
   /** 물주기 1회 기력 소모(한 칸당) */
   waterStamina: 2,
-  /** 물주기 1회가 남은 성장 시간을 줄이는 비율 */
-  waterHalve: 0.5,
+  /** 물주기 1회가 남은 성장 시간을 줄이는 비율 (30% 단축 → 0.7배) */
+  waterHalve: 0.7,
   /** 한 작물에 물을 줄 수 있는 횟수 */
   maxWater: 2,
   /** 물을 준 흙이 촉촉해 보이는 시간(초) */
   wetSeconds: 20,
+  /** 비료를 준 칸의 추가 수확량 */
+  fertilizerBonus: 1,
   /** 수확 시 농사 스킬 EXP */
   expHarvest: 16,
   /** 심기 / 물주기 EXP */
@@ -243,13 +245,14 @@ export const FARMING = {
   expWater: 3,
   /** 물뿌리개 레벨별 한 번에 주는 범위 이름 */
   canArea: ['1칸', '십자 5칸', '4×4 16칸'],
-  /** ── 6단계: 성장 비료 — 한 번에 성장 단계 하나를 건너뛴다 */
+  /** ── 6단계: 성장 비료 — 한 번에 성장 단계 하나를 건너뛰고 수확량 +1 */
   fertilizer: {
     id: 'fertilizer',
     name: '성장 비료',
     icon: '🧪',
-    price: 40,
-    desc: '밭·논 한 칸에 쓰면 성장 단계가 한 칸 올라가요 (남은 시간 30%→62%→다 자람).',
+    price: 12,
+    yieldBonus: 1,
+    desc: '밭·논 한 칸에 쓰면 성장 단계가 한 칸 오르고 수확 시 작물 +1 보너스를 받아요.',
     /** 한 칸에 쓸 수 있는 비료 개수 상한 — 물주기와 같은 결로 2번 */
     maxPerPlot: 2,
   },

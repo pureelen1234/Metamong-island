@@ -137,7 +137,6 @@ export class Fishing {
     let usedBait = false;
     if (bait) {
       if (this.progress.supply('bait') <= 0) return { ok: false, reason: 'no-bait' };
-      this.progress.takeSupply('bait', 1);
       usedBait = true;
     }
     this.progress.useStamina(FISHING.stamina);
@@ -188,12 +187,26 @@ export class Fishing {
     return { ok: false, reason: 'state' };
   }
 
+  #consumeBait() {
+    if (!this.baitUsed) return;
+    if (this.progress.supply('bait') > 0) this.progress.takeSupply('bait', 1);
+    else this.baitUsed = false;
+  }
+
   #catch() {
+    this.#consumeBait();
     // 지금 시간대·물(바다/민물)에 맞는 어종만 물린다 — 아침/낮/노을/밤마다 풀이 다르다
     const phase = (this.hooks.getPhase && this.hooks.getPhase()) || 'day';
     const table = fishPool(this.zone.habitat, phase, this.baitUsed);
-    const fish = pickFish(table);
-    const size = Math.round(fish.size[0] + Math.random() * (fish.size[1] - fish.size[0]));
+    const weights = { ...table };
+    if (this.zone.id === 'river_bridge') {
+      for (const id of Object.keys(weights)) {
+        if (FISH[id]?.rare) weights[id] *= 1.35;
+      }
+    }
+    const fish = pickFish(weights);
+    const sizeMul = this.zone.id === 'river_bridge' ? 1.25 : 1;
+    const size = Math.round((fish.size[0] + Math.random() * (fish.size[1] - fish.size[0])) * sizeMul);
     const at = this.bobber.position;
 
     if (fish.id === 'star') {
@@ -285,6 +298,7 @@ export class Fishing {
       this.bobber.rotation.z = Math.sin(this.t * 26) * 0.35;
       this.hud?.setFishing?.({ state: 'bite', label: '입질! 지금 탭!', urgent: true, ratio: left / this.window });
       if (this.t >= this.window) {
+        this.#consumeBait();
         this.state = 'lost';
         this.t = 0;
         this.progress.fishing.misses += 1;

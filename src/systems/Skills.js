@@ -1,7 +1,7 @@
 /**
- * Skills.js — 4대 생활 스킬(채집·낚시·요리·돌보기)의 EXP·랭크 계산
+ * Skills.js — 5대 생활 스킬(채집·낚시·요리·돌보기·농사)의 EXP·랭크·보너스 계산
  *
- * 값은 전부 lifeData.js(RANKS · LIFE_TITLES)에서 온다. 여기서는 "exp → 랭크/게이지"만 계산하고,
+ * 값은 전부 lifeData.js(RANKS · LIFE_TITLES)에서 온다. 여기서는 "exp → 랭크/게이지/보너스"만 계산하고,
  * 저장·복구는 Progress 가 맡는다. 어떤 모양의 세이브가 들어와도 throw 하지 않는다.
  */
 import { EXP_GAIN, LIFE_TITLES, RANKS, SKILLS } from './lifeData.js';
@@ -58,6 +58,43 @@ export class Skills {
     return this.rankIndex(this.get(id)) + 1;
   }
 
+  /**
+   * 랭크 기반 실전 게임플레이 보너스 (랭크 0..8 구간 기준)
+   *  gather: 추가 드롭 확률 (+3%/랭크)
+   *  fish:   입질 창 연장 (+0.06초/랭크)
+   *  farm:   추가 수확 확률 (+3%/랭크)
+   *  cook:   요리 버프 지속시간 증가율 (+6%/랭크)
+   *  care:   고양이 호감도 보너스 (+5%/랭크)
+   *  defend: 포탑·무기 피해 보너스 (+4%/랭크, 전 스킬 평균 랭크 기반)
+   */
+  bonus(key) {
+    let r = 0;
+    if (key === 'defend') {
+      const avg = SKILL_IDS.reduce((acc, id) => acc + this.rankIndex(this.get(id)), 0) / Math.max(1, SKILL_IDS.length);
+      r = Math.min(8, Math.floor(avg));
+    } else if (SKILL_IDS.includes(key)) {
+      r = Math.min(8, this.rankIndex(this.get(key)));
+    } else {
+      return 0;
+    }
+    switch (key) {
+      case 'gather':
+        return Math.round(r * 0.03 * 1000) / 1000;
+      case 'fish':
+        return Math.round(r * 0.06 * 1000) / 1000;
+      case 'farm':
+        return Math.round(r * 0.03 * 1000) / 1000;
+      case 'cook':
+        return Math.round(r * 0.06 * 1000) / 1000;
+      case 'care':
+        return Math.round(r * 0.05 * 1000) / 1000;
+      case 'defend':
+        return Math.round(r * 0.04 * 1000) / 1000;
+      default:
+        return 0;
+    }
+  }
+
   /** 스킬 한 줄 상태 — 라벨/랭크/다음 랭크까지 진행률 */
   row(id) {
     const def = SKILLS.find((s) => s.id === id) || { id, name: id, icon: '🌱', desc: '' };
@@ -78,6 +115,7 @@ export class Skills {
       next,
       pct,
       toNext: next ? Math.max(0, next.exp - exp) : 0,
+      bonus: this.bonus(id),
     };
   }
 

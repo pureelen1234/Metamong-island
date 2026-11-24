@@ -235,7 +235,7 @@ export class Farming {
     const crop = res.crop;
     this.#syncPlot(plot, true);
     this.fx.burst(plot.x, plot.y + 0.25, plot.z, '#a8804f', 10, { spread: 0.9, up: 1.5 });
-    this.audio.sfxPickup?.();
+    if (this.audio.sfxPlant) this.audio.sfxPlant(); else this.audio.sfxPickup?.();
     this.hooks.toast?.(`🌱 ${crop.name} 씨앗을 심었어요 — ${Math.round(crop.grow)}초 뒤에 익어요`, 2400);
     this.hooks.onPlant?.(crop, plot);
     this.hooks.save?.();
@@ -257,11 +257,16 @@ export class Farming {
       const anyGrowing = this.waterTargets(plot, level).some((i) => !!this.progress.plot(i));
       return { ok: false, reason: anyGrowing ? 'max' : 'empty' };
     }
-    const cost = FARMING.waterStamina * targets.length;
-    if (this.progress.stamina < cost) return { ok: false, reason: 'stamina', cost, need: cost };
+    const lv = Math.max(1, Math.min(3, Math.floor(level) || 1));
+    const costPerPlot = lv >= 3 ? 1 : lv === 2 ? 1.5 : (FARMING.waterStamina || 2);
+    const maxPlots = Math.floor(this.progress.stamina / costPerPlot);
+    if (maxPlots <= 0) {
+      const need = Math.max(1, Math.ceil(costPerPlot));
+      return { ok: false, reason: 'stamina', cost: need, need };
+    }
 
     let watered = 0;
-    for (const p of targets) {
+    for (const p of targets.slice(0, maxPlots)) {
       const res = this.progress.waterPlot(p.index);
       if (!res.ok) continue;
       watered += 1;
@@ -269,8 +274,9 @@ export class Farming {
       this.#syncPlot(p, true);
     }
     if (!watered) return { ok: false, reason: 'empty' };
+    const cost = Math.max(1, Math.ceil(watered * costPerPlot));
     this.progress.useStamina(cost);
-    this.audio.sfxSplash?.(0.4);
+    if (this.audio.sfxWater) this.audio.sfxWater(); else this.audio.sfxSplash?.(0.4);
     this.hooks.onWater?.(watered, plot);
     this.hooks.save?.();
     return { ok: true, watered, cost };

@@ -186,12 +186,12 @@ export function buildMapBase(size) {
     ctx.fillStyle = '#ffffff';
     ctx.fill();
     ctx.lineWidth = Math.max(1, size * 0.011);
-    ctx.strokeStyle = '#b2698f';
+    ctx.strokeStyle = '#58B970';
     ctx.stroke();
     ctx.font = `${Math.round(r * 1.25)}px "Noto Color Emoji", "Apple Color Emoji", sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#6b5878';
+    ctx.fillStyle = '#4E3B2B';
     ctx.fillText(lm.icon, x, y + r * 0.06);
   }
 
@@ -346,6 +346,8 @@ export class Minimap {
     this.wrap.addEventListener('pointerdown', (e) => e.stopPropagation());
 
     this.base = buildMapBase(size * this.dpr);
+    this.bigBase = null;
+    this.bigBaseSize = 0;
     this.ctx = this.canvas.getContext('2d');
     this.lastBridge = null;
     this.draw();
@@ -376,7 +378,7 @@ export class Minimap {
       ctx.fillStyle = def.id === 'somi' ? '#f7f1e6' : '#6d5a4a';
       ctx.fill();
       ctx.lineWidth = Math.max(0.8, s * 0.007);
-      ctx.strokeStyle = '#8b6a8f';
+      ctx.strokeStyle = '#6D5846';
       ctx.stroke();
     }
 
@@ -420,7 +422,11 @@ export class Minimap {
     canvas.style.aspectRatio = '1 / 1';
     const ctx = canvas.getContext('2d');
     const s = size * dpr;
-    ctx.drawImage(buildMapBase(s), 0, 0, s, s);
+    if (!this.bigBase || this.bigBaseSize !== s) {
+      this.bigBase = buildMapBase(s);
+      this.bigBaseSize = s;
+    }
+    ctx.drawImage(this.bigBase, 0, 0, s, s);
 
     const g = this.game;
     drawBridge(ctx, s, !!g.progress.bridgeBuilt, true);
@@ -436,7 +442,7 @@ export class Minimap {
       ctx.fillStyle = def.id === 'somi' ? '#f7f1e6' : '#6d5a4a';
       ctx.fill();
       ctx.lineWidth = 1.4;
-      ctx.strokeStyle = '#8b6a8f';
+      ctx.strokeStyle = '#6D5846';
       ctx.stroke();
     }
     // 내 위치

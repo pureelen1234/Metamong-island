@@ -66,8 +66,13 @@ export function migrateSave(raw) {
       ? raw.discoveredDittos.filter((id) => typeof id === 'string')
       : [];
 
-  // 생활 상태는 Progress 가 필드별로 검사하며 기본값을 채운다
-  const life = new Progress(raw).toJSON();
+  // 생활 상태는 Progress 가 필드별로 검사하며 기본값을 채운다 (손상 세이브 방어)
+  let life;
+  try {
+    life = new Progress(raw).toJSON();
+  } catch {
+    life = new Progress().toJSON();
+  }
 
   return {
     version: SAVE_VERSION,

@@ -9,7 +9,7 @@ export const ITEMS = {
   stone: { id: 'stone', name: '돌', icon: '🪨', tint: '#a9a9c0', desc: '바위를 두드리면 나와요' },
   petal: { id: 'petal', name: '꽃잎', icon: '🌸', tint: '#ffb3d1', desc: '꽃덤불과 벚꽃나무에서' },
   star: { id: 'star', name: '별조각', icon: '⭐', tint: '#ffd77a', desc: '바위에서 아주 가끔' },
-  berry: { id: 'berry', name: '열매', icon: '🍓', tint: '#ff7d9c', desc: '먹으면 기력 +30' },
+  berry: { id: 'berry', name: '열매', icon: '🍓', tint: '#ff7d9c', desc: '먹으면 기력 +15' },
 
   // ── 6단계: 새 채집지의 특산물 (가방이 아니라 특산 바구니 progress.forage 에 담긴다)
   shell: { id: 'shell', name: '조개', icon: '🐚', tint: '#ffdfe8', group: 'beach', forage: true, desc: '남쪽 모래 해변에서 주워요' },
@@ -72,7 +72,7 @@ export const STAMINA = {
   hitBeach: 2,
   hitForest: 3,
   hitMine: 7,
-  eat: 30,
+  eat: 15,
   /** 0.166/s — 10분에 가득. 열매를 먹는 재미를 해치지 않을 만큼만 천천히 */
   regenPerSecond: 1 / 6,
 };
