@@ -24,6 +24,7 @@ export class Joystick {
     this.zone.addEventListener('pointercancel', (e) => this.#up(e));
     this.zone.addEventListener('lostpointercapture', (e) => this.#up(e));
     this.zone.addEventListener('contextmenu', (e) => e.preventDefault());
+    window.addEventListener('blur', () => this.reset());
   }
 
   setEnabled(v) {
@@ -34,7 +35,7 @@ export class Joystick {
 
   #local(e) {
     const rect = this.zone.getBoundingClientRect();
-    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top, width: rect.width, height: rect.height };
   }
 
   #down(e) {
@@ -43,9 +44,14 @@ export class Joystick {
     this.pointerId = e.pointerId;
     this.active = true;
     const p = this.#local(e);
-    this.origin = p;
-    this.base.style.left = `${p.x}px`;
-    this.base.style.top = `${p.y}px`;
+    const maxX = Math.max(this.radius, p.width - this.radius);
+    const maxY = Math.max(this.radius, p.height - this.radius);
+    const cx = Math.max(this.radius, Math.min(maxX, p.x));
+    const cy = Math.max(this.radius, Math.min(maxY, p.y));
+    this.origin = { x: cx, y: cy };
+    this.base.style.left = `${cx}px`;
+    this.base.style.top = `${cy}px`;
+    this.zone.classList.add('active');
     this.base.classList.add('active');
     this.home.style.opacity = '0';
     this.knob.style.transform = 'translate(0px, 0px)';
@@ -98,6 +104,7 @@ export class Joystick {
     this.active = false;
     this.vector.x = 0;
     this.vector.y = 0;
+    this.zone.classList.remove('active');
     this.base.classList.remove('active');
     this.home.style.opacity = '0.85';
     this.knob.style.transform = 'translate(0px, 0px)';

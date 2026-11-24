@@ -408,6 +408,24 @@ export class Home {
   /** 유령 가구 확정 — 보유 수에서 하나 빠지고 배치 목록에 들어간다 */
   confirmPlace() {
     if (!this.ghost) return { ok: false, reason: 'none' };
+    const gDef = this.ghost.def;
+    const gData = this.ghost.data;
+    const overlap = this.placed.some((p) => {
+      if (p.def.kind !== gDef.kind) return false;
+      if (gDef.kind === 'wall') {
+        if ((p.data.wall || 'back') !== (gData.wall || 'back')) return false;
+        return Math.abs((Number(p.data.u) || 0.5) - (Number(gData.u) || 0.5)) < 0.14;
+      }
+      if (!!p.def.flat !== !!gDef.flat) return false;
+      const dx = Math.abs((Number(p.data.x) || 0) - (Number(gData.x) || 0));
+      const dz = Math.abs((Number(p.data.z) || 0) - (Number(gData.z) || 0));
+      const minD = Math.max(0.45, ((p.def.w || 0.8) + (gDef.w || 0.8)) * 0.32);
+      return dx < minD && dz < minD;
+    });
+    if (overlap) {
+      this.hooks.toast?.('🪑 다른 가구와 겹쳐요 — 빈 자리에 놓아 주세요', 1900);
+      return { ok: false, reason: 'overlap' };
+    }
     const id = this.ghost.id;
     if (this.takeOwned(id, 1) <= 0) {
       this.cancelPlace();
@@ -616,7 +634,8 @@ export class Home {
       this.ghost.group.rotation.y = Math.atan2(this.camera.position.x - this.ghost.group.position.x, this.camera.position.z - this.ghost.group.position.z);
     }
     if (this.ghost) {
-      this.ghost.group.position.y += Math.sin(t * 4) * 0.0015;
+      const baseY = this.ghost.def.kind === 'wall' ? (this.ghost.def.mount || 1.6) : (this.ghost.def.flat ? 0.02 : 0);
+      this.ghost.group.position.y = baseY + Math.sin(t * 4) * 0.04;
     }
   }
 

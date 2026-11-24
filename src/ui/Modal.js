@@ -3,23 +3,48 @@ import { h, clear } from './dom.js';
 
 export class Modal {
   constructor(root) {
-    this.card = h('div', { class: 'modal-card' });
+    this.card = h('div', { class: 'modal-card', role: 'dialog', 'aria-modal': 'true' });
     this.backdrop = h('div', { class: 'modal' }, this.card);
     root.append(this.backdrop);
     this.isOpen = false;
     this.onClose = null;
+    this.closable = true;
+    this.currentId = '';
 
     this.backdrop.addEventListener('pointerdown', (e) => {
-      if (e.target === this.backdrop) this.close();
+      if (e.target === this.backdrop && this.closable) this.close();
+    });
+
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Escape' && this.isOpen && this.closable) {
+        e.preventDefault();
+        this.close();
+      }
     });
   }
 
   /**
-   * @param {{title:string, subtitle?:string, body:Node|Node[]|string, actions?:{label:string,kind?:string,onClick?:Function}[], onClose?:Function, closable?:boolean}} opt
+   * @param {{id?:string, title:string, subtitle?:string, body:Node|Node[]|string, actions?:{label:string,kind?:string,onClick?:Function,disabled?:boolean}[], onClose?:Function, closable?:boolean, preserveScroll?:boolean}} opt
    */
   open(opt) {
-    const { title, subtitle = '', body = '', actions = [], onClose = null, closable = true } = opt;
+    const {
+      id = '',
+      title,
+      subtitle = '',
+      body = '',
+      actions = [],
+      onClose = null,
+      closable = true,
+      preserveScroll = false,
+    } = opt;
+
+    const nextId = id || title || '';
+    const keepScroll = this.isOpen && (preserveScroll || (nextId && nextId === this.currentId));
+    const prevScroll = keepScroll ? this.card.scrollTop : 0;
+
     this.onClose = onClose;
+    this.closable = closable;
+    this.currentId = nextId;
 
     clear(this.card);
 
@@ -57,13 +82,15 @@ export class Modal {
 
     this.backdrop.classList.add('open');
     this.isOpen = true;
-    this.card.scrollTop = 0;
+    this.card.scrollTop = keepScroll ? prevScroll : 0;
   }
 
   close() {
     if (!this.isOpen) return;
     this.backdrop.classList.remove('open');
     this.isOpen = false;
+    this.currentId = '';
+    this.closable = true;
     const cb = this.onClose;
     this.onClose = null;
     if (cb) cb();

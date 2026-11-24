@@ -31,7 +31,16 @@ export class DropField {
   spawn(itemId, count, x, z, sourceKey = null) {
     const id = ITEMS[itemId] ? itemId : 'berry';
     if (sourceKey && this.hasSource(sourceKey)) return null;
-    while (this.items.length >= MAX_DROPS) this.remove(this.items[0]);
+    while (this.items.length >= MAX_DROPS) {
+      const naturalIdx = this.items.findIndex((d) => d.sourceKey !== null);
+      if (naturalIdx >= 0) {
+        this.remove(this.items[naturalIdx]);
+      } else if (sourceKey !== null) {
+        return null;
+      } else {
+        this.remove(this.items[0]);
+      }
+    }
 
     const groundY = Math.max(this.terrain.groundY(x, z), 0.02);
     const sprite = new THREE.Sprite(

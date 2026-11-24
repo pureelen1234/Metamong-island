@@ -1,5 +1,5 @@
 /**
- * achievementsData.js — 섬 업적 12종의 정의
+ * achievementsData.js — 섬 업적 23종의 정의
  *
  * 각 업적은 "지금 값(value)"을 Progress 에서 읽어 목표(need)와 비교한다.
  * 누적 카운터는 progress.counters 에 쌓이고(채집·낚시·요리·농사·판매·돌보기),
@@ -30,7 +30,7 @@ export const ACHIEVEMENTS = [
     desc: '나무를 처음으로 끝까지 베어 내기',
     event: 'tree',
     need: 1,
-    reward: { coin: 30, star: 0 },
+    reward: { coin: 15, star: 0 },
   },
   {
     id: 'ach_woodcutter',
@@ -40,7 +40,7 @@ export const ACHIEVEMENTS = [
     desc: '나무 20그루 베어 내기',
     event: 'tree',
     need: 20,
-    reward: { coin: 60, star: 1 },
+    reward: { coin: 30, star: 1 },
   },
   {
     id: 'ach_first_fish',
@@ -50,7 +50,7 @@ export const ACHIEVEMENTS = [
     desc: '부두에서 물고기 한 마리 낚기',
     event: 'fish',
     need: 1,
-    reward: { coin: 30, star: 0 },
+    reward: { coin: 15, star: 0 },
   },
   {
     id: 'ach_angler',
@@ -60,7 +60,7 @@ export const ACHIEVEMENTS = [
     desc: '물고기 15마리 낚기',
     event: 'fish',
     need: 15,
-    reward: { coin: 80, star: 2 },
+    reward: { coin: 40, star: 2 },
   },
   {
     id: 'ach_first_cook',
@@ -70,7 +70,7 @@ export const ACHIEVEMENTS = [
     desc: '공방에서 요리 한 번 하기',
     event: 'cook',
     need: 1,
-    reward: { coin: 30, star: 0 },
+    reward: { coin: 15, star: 0 },
   },
   {
     id: 'ach_cook5',
@@ -80,7 +80,7 @@ export const ACHIEVEMENTS = [
     desc: '요리 5번 하기',
     event: 'cook',
     need: 5,
-    reward: { coin: 70, star: 1 },
+    reward: { coin: 35, star: 1 },
   },
   {
     id: 'ach_first_seed',
@@ -90,7 +90,7 @@ export const ACHIEVEMENTS = [
     desc: '텃밭에 씨앗 한 번 심기',
     event: 'plant',
     need: 1,
-    reward: { coin: 25, star: 0 },
+    reward: { coin: 15, star: 0 },
   },
   {
     id: 'ach_farmer',
@@ -100,7 +100,7 @@ export const ACHIEVEMENTS = [
     desc: '작물 10번 수확하기',
     event: 'crop',
     need: 10,
-    reward: { coin: 80, star: 2 },
+    reward: { coin: 40, star: 2 },
   },
   {
     id: 'ach_merchant',
@@ -110,7 +110,7 @@ export const ACHIEVEMENTS = [
     desc: '자판기에 물건 30개 팔기',
     event: 'sell',
     need: 30,
-    reward: { coin: 70, star: 1 },
+    reward: { coin: 35, star: 1 },
   },
   {
     id: 'ach_cat_friend',
@@ -120,7 +120,7 @@ export const ACHIEVEMENTS = [
     desc: '솜이·옹이 중 한 마리와 호감도 Lv.3',
     need: 3,
     value: maxCatLevel,
-    reward: { coin: 60, star: 1 },
+    reward: { coin: 30, star: 1 },
   },
   {
     id: 'ach_cart',
@@ -130,7 +130,7 @@ export const ACHIEVEMENTS = [
     desc: '공방에서 리어카 만들기 (가방 8칸 → 16칸)',
     need: 1,
     value: (p) => Math.max(0, Math.floor(Number(p.cartLevel) || 0)),
-    reward: { coin: 55, star: 1 },
+    reward: { coin: 28, star: 1 },
   },
   {
     id: 'ach_bridge',
@@ -140,7 +140,7 @@ export const ACHIEVEMENTS = [
     desc: '통나무·돌로 다리를 놓아 북쪽 개척권 열기',
     need: 1,
     value: (p) => (p.bridgeBuilt ? 1 : 0),
-    reward: { coin: 70, star: 1 },
+    reward: { coin: 35, star: 1 },
   },
   {
     id: 'ach_ditto_all',
@@ -152,7 +152,7 @@ export const ACHIEVEMENTS = [
     value: (p) => Math.max(0, Math.floor(Number(p.discoveredCount) || 0)),
     /** 발견 목록은 Game 상태에 있으므로 Game 이 progress.discoveredCount 로 동기화한다 */
     external: true,
-    reward: { coin: 100, star: 3 },
+    reward: { coin: 50, star: 3 },
   },
   {
     id: 'ach_rebuilder',
@@ -162,7 +162,7 @@ export const ACHIEVEMENTS = [
     desc: '부두·공방·자판기·등대 네 곳 모두 복구',
     need: LANDMARKS.length,
     value: (p) => LANDMARKS.filter((lm) => p.building(lm.id).done).length,
-    reward: { coin: 120, star: 2 },
+    reward: { coin: 60, star: 2 },
   },
   // ── 5단계: 불청객 방어전
   {
@@ -173,7 +173,7 @@ export const ACHIEVEMENTS = [
     desc: '회색 망토 수집단을 모두 막아내기',
     need: 1,
     value: (p) => Math.max(0, Math.floor(Number(p.defense && p.defense.wins) || 0)),
-    reward: { coin: 90, star: 2 },
+    reward: { coin: 45, star: 2 },
   },
   {
     id: 'ach_perfect_evac',
@@ -183,7 +183,7 @@ export const ACHIEVEMENTS = [
     desc: '메타몽을 모두 광장으로 모은 뒤 방어전에서 이기기',
     need: 1,
     value: (p) => Math.max(0, Math.floor(Number(p.defense && p.defense.perfectEvacs) || 0)),
-    reward: { coin: 80, star: 2 },
+    reward: { coin: 40, star: 2 },
   },
   {
     id: 'ach_turret_master',
@@ -193,7 +193,7 @@ export const ACHIEVEMENTS = [
     desc: '물풍선 포탑으로 불청객을 10번 맞히기',
     need: 10,
     value: (p) => Math.max(0, Math.floor(Number(p.defense && p.defense.turretHits) || 0)),
-    reward: { coin: 70, star: 1 },
+    reward: { coin: 35, star: 1 },
   },
 
   // ══ 6단계: 새 채집지 · 민물 낚시 · 넓어진 밭 ══════════════
@@ -205,7 +205,7 @@ export const ACHIEVEMENTS = [
     desc: '모래 해변에서 조개·소라·유목 12개 줍기',
     event: 'beach',
     need: 12,
-    reward: { coin: 60, star: 1 },
+    reward: { coin: 30, star: 1 },
   },
   {
     id: 'ach_forest',
@@ -215,7 +215,7 @@ export const ACHIEVEMENTS = [
     desc: '빼곡한 숲에서 송이버섯·도토리·꿀 10개 채집하기',
     event: 'forest',
     need: 10,
-    reward: { coin: 65, star: 1 },
+    reward: { coin: 32, star: 1 },
   },
   {
     id: 'ach_ore',
@@ -225,7 +225,7 @@ export const ACHIEVEMENTS = [
     desc: '채석장에서 구리광석·수정 8개 캐기',
     event: 'ore',
     need: 8,
-    reward: { coin: 70, star: 1 },
+    reward: { coin: 35, star: 1 },
   },
   {
     id: 'ach_river',
@@ -235,7 +235,7 @@ export const ACHIEVEMENTS = [
     desc: '중앙 강에서 민물고기 6마리 낚기',
     event: 'riverfish',
     need: 6,
-    reward: { coin: 75, star: 2 },
+    reward: { coin: 38, star: 2 },
   },
   {
     id: 'ach_farm_full',
@@ -245,7 +245,7 @@ export const ACHIEVEMENTS = [
     desc: `4×4 텃밭 ${FARM.cols * FARM.rows}칸에 모두 씨앗 심기`,
     need: FARM.cols * FARM.rows,
     value: (p) => p.farmPlots.filter(Boolean).length,
-    reward: { coin: 90, star: 2 },
+    reward: { coin: 45, star: 2 },
   },
   {
     id: 'ach_paddy_full',
@@ -255,7 +255,7 @@ export const ACHIEVEMENTS = [
     desc: `4×2 논 ${PADDY.cols * PADDY.rows}칸에 모두 볍씨 심기`,
     need: PADDY.cols * PADDY.rows,
     value: (p) => p.paddyPlots.filter(Boolean).length,
-    reward: { coin: 90, star: 2 },
+    reward: { coin: 45, star: 2 },
   },
 ];
 

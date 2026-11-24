@@ -1,9 +1,5 @@
 /**
  * Phase5Panels.js — 5단계 화면(방어 현황 · 슬롯 관리 · 방어 제작 · 결과)
- *
- * 다른 패널과 같은 규약: Game 이 돌려받은 {title, subtitle, body, actions} 를 Modal 에
- * 그대로 넘기고, 상태를 바꾸는 일은 Game 의 메서드가 맡는다.
- * 화면 갱신은 같은 패널을 다시 여는 방식(game.installStructure 등이 재호출)이다.
  */
 import { h } from './dom.js';
 import { DEFENSE, DITTOS, isInvasionDay } from '../config.js';
@@ -131,18 +127,19 @@ export class Phase5Panels {
       ),
       wave
         ? h('div', { class: 'hint' }, `지금 웨이브 진행 중 — 남은 불청객 ${wave.left} · ${Math.ceil(wave.timer)}초`)
-        : h('div', { class: 'hint' }, ran ? '오늘 밤 방어는 끝났어요. 슬롯을 손보거나 한 번 더 연습해 볼 수 있어요.' : '[지금 방어 시작] 을 누르면 날짜를 기다리지 않고 바로 연습할 수 있어요.')
+        : h('div', { class: 'hint' }, ran ? '오늘 방어전은 이미 마쳤어요. 다음 Day 에 다시 도전할 수 있어요.' : '[지금 방어 시작] 을 누르면 하루에 한 번 바로 방어전을 진행할 수 있어요.')
     );
 
     const actions = [
       { label: '🛠️ 방어 제작', kind: 'ghost', onClick: () => g.openDefenseCraft() },
       { label: '📣 메타몽 모으기', kind: 'ghost', onClick: () => g.gatherDittos() },
-      wave
+      wave || ran
         ? { label: '닫기', kind: 'primary', onClick: () => g.modal.close() }
         : { label: '🛡️ 지금 방어 시작', kind: 'primary', onClick: () => g.startDefenseNow() },
     ];
 
     return {
+      id: 'defense',
       title: '🛡️ 불청객 방어전',
       subtitle: '3일마다 밤 — 부두에서 올라오는 회색 망토 수집단',
       body,
@@ -157,7 +154,6 @@ export class Phase5Panels {
     const d = g.progress.defense;
     const slot = DEFENSE.slots[index];
     const st = g.defense ? g.defense.structureAt(index) : null;
-    const inv = g.progress.inventory;
 
     const head = st
       ? h(
@@ -179,10 +175,21 @@ export class Phase5Panels {
     for (const kind of STRUCTURE_ORDER) {
       const def = STRUCTURES[kind];
       const n = d.stock[kind] || 0;
-      const btn = h('button', { class: `mini ${n > 0 ? 'on' : ''}`, type: 'button' }, n > 0 ? '설치' : '없음');
-      if (n <= 0 || st) btn.disabled = true;
-      btn.addEventListener('click', () => g.installStructure(index, kind));
-      const canMake = Object.entries(def.cost).every(([id, need]) => g.haveMaterial(id) >= need);      list.append(
+      const canMake = Object.entries(def.cost).every(([id, need]) => g.haveMaterial(id) >= need);
+
+      let actionBtn;
+      if (n > 0) {
+        actionBtn = h('button', { class: `mini ${st ? '' : 'on'}`, type: 'button' }, '설치');
+        if (st) actionBtn.disabled = true;
+        actionBtn.addEventListener('click', () => g.installStructure(index, kind));
+      } else if (canMake) {
+        actionBtn = h('button', { class: 'mini up on', type: 'button' }, '제작');
+        actionBtn.addEventListener('click', () => g.craftStructure(kind));
+      } else {
+        actionBtn = h('button', { class: 'mini', type: 'button', disabled: 'disabled' }, '없음');
+      }
+
+      list.append(
         h(
           'div',
           { class: 'df-pick-row' },
@@ -195,14 +202,9 @@ export class Phase5Panels {
             h('div', { class: 'meta' }, `${def.desc}`),
             this.#costChips(def.cost)
           ),
-          btn
+          actionBtn
         )
       );
-      if (canMake && n <= 0) {
-        const craftBtn = h('button', { class: 'mini up', type: 'button' }, '제작');
-        craftBtn.addEventListener('click', () => g.craftStructure(kind));
-        list.lastChild.append(craftBtn);
-      }
     }
 
     const actions = [];
@@ -211,6 +213,7 @@ export class Phase5Panels {
     actions.push({ label: '닫기', kind: 'primary', onClick: () => g.modal.close() });
 
     return {
+      id: `defense_slot_${index}`,
       title: `${index + 1}번 방어 슬롯`,
       subtitle: `부두~광장 오솔길 ${slot.side} — ${st ? st.def.name : '비어 있음'}`,
       body: h(
@@ -231,12 +234,11 @@ export class Phase5Panels {
     const g = this.game;
     const p = g.progress;
     const d = p.defense;
-    const inv = p.inventory;
 
     const list = h('div', { class: 'df-pick' });
     for (const kind of STRUCTURE_ORDER) {
       const def = STRUCTURES[kind];
-      const lack = Object.entries(def.cost).filter(([id, n]) => p.materialCount(id) < n);
+      const lack = Object.entries(def.cost).filter(([id, n]) => g.haveMaterial(id) < n);
       const btn = h('button', { class: `mini ${lack.length ? '' : 'on'}`, type: 'button' }, lack.length ? '재료 부족' : '제작');
       if (lack.length) btn.disabled = true;
       btn.addEventListener('click', () => g.craftStructure(kind));
@@ -259,6 +261,7 @@ export class Phase5Panels {
     }
 
     return {
+      id: 'defense_craft',
       title: '🛠️ 방어 제작',
       subtitle: '재료와 원정 자원으로 만드는 여섯 가지 방어 설비',
       body: h(
@@ -293,6 +296,7 @@ export class Phase5Panels {
       h('div', { class: 'row' }, h('div', { class: 'label' }, label), h('span', { class: 'hint' }, String(value)));
 
     return {
+      id: 'defense_result',
       title: `${text.icon} ${text.title}`,
       subtitle: text.sub,
       body: h(

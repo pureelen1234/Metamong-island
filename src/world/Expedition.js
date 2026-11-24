@@ -192,6 +192,11 @@ export class Expedition {
     for (const n of this.nodes) {
       this.nodeGroup.remove(n.sprite);
       n.sprite.material.dispose();
+      if (n.shadow) {
+        this.nodeGroup.remove(n.shadow);
+        n.shadow.geometry?.dispose();
+        n.shadow.material?.dispose();
+      }
     }
     this.nodes = [];
     for (const node of site.nodes) {
@@ -206,11 +211,10 @@ export class Expedition {
       sp.position.set(node.x, h / 2, node.z);
       sp.renderOrder = 4;
       sp.userData.nodeIndex = this.nodes.length;
-      this.root.add(sp);
       this.nodeGroup.add(sp);
       const sh = blobShadow(0.26, 0.2);
       sh.position.set(node.x, 0.02, node.z);
-      this.root.add(sh);
+      this.nodeGroup.add(sh);
       this.nodes.push({ type: node.type, x: node.x, z: node.z, sprite: sp, shadow: sh, taken: false, bob: Math.random() * 6.28 });
     }
 

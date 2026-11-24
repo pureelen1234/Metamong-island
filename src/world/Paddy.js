@@ -220,7 +220,7 @@ export class Paddy {
     const crop = res.crop;
     this.#syncPlot(plot, true);
     this.fx.burst(plot.x, plot.y + 0.2, plot.z, '#b9e6c6', 10, { spread: 0.9, up: 1.4 });
-    this.audio.sfxSplash?.(0.5);
+    if (this.audio.sfxPlant) this.audio.sfxPlant(); else this.audio.sfxSplash?.(0.5);
     this.hooks.toast?.(`🌾 ${crop.name} 볍씨를 논에 심었어요 — ${Math.round(crop.grow)}초 뒤에 여물어요`, 2400);
     this.hooks.onPlant?.(crop, plot);
     this.hooks.save?.();
@@ -238,11 +238,16 @@ export class Paddy {
       const anyGrowing = this.waterTargets(plot, level).some((i) => !!this.progress.paddyPlot(i));
       return { ok: false, reason: anyGrowing ? 'max' : 'empty' };
     }
-    const cost = FARMING.waterStamina * targets.length;
-    if (this.progress.stamina < cost) return { ok: false, reason: 'stamina', cost };
+    const lv = Math.max(1, Math.min(3, Math.floor(level) || 1));
+    const costPerPlot = lv >= 3 ? 1 : lv === 2 ? 1.5 : (FARMING.waterStamina || 2);
+    const maxPlots = Math.floor(this.progress.stamina / costPerPlot);
+    if (maxPlots <= 0) {
+      const need = Math.max(1, Math.ceil(costPerPlot));
+      return { ok: false, reason: 'stamina', cost: need, need };
+    }
 
     let watered = 0;
-    for (const p of targets) {
+    for (const p of targets.slice(0, maxPlots)) {
       const res = this.progress.waterPaddy(p.index);
       if (!res.ok) continue;
       watered += 1;
@@ -250,8 +255,9 @@ export class Paddy {
       this.#syncPlot(p, true);
     }
     if (!watered) return { ok: false, reason: 'empty' };
+    const cost = Math.max(1, Math.ceil(watered * costPerPlot));
     this.progress.useStamina(cost);
-    this.audio.sfxSplash?.(0.4);
+    if (this.audio.sfxWater) this.audio.sfxWater(); else this.audio.sfxSplash?.(0.4);
     this.hooks.onWater?.(watered, plot);
     this.hooks.save?.();
     return { ok: true, watered, cost };
@@ -299,7 +305,8 @@ export class Paddy {
   update(dt, scaledDt, camera = null) {
     this.time += dt;
     this.camera = camera;
-    const ripe = scaledDt > 0 ? this.progress.tickPaddy(scaledDt) : [];
+    // 물에 잠긴 논은 자연 수분으로 기본 성장 속도가 1.35× 빠르다
+    const ripe = scaledDt > 0 ? this.progress.tickPaddy(scaledDt * 1.35) : [];
     for (const plot of this.plots) {
       const st = this.progress.paddyPlot(plot.index);
       if (st && st.wet > 0) plot.wet = true;

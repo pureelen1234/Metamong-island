@@ -1,9 +1,8 @@
 /**
  * Phase3Panels.js — 3단계 화면(텃밭 · 씨앗 고르기 · 섬 업적 · 확대 지도)
  *
- * LifePanels 와 같은 규약: Game 이 돌려받은 {title, subtitle, body, actions} 를 Modal 에
- * 그대로 넘기고, 상태를 바꾸는 일은 Game 의 메서드가 맡는다. 화면 갱신은 같은 패널을
- * 다시 여는 방식(game.openFarm 등 재호출)이다.
+ * 4×4 텃밭은 탭-선택 카드 + 하단 44px 액션 바 + 상단 일괄 버튼([전체 수확]·[전체 물주기]) 구조로
+ * 모바일에서도 오터치 없이 편하게 가꿀 수 있다.
  */
 import { h } from './dom.js';
 import { FARM, ZONES } from '../config.js';
@@ -17,6 +16,7 @@ const chip = (text, cls = '') => h('span', { class: `lchip ${cls}` }, text);
 export class Phase3Panels {
   constructor(game) {
     this.game = game;
+    this.selectedPlot = 0;
   }
 
   #bar(pct, cls = '') {
@@ -29,13 +29,14 @@ export class Phase3Panels {
   #plotInfo(index) {
     const p = this.game.progress;
     const st = p.plot(index);
-    if (!st) return { state: 'empty', label: '씨앗을 심어 보세요', stage: -1, pct: 0, crop: null, st: null };
+    if (!st) return { state: 'empty', label: '빈 밭', stage: -1, pct: 0, crop: null, st: null };
     const crop = CROPS[st.crop];
     const stage = stageOf(st);
     const pct = Math.round((1 - st.remain / Math.max(1, st.total)) * 100);
     return {
       state: st.remain > 0 ? 'grow' : 'ripe',
-      label: st.remain > 0 ? `${FARM_STAGES[stage + 1]} · ${Math.ceil(st.remain)}초` : '수확 가능',
+      label: st.remain > 0 ? `${FARM_STAGES[stage + 1]} · ${Math.ceil(st.remain)}초` : '수확 가능!',
+      shortLabel: st.remain > 0 ? `${Math.ceil(st.remain)}초` : '수확!',
       stage,
       pct,
       crop,
@@ -43,52 +44,16 @@ export class Phase3Panels {
     };
   }
 
-  #plotButton(index, info) {
-    if (info.state === 'empty') {
-      const btn = h('button', { class: 'mini farm-btn', type: 'button' }, '🌱 심기');
-      btn.addEventListener('click', () => this.game.openSeedPicker(index));
-      return btn;
-    }
-    if (info.state === 'ripe') {
-      const btn = h('button', { class: 'mini farm-btn on', type: 'button' }, '🧺 수확');
-      btn.addEventListener('click', () => this.game.harvestPlot(index));
-      return btn;
-    }
-    const canWater = info.st.watered < FARMING.maxWater;
-    const btn = h(
-      'button',
-      { class: `mini farm-btn ${canWater ? 'water' : ''}`, type: 'button' },
-      canWater ? `💧 물 ${FARMING.maxWater - info.st.watered}` : '💧 끝'
-    );
-    if (!canWater) btn.disabled = true;
-    btn.addEventListener('click', () => this.game.waterPlot(index));
-    return btn;
-  }
-
-  /** 칸 안의 버튼 줄 — 기본 동작(심기/물/수확) + 성장 비료 */
-  #plotActions(index, info) {
-    const row = h('div', { class: 'fc-acts' }, this.#plotButton(index, info));
-    if (info.state === 'grow') {
-      const fert = this.game.progress.supply('fertilizer');
-      const used = Math.max(0, Math.floor(Number(info.st && info.st.fert) || 0));
-      const can = fert > 0 && used < FARMING.fertilizer.maxPerPlot;
-      const btn = h(
-        'button',
-        { class: `mini fc-fert ${can ? 'on' : ''}`, type: 'button', 'aria-label': `${index + 1}번 밭에 성장 비료`, title: can ? `성장 비료 ${fert}개` : used >= FARMING.fertilizer.maxPerPlot ? '비료를 다 줬어요' : '비료가 없어요' },
-        '🧪'
-      );
-      if (!can) btn.disabled = true;
-      btn.addEventListener('click', () => this.game.fertilizePlot(index));
-      row.append(btn);
-    }
-    return row;
-  }
-
   farm() {
     const p = this.game.progress;
+    const totalPlots = FARM.cols * FARM.rows;
+    if (this.selectedPlot < 0 || this.selectedPlot >= totalPlots) this.selectedPlot = 0;
+
     const can = p.toolInfo('water');
     const planted = p.farmPlots.filter(Boolean).length;
-    const ripe = p.farmPlots.filter((st) => st && st.remain <= 0).length;
+    const ripeCount = p.farmPlots.filter((st) => st && st.remain <= 0).length;
+    const waterableCount = p.farmPlots.filter((st) => st && st.remain > 0 && st.watered < FARMING.maxWater).length;
+    const fert = p.supply('fertilizer');
 
     const stock = h(
       'div',
@@ -105,55 +70,141 @@ export class Phase3Panels {
       ...CROP_ORDER.map((id) => chip(`${CROPS[id].icon} ${CROPS[id].name} ${p.cropCount(id)}`, p.cropCount(id) > 0 ? 'warm' : ''))
     );
 
+    // 상단 일괄 버튼 바
+    const harvestAllBtn = h(
+      'button',
+      {
+        class: `btn ${ripeCount > 0 ? 'primary' : 'ghost'}`,
+        type: 'button',
+        onclick: () => this.game.harvestAllFarm(),
+      },
+      `🧺 전체 수확 (${ripeCount})`
+    );
+    if (ripeCount <= 0) harvestAllBtn.disabled = true;
+
+    const waterAllBtn = h(
+      'button',
+      {
+        class: `btn ${waterableCount > 0 ? 'soft' : 'ghost'}`,
+        type: 'button',
+        onclick: () => this.game.waterAllFarm(),
+      },
+      `💧 전체 물주기 (${waterableCount})`
+    );
+    if (waterableCount <= 0) waterAllBtn.disabled = true;
+
+    const bulkBar = h('div', { class: 'farm-bulk-bar' }, harvestAllBtn, waterAllBtn);
+
+    // 4×4 탭-선택 카드 그리드
     const grid = h('div', { class: 'farm-grid', 'data-cols': String(FARM.cols) });
-    for (let i = 0; i < FARM.cols * FARM.rows; i++) {
+    for (let i = 0; i < totalPlots; i++) {
       const info = this.#plotInfo(i);
+      const isSelected = i === this.selectedPlot;
       const cell = h(
-        'div',
-        { class: `farm-cell ${info.state}`, 'data-plot': String(i) },
-        h('div', { class: 'fc-head' }, h('span', { class: 'fc-ico' }, info.crop ? info.crop.icon : '·'), h('span', { class: 'fc-name' }, info.crop ? info.crop.name : '빈 밭')),
-        h('div', { class: 'fc-stage' }, info.label),
-        info.state === 'empty' ? null : this.#bar(info.pct, info.state === 'ripe' ? 'life' : ''),
-        this.#plotActions(i, info)
+        'button',
+        {
+          class: `farm-cell ${info.state} ${isSelected ? 'selected' : ''}`,
+          type: 'button',
+          'data-plot': String(i),
+          'aria-pressed': isSelected ? 'true' : 'false',
+          'aria-label': `${i + 1}번 밭 ${info.crop ? info.crop.name : '빈 밭'} ${info.label}`,
+        },
+        h('span', { class: 'fc-num' }, String(i + 1)),
+        h('span', { class: 'fc-ico' }, info.crop ? info.crop.icon : '🌱'),
+        h('div', { class: 'fc-name' }, info.crop ? info.crop.name : '빈 밭'),
+        h('div', { class: 'fc-stage' }, info.shortLabel || info.label),
+        info.state === 'empty' ? null : this.#bar(info.pct, info.state === 'ripe' ? 'life' : '')
       );
+      cell.addEventListener('click', () => {
+        if (this.selectedPlot === i && info.state === 'empty') {
+          this.game.openSeedPicker(i);
+          return;
+        }
+        this.selectedPlot = i;
+        this.game.openFarm();
+      });
       grid.append(cell);
     }
 
-    const fert = p.supply('fertilizer');
+    // 하단 선택 칸 44px 액션 바
+    const sel = this.selectedPlot;
+    const selInfo = this.#plotInfo(sel);
+    const barActions = h('div', { class: 'fab-btns' });
+
+    if (selInfo.state === 'empty') {
+      const plantBtn = h(
+        'button',
+        { class: 'btn primary', type: 'button', onclick: () => this.game.openSeedPicker(sel) },
+        '🌱 씨앗 심기'
+      );
+      barActions.append(plantBtn);
+    } else if (selInfo.state === 'ripe') {
+      const harvBtn = h(
+        'button',
+        { class: 'btn primary', type: 'button', onclick: () => this.game.harvestPlot(sel) },
+        '🧺 수확하기'
+      );
+      barActions.append(harvBtn);
+    } else {
+      const canWater = selInfo.st.watered < FARMING.maxWater;
+      const waterBtn = h(
+        'button',
+        { class: `btn ${canWater ? 'primary' : 'ghost'}`, type: 'button', onclick: () => this.game.waterPlot(sel) },
+        canWater ? `💧 물주기 (${FARMING.maxWater - selInfo.st.watered})` : '💧 물주기 완료'
+      );
+      if (!canWater) waterBtn.disabled = true;
+
+      const usedFert = Math.max(0, Math.floor(Number(selInfo.st && selInfo.st.fert) || 0));
+      const canFert = fert > 0 && usedFert < FARMING.fertilizer.maxPerPlot;
+      const fertBtn = h(
+        'button',
+        { class: `btn ${canFert ? 'soft' : 'ghost'}`, type: 'button', onclick: () => this.game.fertilizePlot(sel) },
+        usedFert >= FARMING.fertilizer.maxPerPlot ? '🧪 비료 완료' : `🧪 비료 (${fert})`
+      );
+      if (!canFert) fertBtn.disabled = true;
+
+      barActions.append(waterBtn, fertBtn);
+    }
+
+    const actionBar = h(
+      'div',
+      { class: 'farm-action-bar' },
+      h(
+        'div',
+        { class: 'fab-info' },
+        h('span', { class: 'fab-ico' }, selInfo.crop ? selInfo.crop.icon : '🌱'),
+        h(
+          'div',
+          { class: 'fab-text' },
+          h('div', { class: 'nm' }, `${sel + 1}번 밭 · ${selInfo.crop ? selInfo.crop.name : '빈 밭'}`),
+          h('div', { class: 'meta' }, selInfo.state === 'empty' ? '씨앗을 골라 심어 보세요' : selInfo.label)
+        )
+      ),
+      barActions
+    );
+
     return {
+      id: 'farm',
       title: '🌱 텃밭',
-      subtitle: `4×4 경작지 · ${planted}칸 심음${ripe ? ` · ${ripe}칸 수확 가능` : ''}`,
+      subtitle: `4×4 경작지 · ${planted}칸 심음${ripeCount ? ` · ${ripeCount}칸 수확 가능` : ''}`,
       body: h(
         'div',
         {},
-        h('div', { class: 'hint' }, '씨앗을 심하고 물을 주면 남은 시간이 절반으로 줄어요. 다 자란 작물은 텃밭 바구니에 담기고, 자판기 [팔기] 에서 그대로 팔 수 있어요.'),
+        h('div', { class: 'hint' }, '씨앗을 심고 물을 주면 남은 시간이 절반으로 줄어요. 밭 칸을 눌러 선택한 뒤 아래 버튼으로 편하게 가꿔 보세요.'),
+        h('div', { class: 'section-label' }, '한 번에 관리'),
+        bulkBar,
+        h('div', { class: 'section-label' }, '경작지 (칸을 눌러 선택)'),
+        grid,
+        actionBar,
         h('div', { class: 'section-label' }, '내 씨앗'),
         stock,
         h(
           'button',
           { class: 'btn soft wide', type: 'button', onclick: () => { this.game.life.shopTab = 'buy'; this.game.openVending(); } },
-          '🥤 자판기에서 씨앗 사기'
+          '🥤 자판기에서 씨앗·비료 사기'
         ),
-        h('div', { class: 'section-label' }, '🧪 성장 비료'),
-        h(
-          'div',
-          { class: 'row' },
-          h(
-            'div',
-            {},
-            h('div', { class: 'label' }, `보유 ${fert}개`),
-            h('div', { class: 'hint' }, `한 칸에 쓰면 성장 단계가 하나 올라가요 · 칸당 최대 ${FARMING.fertilizer.maxPerPlot}번`),
-          ),
-          h(
-            'button',
-            { class: 'mini', type: 'button', onclick: () => { this.game.life.shopTab = 'buy'; this.game.openVending(); } },
-            '사기'
-          )
-        ),
-        h('div', { class: 'section-label' }, `🧺 수확 바구니 (가방과 따로 담겨요)`),
+        h('div', { class: 'section-label' }, '🧺 수확 바구니 (가방과 따로 담겨요)'),
         basket,
-        h('div', { class: 'section-label' }, '경작지'),
-        grid,
         h('div', { class: 'section-label' }, '물뿌리개'),
         h(
           'div',
@@ -202,6 +253,7 @@ export class Phase3Panels {
       );
     }
     return {
+      id: `seed_picker_${index}`,
       title: `🌱 ${index + 1}번 밭에 심기`,
       subtitle: '어떤 씨앗을 심을까요',
       body: h(
@@ -260,6 +312,7 @@ export class Phase3Panels {
     }
 
     return {
+      id: 'achievements',
       title: '🏆 섬 업적',
       subtitle: `${rows.length}종 중 ${unlocked}종 달성${claimable ? ` · 받을 보상 ${claimable}건` : ''}`,
       body,

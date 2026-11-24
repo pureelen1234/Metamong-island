@@ -81,6 +81,7 @@ export class Panels {
     );
 
     return {
+      id: 'bag',
       title: '🎒 가방',
       subtitle: '채집한 재료와 열매가 여기에 담겨요',
       body,
@@ -132,6 +133,7 @@ export class Panels {
     );
 
     return {
+      id: 'storage',
       title: '📦 공방 창고',
       subtitle: '대량으로 모아 두고, 필요할 때 가방으로 꺼내요',
       body,
@@ -201,6 +203,7 @@ export class Panels {
     actions.push({ label: '닫기', kind: st.done || !ready ? 'primary' : 'ghost', onClick: () => this.game.modal.close() });
 
     return {
+      id: `build_${lm.id}`,
       title: `${lm.icon} ${lm.name}`,
       subtitle: st.done ? '이미 복구된 건물이에요' : '재료만 모이면 지금 바로 복구할 수 있어요',
       body,
@@ -260,6 +263,7 @@ export class Panels {
       )
     );
     return {
+      id: 'workshop_menu',
       title: '🔨 공방',
       subtitle: '재료를 정리하고, 요리하고, 섬을 고치는 곳',
       body,
@@ -297,6 +301,7 @@ export class Panels {
     const readyQuest = quests.filter((q) => q.done && !q.claimed).length;
 
     return {
+      id: 'mailbox',
       title: '📬 우체통',
       subtitle: '공지와 편지, 그리고 의뢰와 선물이 있어요',
       body: h(
@@ -338,6 +343,7 @@ export class Panels {
     );
 
     return {
+      id: `mail_${letter.id}`,
       title: `${letter.icon} ${letter.title}`,
       subtitle: '',
       body,

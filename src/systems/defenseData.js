@@ -1,13 +1,12 @@
 /**
  * defenseData.js — 5단계 방어전의 수치 한 곳
  *
- * · 방어 설비 4종(나무 울타리 · 메타몽 허수아비 · 물풍선 포탑 · 별빛 경보등)의 재료·능력
+ * · 방어 설비 6종(나무 울타리 · 메타몽 허수아비 · 물풍선 포탑 · 별빛 경보등 · 화염/얼음 포탑)의 재료·능력
  * · 주인공 무기 2종(새총 · 꽃잎 물풍선)
  * · 불청객 3종(졸개 · 발빠른 자 · 덩치)과 3일 주기 웨이브 편성
  * · 솜이·옹이 헬퍼와 모인 메타몽 변신 보조의 계수
  *
  * 화면(Phase5Panels)과 3D(Defense.js)가 모두 이 파일만 읽는다.
- * 재료 이름은 기존 items.js 의 ITEMS 를 그대로 쓴다 — 5단계를 위해 새 재료를 만들지 않는다.
  */
 import { DITTOS } from '../config.js';
 
@@ -62,13 +61,13 @@ export const STRUCTURES = {
     hp: 96,
     height: 1.35,
     range: 7.8,
-    cooldown: 1.25,
-    damage: 26,
+    cooldown: 1.4,
+    damage: 19,
     slow: 0,
     splash: 1.6,
     tower: { projectile: 'flame', splash: 1.6 },
-    desc: '화산 심장석의 열을 모아 불덩이를 쏘아요. 물풍선의 세 배에 가까운 위력으로 주변까지 태웁니다.',
-    effect: '사거리 7.8 · 1.25초마다 · 공격 26 · 범위 1.6',
+    desc: '화산 심장석의 열을 모아 불덩이를 쏘아요. 강한 화력으로 주변까지 태웁니다.',
+    effect: '사거리 7.8 · 1.4초마다 · 공격 19 · 범위 1.6',
   },
   ice_turret: {
     id: 'ice_turret',
@@ -80,11 +79,11 @@ export const STRUCTURES = {
     range: 8.2,
     cooldown: 1.6,
     damage: 20,
-    slow: 0.3,
+    slow: 0.45,
     splash: 1.2,
     tower: { projectile: 'frost', splash: 1.2 },
     desc: '얼음 결정의 냉기를 담아 얼음창을 쏴요. 맞은 불청객의 발이 크게 느려져 길목이 막힙니다.',
-    effect: '사거리 8.2 · 1.6초마다 · 공격 20 · 이동 30% 둔화',
+    effect: '사거리 8.2 · 1.6초마다 · 공격 20 · 이동 55% 둔화',
   },
   lamp: {
     id: 'lamp',
@@ -154,18 +153,31 @@ export const WAVE = {
   duration: 44,
   firstDelay: 1.4,
   spawnGap: 2.1,
+  day3SpawnGap: 2.6,
   boatIn: 2.6,
   attackDps: 8,
 };
 
-/** 그날의 웨이브 편성 — 날이 갈수록 조금씩 많아진다(최대 14) */
+/** Day 3 첫 웨이브는 스폰 간격을 2.6초로 완만하게 */
+export function waveSpawnGap(day) {
+  const d = Math.max(1, Math.floor(Number(day) || 1));
+  return d <= 3 ? WAVE.day3SpawnGap : WAVE.spawnGap;
+}
+
+/** Day 12+ 후반 불청객 체력 스케일링 */
+export function raiderHpScale(day) {
+  const d = Math.max(1, Math.floor(Number(day) || 1));
+  return d < 12 ? 1 : 1 + Math.max(0, d - 9) * 0.045;
+}
+
+/** 그날의 웨이브 편성 — 날이 갈수록 조금씩 많아진다(최대 14), Day 3 첫 웨이브는 빠른 runner 제외 */
 export function wavePlan(day) {
   const d = Math.max(1, Math.floor(Number(day) || 1));
   const count = Math.min(14, 5 + Math.floor(d / 3));
   const list = [];
   for (let i = 0; i < count; i++) {
     if (d >= 6 && i % 5 === 4) list.push('big');
-    else if (i % 3 === 2) list.push('runner');
+    else if (d > 3 && i % 3 === 2) list.push('runner');
     else list.push('grunt');
   }
   return list;

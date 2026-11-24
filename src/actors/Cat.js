@@ -8,6 +8,7 @@
  * 플레이어 뒤 1.4m 지점을 목표로 부드럽게 따라온다(모달·일시정지 중에는 멈춤).
  */
 import * as THREE from 'three';
+import { PLAYER } from '../config.js';
 import { Billboard, blobShadow, heartSprite } from '../sprites/Billboard.js';
 
 const WALK_FPS = 7;
@@ -49,6 +50,7 @@ export class Cat {
     this.walkT = Math.random() * 2;
     this.hop = 0;
     this.heartT = 0;
+    this.heartMax = 1.4;
     this.pets = 0;
     this.follow = false;
     this.followGrace = 0;
@@ -69,6 +71,7 @@ export class Cat {
   pet() {
     this.hop = 1;
     this.heartT = 1.4;
+    this.heartMax = 1.4;
     this.pets += 1;
     this.state = 'happy';
     this.stateT = 1.2;
@@ -81,6 +84,7 @@ export class Cat {
     this.pet();
     this.hop = 1.25;
     this.heartT = 1.8;
+    this.heartMax = 1.8;
   }
 
   setFollow(on) {
@@ -117,7 +121,8 @@ export class Cat {
     }
     const nx = dx / dist;
     const nz = dz / dist;
-    const step = Math.min(dist - FOLLOW_KEEP, FOLLOW_SPEED * dt);
+    const followSpeed = Math.min(PLAYER.speed * 1.12, FOLLOW_SPEED + Math.max(0, dist - 2.2) * 0.9);
+    const step = Math.min(dist - FOLLOW_KEEP, followSpeed * dt);
     const px = this.position.x + nx * step;
     const pz = this.position.z + nz * step;
     if (this.terrain.isWalkable(px, pz)) {
@@ -128,9 +133,16 @@ export class Cat {
       this.walkT += dt;
       this.#walkFrame(nx, nz);
     } else if (dist > 4.5 && this.terrain.isWalkable(playerPos.x, playerPos.z)) {
-      // 물·바위에 막혀 너무 멀어지면 살짝 뛰어 넘어온다
-      this.position.x = playerPos.x - nx * 1.4;
-      this.position.z = playerPos.z - nz * 1.4;
+      // 물·바위에 막혀 너무 멀어지면 살짝 뛰어 넘어온다 (물 위 텔레포트 방지)
+      const tx = playerPos.x - nx * 1.4;
+      const tz = playerPos.z - nz * 1.4;
+      if (this.terrain.isWalkable(tx, tz)) {
+        this.position.x = tx;
+        this.position.z = tz;
+      } else {
+        this.position.x = playerPos.x;
+        this.position.z = playerPos.z;
+      }
     }
   }
 
@@ -237,7 +249,7 @@ export class Cat {
     // 하트
     if (this.heartT > 0) {
       this.heartT = Math.max(0, this.heartT - dt);
-      const p = 1 - this.heartT / 1.4;
+      const p = 1 - this.heartT / Math.max(0.1, this.heartMax || 1.4);
       this.heart.visible = true;
       this.heart.position.set(0, this.height * 1.05 + p * 0.55, 0);
       this.heart.material.opacity = Math.min(1, this.heartT * 1.8);

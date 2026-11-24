@@ -15,6 +15,7 @@ import { LandmarkLabels } from '../ui/Landmarks.js';
 import { Panels } from '../ui/Panels.js';
 import { h } from '../ui/dom.js';
 import { SaveStore } from '../storage/SaveStore.js';
+import { SAVE_VERSION } from '../storage/saveSchema.js';
 import { createPost } from '../render/post.js';
 import { makeRamp } from '../render/toon.js';
 import { loadAtlases } from '../sprites/atlas.js';
@@ -81,6 +82,7 @@ import {
   clockLabel,
   isInvasionDay,
   phaseAt,
+  riverCenterZ,
   weatherForDay,
 } from '../config.js';
 import { STRUCTURES } from '../systems/defenseData.js';
@@ -90,6 +92,7 @@ import { TUTORIAL_STEPS, TUTORIAL_TOTAL } from '../systems/tutorialData.js';
 
 const DEFAULT_SETTINGS = { muted: false, timeScale: 1, fps30: false };
 const SPEEDS = [1, 10, 60];
+const damp = (rate, dt) => 1 - Math.exp(-rate * dt);
 
 export class Game {
   constructor(canvas, uiRoot) {
@@ -163,9 +166,24 @@ export class Game {
     this.raycaster = new THREE.Raycaster();
     this.tap = { x: 0, y: 0, t: 0 };
 
+    this.pendingTimers = new Set();
     this.title = null;
     this.hud = null;
     this.modal = null;
+  }
+
+  #schedule(fn, ms) {
+    const id = window.setTimeout(() => {
+      this.pendingTimers.delete(id);
+      fn();
+    }, ms);
+    this.pendingTimers.add(id);
+    return id;
+  }
+
+  #clearTimers() {
+    for (const id of this.pendingTimers) window.clearTimeout(id);
+    this.pendingTimers.clear();
   }
 
   async start() {
@@ -226,11 +244,7 @@ export class Game {
     this.scene = this.world.scene;
 
     this.player = new Player(SPAWN, this.world.terrain, this.atlases);
-    this.player.colliders = [
-      ...this.world.scenery.colliders,
-      ...DITTOS.map((d) => ({ x: d.x, z: d.z, r: Math.max(0.34, d.height * 0.42) })),
-      ...CATS.map((c) => ({ x: c.x, z: c.z, r: 0.3 })),
-    ];
+    this.player.colliders = [...this.world.scenery.colliders];
     this.scene.add(this.player.group);
     this.scene.add(this.player.shadow);
     this.scene.add(this.player.dust);
@@ -353,8 +367,8 @@ export class Game {
           // 씨앗 심기 카운터는 Progress.plantSeed 가 이미 올렸다
           this.#event('plant', 1, false);
         },
-        onWater: () => {
-          this.#gainExp('farm', EXP_GAIN.water);
+        onWater: (n = 1) => {
+          this.#gainExp('farm', EXP_GAIN.water * n);
         },
         onHarvest: (crop, n) => {
           this.#gainExp('farm', EXP_GAIN.crop);
@@ -396,7 +410,7 @@ export class Game {
           this.#event('plant', 1, false);
           this.#welcomeCheck();
         },
-        onWater: () => this.#gainExp('farm', EXP_GAIN.water),
+        onWater: (n = 1) => this.#gainExp('farm', EXP_GAIN.water * n),
         onHarvest: (crop, n) => {
           this.#gainExp('farm', EXP_GAIN.crop);
           this.#event('crop', 1, false);
@@ -478,7 +492,7 @@ export class Game {
           if (kind === 'place' || kind === 'remove' || kind === 'rotate') {
             this.save();
             // 가구 목록이 열려 있었다면 보유 수를 다시 그린다
-            if (this.modal && this.modal.isOpen && (this.modal.card.textContent || '').includes('가구 고르기')) this.#openModal(this.phase7.furniture());
+            if (this.modal && this.modal.isOpen && this.modal.currentId === 'home_furniture') this.#openModal(this.phase7.furniture());
             this.#refreshHud();
           }
         },
@@ -552,7 +566,7 @@ export class Game {
       onExit: () => this.exitHome(),
     });
     this.expHud = new ExpeditionHud(this.uiRoot, { onReturn: () => this.returnExpedition() });
-    this.tutorialUI = new TutorialUI(this.uiRoot, {
+    this.tutorialUI = new TutorialUI(this.hud.left, {
       onHelp: () => this.openHelp(),
       onNext: () => this.tutorialNext(),
       onSkip: () => this.skipTutorial(),
@@ -595,7 +609,10 @@ export class Game {
         this.audio.resume();
       }
     });
-    window.addEventListener('pagehide', () => this.save());
+    window.addEventListener('pagehide', () => {
+      if (this.mode !== 'boot') this.saveStore.saveSync?.(this.snapshot());
+      this.save();
+    });
 
     this.canvas.addEventListener(
       'webglcontextlost',
@@ -764,6 +781,7 @@ export class Game {
   }
 
   #resetState() {
+    this.#clearTimers();
     this.state.day = 1;
     this.state.elapsed = 120;
     this.state.discovered = [];
@@ -817,8 +835,10 @@ export class Game {
     const px = Number(data.player && data.player.x);
     const pz = Number(data.player && data.player.z);
     // 다리 위에서 저장한 세이브도 같은 자리에 서도록, 걷기 판정 전에 다리 상태를 먼저 반영한다
-    setBridgeBuilt(!!(data.bridgeBuilt || (data.bridge && data.bridge.built)));
-    if (Number.isFinite(px) && Number.isFinite(pz) && this.world.terrain.isWalkable(px, pz)) {
+    const bridgeBuilt = !!(data.bridgeBuilt || (data.bridge && data.bridge.built));
+    setBridgeBuilt(bridgeBuilt);
+    const trappedNorth = !bridgeBuilt && Number.isFinite(px) && Number.isFinite(pz) && pz < riverCenterZ(px);
+    if (!trappedNorth && Number.isFinite(px) && Number.isFinite(pz) && this.world.terrain.isWalkable(px, pz)) {
       this.player.teleport(px, pz);
     } else {
       this.player.teleport(SPAWN.x, SPAWN.z);
@@ -887,6 +907,7 @@ export class Game {
   }
 
   async backToTitle() {
+    this.#clearTimers();
     this.modal.close();
     await this.save();
     this.mode = 'title';
@@ -927,7 +948,7 @@ export class Game {
 
     if (playing) {
       this.state.elapsed += dt * this.state.settings.timeScale;
-      if (this.state.elapsed >= DAY_SECONDS) {
+      while (this.state.elapsed >= DAY_SECONDS) {
         this.state.elapsed -= DAY_SECONDS;
         this.state.day += 1;
         this.world.setWeather(weatherForDay(this.state.day));
@@ -1100,15 +1121,14 @@ export class Game {
   #followCamera(dt) {
     const p = this.player.position;
     const desired = this.tmpA.set(p.x + CAMERA.offset.x, p.y + CAMERA.offset.y, p.z + CAMERA.offset.z);
-    const k = 1 - Math.exp(-CAMERA.lerp * dt);
-    this.camera.position.lerp(desired, k);
+    this.camera.position.lerp(desired, damp(CAMERA.lerp, dt));
 
     const groundY = this.world.terrain.sampleHeight(this.camera.position.x, this.camera.position.z);
     const minY = Math.max(groundY, 0) + 1.3;
     if (this.camera.position.y < minY) this.camera.position.y = minY;
 
     const lookTarget = this.tmpB.set(p.x, p.y + CAMERA.lookHeight, p.z);
-    this.lookAt.lerp(lookTarget, Math.min(1, dt * 9));
+    this.lookAt.lerp(lookTarget, damp(9, dt));
     this.camera.lookAt(this.lookAt);
   }
 
@@ -1971,7 +1991,10 @@ export class Game {
     if (added > 0) {
       this.audio.sfxBuild();
       const lm = LANDMARKS.find((l) => l.id === id);
-      if (lm && this.fx) this.fx.burst(lm.x, lm.y + lm.height * 0.5, lm.z, '#ffe3b0', 12, { spread: 1.6, up: 2.2 });
+      if (lm && this.fx) {
+        const baseY = this.world.terrain.groundY(lm.x, lm.z);
+        this.fx.burst(lm.x, baseY + lm.height * 0.5, lm.z, '#ffe3b0', 12, { spread: 1.6, up: 2.2 });
+      }
       this.save();
       this.#refreshHud();
       this.#openModal(this.panels.build(id));
@@ -1993,16 +2016,17 @@ export class Game {
     this.landmarkLabels.setDone(id, true);
     this.audio.sfxFanfare();
     if (lm && this.fx) {
-      this.fx.burst(lm.x, lm.y + lm.height * 0.55, lm.z, '#ffe6a8', 34, { spread: 3.2, up: 4.4, size: 1.3 });
-      this.fx.float('복구 완료!', lm.x, lm.y + lm.height * 0.9, lm.z, '#b2698f');
+      const baseY = this.world.terrain.groundY(lm.x, lm.z);
+      this.fx.burst(lm.x, baseY + lm.height * 0.55, lm.z, '#ffe6a8', 34, { spread: 3.2, up: 4.4, size: 1.3 });
+      this.fx.float('복구 완료!', lm.x, baseY + lm.height * 0.9, lm.z, '#276738');
     }
     this.hud.toast(`🎉 ${lm ? lm.name : id} 복구 완료!`, 3200);
     if (id === 'workshop') {
-      setTimeout(() => this.hud.toast('공방이 열렸어요 — 창고·요리·도구 강화를 쓸 수 있어요 📦', 3000), 900);
+      this.#schedule(() => this.hud.toast('공방이 열렸어요 — 창고·요리·도구 강화를 쓸 수 있어요 📦', 3000), 900);
     } else if (id === 'dock') {
-      setTimeout(() => this.hud.toast('부두 끝에서 [낚시하기] — 찌를 던져 볼까요? 🎣', 3000), 900);
+      this.#schedule(() => this.hud.toast('부두 끝에서 [낚시하기] — 찌를 던져 볼까요? 🎣', 3000), 900);
     } else if (id === 'vending') {
-      setTimeout(() => this.hud.toast('자판기가 켜졌어요 — 재료와 물고기를 팔고 물건을 살 수 있어요 🥤', 3000), 900);
+      this.#schedule(() => this.hud.toast('자판기가 켜졌어요 — 재료와 물고기를 팔고 물건을 살 수 있어요 🥤', 3000), 900);
     }
     this.save();
     this.#refreshHud();
@@ -2273,6 +2297,67 @@ export class Game {
     return res.ok;
   }
 
+  /** 텃밭 전체 수확 */
+  harvestAllFarm() {
+    if (!this.farming) return false;
+    let count = 0;
+    const total = FARM.cols * FARM.rows;
+    for (let i = 0; i < total; i++) {
+      const st = this.progress.plot(i);
+      if (st && st.remain <= 0) {
+        const plot = this.farming.plotByIndex(i);
+        const res = this.farming.harvest(plot);
+        if (res && res.ok) count += 1;
+      }
+    }
+    if (count > 0) {
+      this.hud.toast(`🧺 텃밭 ${count}칸을 한 번에 수확했어요!`, 2400);
+    } else {
+      this.audio.sfxDeny();
+      this.hud.toast('수확할 수 있는 작물이 없어요 🌱', 1800);
+    }
+    this.#refreshHud();
+    if (this.modal.isOpen) this.#openModal(this.phase3.farm());
+    return count > 0;
+  }
+
+  /** 텃밭 전체 물주기 */
+  waterAllFarm() {
+    if (!this.farming) return false;
+    let wateredTotal = 0;
+    let totalCost = 0;
+    let outOfStamina = false;
+    const total = FARM.cols * FARM.rows;
+    const level = this.progress.toolLevel('water');
+    for (let i = 0; i < total; i++) {
+      const st = this.progress.plot(i);
+      if (!st || st.remain <= 0 || st.watered >= FARMING.maxWater) continue;
+      const plot = this.farming.plotByIndex(i);
+      const res = this.farming.water(plot, level);
+      if (res && res.ok) {
+        wateredTotal += res.watered || 1;
+        totalCost += res.cost || 0;
+      } else if (res && res.reason === 'stamina') {
+        outOfStamina = true;
+        break;
+      }
+    }
+    if (wateredTotal > 0) {
+      this.hud.toast(
+        outOfStamina
+          ? `💧 ${wateredTotal}칸에 물을 줬어요 (기력 -${totalCost}, 기력이 부족해 여기서 멈췄어요)`
+          : `💧 텃밭 ${wateredTotal}칸에 한 번에 물을 줬어요! (기력 -${totalCost})`,
+        2400
+      );
+    } else {
+      this.audio.sfxDeny();
+      this.hud.toast(outOfStamina ? '기력이 부족해 물을 줄 수 없어요 💪' : '물을 줄 밭이 없어요 💧', 2000);
+    }
+    this.#refreshHud();
+    if (this.modal.isOpen) this.#openModal(this.phase3.farm());
+    return wateredTotal > 0;
+  }
+
   /* ── 4단계: 다리 · 논 · 리어카 · 웰컴 미션 ────────── */
 
   /** 논 한 칸의 지금 상태 — 액션 라벨·패널이 같이 본다 */
@@ -2445,6 +2530,67 @@ export class Game {
     return res.ok;
   }
 
+  /** 논 전체 수확 */
+  harvestAllPaddy() {
+    if (!this.paddy) return false;
+    let count = 0;
+    const total = PADDY.cols * PADDY.rows;
+    for (let i = 0; i < total; i++) {
+      const st = this.progress.paddyPlot(i);
+      if (st && st.remain <= 0) {
+        const plot = this.paddy.plotByIndex(i);
+        const res = this.paddy.harvest(plot);
+        if (res && res.ok) count += 1;
+      }
+    }
+    if (count > 0) {
+      this.hud.toast(`🧺 논 ${count}칸의 벼를 한 번에 수확했어요!`, 2400);
+    } else {
+      this.audio.sfxDeny();
+      this.hud.toast('수확할 수 있는 벼가 없어요 🌾', 1800);
+    }
+    this.#refreshHud();
+    if (this.modal.isOpen) this.#openModal(this.phase4.paddy());
+    return count > 0;
+  }
+
+  /** 논 전체 물대기 */
+  waterAllPaddy() {
+    if (!this.paddy) return false;
+    let wateredTotal = 0;
+    let totalCost = 0;
+    let outOfStamina = false;
+    const total = PADDY.cols * PADDY.rows;
+    const level = this.progress.toolLevel('water');
+    for (let i = 0; i < total; i++) {
+      const st = this.progress.paddyPlot(i);
+      if (!st || st.remain <= 0 || st.watered >= FARMING.maxWater) continue;
+      const plot = this.paddy.plotByIndex(i);
+      const res = this.paddy.water(plot, level);
+      if (res && res.ok) {
+        wateredTotal += res.watered || 1;
+        totalCost += res.cost || 0;
+      } else if (res && res.reason === 'stamina') {
+        outOfStamina = true;
+        break;
+      }
+    }
+    if (wateredTotal > 0) {
+      this.hud.toast(
+        outOfStamina
+          ? `💧 논 ${wateredTotal}칸에 물을 댔어요 (기력 -${totalCost}, 기력이 부족해 여기서 멈췄어요)`
+          : `💧 논 ${wateredTotal}칸에 한 번에 물을 댔어요! (기력 -${totalCost})`,
+        2400
+      );
+    } else {
+      this.audio.sfxDeny();
+      this.hud.toast(outOfStamina ? '기력이 부족해 물을 댈 수 없어요 💪' : '물을 댈 논이 없어요 💧', 2000);
+    }
+    this.#refreshHud();
+    if (this.modal.isOpen) this.#openModal(this.phase4.paddy());
+    return wateredTotal > 0;
+  }
+
   /* ── 🛒 리어카 ────────────────────────────────────── */
 
   /** 리어카 제작 가능 여부 — 공방 복구 + 재료·코인 */
@@ -2564,6 +2710,29 @@ export class Game {
     this.#openModal(this.phase7.furniture());
     this.hud.joystick.reset();
   }
+
+  /** 포근한 침대에서 쉬기 — 기력을 가득 채운다 */
+  restAtHomeBed() {
+    if (this.mode !== 'play' || !this.home || !this.home.inside) return false;
+    const placed = this.home.homeState ? this.home.homeState().placed : (this.home.placed || []);
+    if (!placed.some((d) => d && d.id === 'bed')) {
+      this.audio.sfxDeny();
+      this.hud.toast('🛏️ 먼저 방에 침대를 놓아야 쉴 수 있어요', 2000);
+      return false;
+    }
+    if (this.progress.stamina >= STAMINA.max) {
+      this.hud.toast('이미 기력이 가득해요 — 포근한 침대에 잠깐 기대어 쉬었어요 🛏️', 2200);
+      return false;
+    }
+    this.progress.restStamina(STAMINA.max);
+    this.audio.sfxEat();
+    this.hud.toast('🛏️ 포근한 침대에서 푹 쉬었어요 — 기력 100 회복!', 2600);
+    this.#refreshHud();
+    this.save();
+    if (this.modal.isOpen) this.modal.close();
+    return true;
+  }
+
 
   /** 가구 제작 — 공방 복구 + 재료(가방·특산·원정 바구니) + 코인 */
   craftFurniture(id) {
@@ -2953,6 +3122,11 @@ export class Game {
       this.hud.toast('이미 방어전이 진행 중이에요 🛡️', 1800);
       return false;
     }
+    if (this.progress.defense.lastRunDay === this.state.day) {
+      this.audio.sfxDeny();
+      this.hud.toast('오늘 방어전은 이미 마쳤어요 — 다음 Day에 다시 도전할 수 있어요 🛡️', 2400);
+      return false;
+    }
     if (this.modal.isOpen) this.modal.close();
     // 실내에 있었다면 방어전 전에 밖으로 나온다
     if (this.home && this.home.inside) this.exitHome();
@@ -3073,7 +3247,7 @@ export class Game {
     }
     if (passed > 0) {
       if (w.step >= WELCOME.steps.length) {
-        setTimeout(() => this.hud && this.hud.toast('🌿 첫걸음 완료 — 이제 섬은 마음 가는 대로예요', 3000), 900);
+        this.#schedule(() => this.hud && this.hud.toast('🌿 첫걸음 완료 — 이제 섬은 마음 가는 대로예요', 3000), 900);
       }
       this.#welcomeSync();
       this.#refreshHud();
@@ -3291,7 +3465,7 @@ export class Game {
     this.fx.float(`${res.recipe.icon} ${res.recipe.name}`, p.x, p.y + 1.8, p.z, '#b2698f');
     this.hud.toast(`${res.recipe.icon} ${res.recipe.name} 완성 — 기력 +${res.recipe.stamina}`, 2400);
     if (res.recipe.buff > 0) {
-      setTimeout(() => this.hud.toast(`✨ ${GOLDEN_BUFF.seconds}초 동안 채집 기력이 가벼워져요`, 2600), 700);
+      this.#schedule(() => this.hud.toast(`✨ ${GOLDEN_BUFF.seconds}초 동안 채집 기력이 가벼워져요`, 2600), 700);
     }
     this.#questEvent('cook', 1);
     if (this.progress.skills.level('cook') > before) this.#rankUpToast('cook', this.progress.skills.row('cook').rank);
@@ -3451,7 +3625,7 @@ export class Game {
       this.hud.toast(`${def.name} 호감도 Lv.${level}! ${CAT_CARE.dialogue[def.id][level - 1]}`, 3400);
       this.#giveCatGift(def.id, level);
       if (level === CAT_CARE.followLevel) {
-        setTimeout(() => this.hud.toast(`${def.name}가 이제 따라와도 된대요 — 돌보기에서 [따라오기] 🐾`, 3000), 900);
+        this.#schedule(() => this.hud.toast(`${def.name}가 이제 따라와도 된대요 — 돌보기에서 [따라오기] 🐾`, 3000), 900);
       }
     } else if (Math.random() < 0.45) {
       this.hud.toast(CAT_CARE.dialogue[def.id][level - 1], 1900);
@@ -3533,7 +3707,7 @@ export class Game {
     // 노드 상태는 Gathering 이 들고 있다(리젠 카운트다운 포함)
     life.nodes = this.gathering ? this.gathering.toJSON() : {};
     return {
-      version: 8,
+      version: SAVE_VERSION,
       savedAt: Date.now(),
       day: this.state.day,
       elapsedSeconds: Math.round(this.state.elapsed * 100) / 100,

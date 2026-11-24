@@ -458,9 +458,10 @@ export class Hud {
   }
 
   setAction({ active, icon = '✋', label = '둘러보기' }) {
-    if (active === this.actionBtn.__active && label === this.actionBtn.__label) return;
+    if (active === this.actionBtn.__active && label === this.actionBtn.__label && icon === this.actionBtn.__icon) return;
     this.actionBtn.__active = active;
     this.actionBtn.__label = label;
+    this.actionBtn.__icon = icon;
     this.actionIcon.textContent = icon;
     this.actionText.textContent = label;
     if (active) {

@@ -15,8 +15,10 @@ import { ACHIEVEMENTS, achById } from './achievementsData.js';
 import { FURNITURE, ROOM } from './homeData.js';
 import { isExpeditionResource } from './expeditionData.js';
 import {
+  CAT_CARE,
   CAT_LEVELS,
   COOK,
+  EXP_GAIN,
   FISH,
   FISH_ORDER,
   GOLDEN_BUFF,
@@ -60,7 +62,7 @@ export class Progress {
     this.bridge = { built: false, invested: {} };
     /** 🛒 리어카 레벨 (0 = 없음, 1 = 가방 16칸) */
     this.cartLevel = 0;
-    /** 논 3×2 타일 — null(빈 논) 또는 { crop, remain, total, watered, wet } */
+    /** 논 4×2 타일 — null(빈 논) 또는 { crop, remain, total, watered, wet, fert } */
     this.paddyPlots = new Array(PADDY.cols * PADDY.rows).fill(null);
     /** 첫 1분 웰컴 3단 미션 진행 단계 (0~3) */
     this.welcome = { step: 0 };
@@ -77,6 +79,7 @@ export class Progress {
       losses: 0,
       runs: 0,
       lastRunDay: 0,
+      defenseRewardDay: 0,
       lastResult: '',
       lastStolen: 0,
       totalDown: 0,
@@ -88,7 +91,7 @@ export class Progress {
     // ── 2단계 생활 콘텐츠
     /** 섬 코인 */
     this.coins = 0;
-    /** 4대 생활 스킬 */
+    /** 5대 생활 스킬 */
     this.skills = new Skills();
     /** 낚시 바구니 — 물고기는 가방 칸을 차지하지 않는다 */
     this.fish = {};
@@ -97,12 +100,14 @@ export class Progress {
     /** 자판기에서 산 물건 개수 */
     this.supplies = {};
     for (const id of SHOP_ORDER) this.supplies[id] = 0;
-    /** 도구 레벨 (도끼·곡괭이 1~3) */
+    /** 도구 레벨 (도끼·곡괭이·물뿌리개 1~3) */
     this.tools = {};
     for (const id of TOOL_ORDER) this.tools[id] = 1;
     /** 고양이 호감도 */
     this.cats = {};
     for (const c of CATS) this.cats[c.id] = { aff: 0, gifts: [], follow: false };
+    /** 고양이 쓰다듬기 일일 기력 회복 횟수 */
+    this.petStaminaToday = { day: 0, counts: {} };
     /** 요리 횟수(도감) */
     this.cooked = {};
     /** 오늘의 의뢰 */
@@ -115,8 +120,12 @@ export class Progress {
     // ── 3단계: 텃밭 · 수확물 바구니 · 업적
     /** 수확물 바구니 — 가방 8칸을 차지하지 않는다(낚시 바구니와 같은 방식) */
     this.crops = {};
-    /** 3×3 경작지 — null(빈 밭) 또는 { crop, remain, total, watered, wet } */
+    /** 4×4 경작지 — null(빈 밭) 또는 { crop, remain, total, watered, wet, fert } */
     this.farmPlots = new Array(FARM.cols * FARM.rows).fill(null);
+    /** 영구 도감 발견 기록 (판매해도 도감에서 사라지지 않는다) */
+    this.discoveredForage = new Set();
+    this.discoveredExpedition = new Set();
+    this.discoveredCrops = new Set();
     /** 평생 누적 카운터 — 업적·도감이 같이 읽는다 */
     this.counters = {
       chop: 0,
@@ -157,7 +166,50 @@ export class Progress {
     this.tutorial = { step: 0, done: false, skipped: false };
   }
 
-  /* ── 기력 ─────────────────────────────────────────────── */
+  /* ── 기력 & 하우징 안락도 ──────────────────────────────── */
+
+  /** 방에 놓인 고유 가구 기준 안락도 합계 */
+  homeComfortScore() {
+    const placed = this.home && Array.isArray(this.home.placed) ? this.home.placed : [];
+    const seen = new Set();
+    let score = 0;
+    for (const item of placed) {
+      if (!item || !item.id || seen.has(item.id)) continue;
+      seen.add(item.id);
+      const def = FURNITURE[item.id];
+      if (!def) continue;
+      score += Number(def.effect && def.effect.comfort) || 1;
+    }
+    return score;
+  }
+
+  /** 안락도 기반 최대 기력 보너스 (최대 +20) */
+  homeComfortBonus() {
+    return Math.min(20, this.homeComfortScore());
+  }
+
+  /** 특정 기능 가구(rest/storage 등)가 방에 배치되어 있는가 */
+  hasHomeEffect(kind) {
+    const placed = this.home && Array.isArray(this.home.placed) ? this.home.placed : [];
+    for (const item of placed) {
+      const def = item && FURNITURE[item.id];
+      if (def && def.effect && def.effect.kind === kind) return true;
+    }
+    return false;
+  }
+
+  /** 현재 최대 기력 (기본 100 + 하우징 안락도 보너스 최대 +20) */
+  get maxStamina() {
+    return STAMINA.max + this.homeComfortBonus();
+  }
+
+  /** 침대에서 쉬기 — 기력을 최대치(안락도 보너스 포함)까지 회복 */
+  restAtBed() {
+    if (!this.hasHomeEffect('rest')) return { ok: false, reason: 'no-bed' };
+    const cap = this.maxStamina;
+    this.stamina = cap;
+    return { ok: true, stamina: this.stamina, maxStamina: cap, comfortBonus: this.homeComfortBonus() };
+  }
 
   useStamina(cost) {
     const c = Math.max(0, Number(cost) || 0);
@@ -167,7 +219,7 @@ export class Progress {
   }
 
   restStamina(amount) {
-    this.stamina = Math.min(STAMINA.max, this.stamina + Math.max(0, Number(amount) || 0));
+    this.stamina = Math.min(this.maxStamina, this.stamina + Math.max(0, Number(amount) || 0));
   }
 
   /* ── 건물 ─────────────────────────────────────────────── */
@@ -217,6 +269,30 @@ export class Progress {
     return cap;
   }
 
+  /** 리어카 제작 가능 여부 (가방 + 창고 통합 재료 판정) */
+  canBuildCart() {
+    if (this.cartLevel >= CART.maxLevel) return { ok: false, reason: 'max', lack: [] };
+    const lack = [];
+    for (const [item, need] of Object.entries(CART.cost || {})) {
+      const have = item === 'coin' ? this.coins : this.materialCount(item);
+      if (have < need) lack.push({ item, need, have });
+    }
+    return { ok: lack.length === 0, reason: lack.length ? 'lack' : '', lack };
+  }
+
+  /** 리어카 제작 실행 (가방 우선 차감 후 창고에서 부족분 차감) */
+  buildCart() {
+    const check = this.canBuildCart();
+    if (!check.ok) return check;
+    for (const [item, need] of Object.entries(CART.cost || {})) {
+      if (item === 'coin') this.spendCoins(need);
+      else this.takeMaterial(item, need);
+    }
+    this.cartLevel = Math.min(CART.maxLevel, this.cartLevel + 1);
+    this.syncCapacity();
+    return { ok: true, cartLevel: this.cartLevel, bagCapacity: this.bagCapacity };
+  }
+
   /* ── 편지 ─────────────────────────────────────────────── */
 
   isRead(id) {
@@ -255,6 +331,11 @@ export class Progress {
   /** 경험치 획득 — Skills.add 결과를 그대로 돌려준다 */
   gainExp(id, amount) {
     return this.skills.add(id, amount);
+  }
+
+  /** 스킬 랭크별 게임플레이 보너스 (gather/fish/farm/cook/care/defend) */
+  skillBonus(key) {
+    return this.skills.bonus(key);
   }
 
   /* ── 낚시 바구니 ──────────────────────────────────────── */
@@ -354,13 +435,13 @@ export class Progress {
     return bonus;
   }
 
-  /** 도구 강화에 필요한 재료·코인이 지금 있는가 */
+  /** 도구 강화에 필요한 재료·코인이 지금 있는가 (가방 + 창고 통합 판정) */
   canUpgrade(id) {
     const info = this.toolInfo(id);
     if (info.maxed) return { ok: false, reason: 'max', info };
     const lack = [];
     for (const [item, need] of Object.entries(info.cost)) {
-      const have = item === 'coin' ? this.coins : this.inventory.count(item);
+      const have = item === 'coin' ? this.coins : this.materialCount(item);
       if (have < need) lack.push({ item, need, have });
     }
     return { ok: lack.length === 0, reason: lack.length ? 'lack' : '', lack, info };
@@ -372,7 +453,7 @@ export class Progress {
     const info = check.info;
     for (const [item, need] of Object.entries(info.cost)) {
       if (item === 'coin') this.spendCoins(need);
-      else this.inventory.take(item, need);
+      else this.takeMaterial(item, need);
     }
     this.tools[id] = info.level + 1;
     return { ok: true, info: this.toolInfo(id) };
@@ -387,6 +468,7 @@ export class Progress {
   addCrop(id, n = 1) {
     if (!CROPS[id]) return 0;
     const add = Math.max(0, Math.floor(Number(n) || 0));
+    if (add > 0) this.discoveredCrops.add(id);
     this.crops[id] = Math.min(999, this.cropCount(id) + add);
     return this.crops[id];
   }
@@ -402,9 +484,13 @@ export class Progress {
     return take;
   }
 
-  /** 바구니에 담긴 작물 종류 수(도감용) */
+  hasDiscoveredCrop(id) {
+    return this.discoveredCrops.has(id) || this.cropCount(id) > 0;
+  }
+
+  /** 도감 등록된 작물 종류 수 (판매 후에도 유지) */
   cropKinds() {
-    return ALL_CROP_ORDER.filter((id) => this.cropCount(id) > 0).length;
+    return ALL_CROP_ORDER.filter((id) => this.hasDiscoveredCrop(id)).length;
   }
 
   /* ── 6단계: 특산 바구니 (해변·숲·광맥) ──────────────────── */
@@ -416,6 +502,7 @@ export class Progress {
   addForage(id, n = 1) {
     if (!isForageItem(id)) return 0;
     const add = Math.max(0, Math.floor(Number(n) || 0));
+    if (add > 0) this.discoveredForage.add(id);
     this.forage[id] = Math.min(FORAGE.cap, this.forageCount(id) + add);
     return this.forage[id];
   }
@@ -431,9 +518,14 @@ export class Progress {
     return take;
   }
 
-  /** 특산물 종류 수(도감용) */
+  hasDiscoveredForage(id) {
+    return this.discoveredForage.has(id) || this.forageCount(id) > 0;
+  }
+
+  /** 특산물 종류 수(도감용, 판매 후에도 유지) */
   forageKinds() {
-    return Object.keys(this.forage).filter((id) => isForageItem(id) && this.forageCount(id) > 0).length;
+    const ids = new Set([...this.discoveredForage, ...Object.keys(this.forage).filter((id) => this.forageCount(id) > 0)]);
+    return [...ids].filter((id) => isForageItem(id)).length;
   }
 
   get forageTotal() {
@@ -523,7 +615,7 @@ export class Progress {
     return { ok: true, row, stored };
   }
 
-  /* ── 텃밭(남쪽 3×3) · 논(북쪽 3×2) 공통 타일 규칙 ──────── */
+  /* ── 텃밭(남쪽 4×4) · 논(북쪽 4×2) 공통 타일 규칙 ──────── */
 
   /** 타일 하나의 상태 (빈 타일이면 null) */
   tileAt(list, index) {
@@ -541,16 +633,17 @@ export class Progress {
     if (this.tileAt(list, index)) return { ok: false, reason: 'occupied' };
     if (this.supply(crop.seedId) <= 0) return { ok: false, reason: 'seed' };
     this.takeSupply(crop.seedId, 1);
-    list[index] = { crop: cropId, remain: crop.grow, total: crop.grow, watered: 0, wet: 0 };
+    list[index] = { crop: cropId, remain: crop.grow, total: crop.grow, watered: 0, wet: 0, fert: 0 };
     this.bump('plant', 1);
     return { ok: true, crop };
   }
 
-  /** 물주기 — 남은 시간을 절반으로 */
+  /** 물주기 — 이미 촉촉한 칸(wet > 0)은 중복 불가, 남은 시간 30% 단축 */
   waterIn(list, index) {
     const plot = this.tileAt(list, index);
     if (!plot) return { ok: false, reason: 'empty' };
     if (plot.remain <= 0) return { ok: false, reason: 'ripe' };
+    if (plot.wet > 0) return { ok: false, reason: 'wet' };
     if (plot.watered >= FARMING.maxWater) return { ok: false, reason: 'max' };
     plot.remain = Math.max(0, plot.remain * FARMING.waterHalve);
     plot.watered += 1;
@@ -574,23 +667,28 @@ export class Progress {
     return ripe;
   }
 
-  /** 수확 — 바구니(progress.crops)에 담고 타일을 비운다 */
+  /** 수확 — 비료 보너스(+1) 및 농사 스킬 추가 수확 확률 반영 */
   harvestIn(list, index) {
     const plot = this.tileAt(list, index);
     if (!plot) return { ok: false, reason: 'empty' };
     if (plot.remain > 0) return { ok: false, reason: 'growing' };
     const crop = CROPS[plot.crop];
     const [lo, hi] = crop.yield;
-    const n = lo + Math.floor(Math.random() * (hi - lo + 1));
+    let n = lo + Math.floor(Math.random() * (hi - lo + 1));
+    const fertBonus = (Number(plot.fert) || 0) > 0 ? FARMING.fertilizerBonus || 1 : 0;
+    n += fertBonus;
+    const farmBonus = this.skillBonus('farm');
+    const skillExtra = farmBonus > 0 && Math.random() < farmBonus ? 1 : 0;
+    n += skillExtra;
     this.addCrop(crop.id, n);
     list[index] = null;
     this.bump('crop', 1);
     if (NEW_CROP_ORDER.includes(crop.id)) this.bump('newcrop', 1);
-    return { ok: true, crop, n, total: this.cropCount(crop.id) };
+    return { ok: true, crop, n, fertBonus, skillExtra, total: this.cropCount(crop.id) };
   }
 
   /**
-   * 6단계: 성장 비료 — 한 번에 성장 단계 하나를 건너뛴다.
+   * 6단계: 성장 비료 — 한 번에 성장 단계 하나를 건너뛰고 수확 시 +1 보너스를 남긴다.
    * 씨앗(0) → 새싹(1) → 자라는 중(2) → 수확 가능(3), 한 칸에 최대 FARMING.fertilizer.maxPerPlot 번.
    */
   fertilizeIn(list, index) {
@@ -607,8 +705,6 @@ export class Progress {
     this.bump('fertilize', 1);
     return { ok: true, remain: plot.remain, stage: stageOfRemain(plot.remain, plot.total), used: plot.fert };
   }
-
-  /* ── 텃밭 (남쪽 3×3) ────────────────────────────────── */
 
   /* ── 7단계: 원정 전용 바구니 ──────────────────────── */
 
@@ -630,6 +726,7 @@ export class Progress {
     if (!isExpeditionResource(id)) return 0;
     const e = this.#expeditionState();
     const add = Math.max(0, Math.floor(Number(n) || 0));
+    if (add > 0) this.discoveredExpedition.add(id);
     e.basket[id] = Math.min(999, this.expeditionCount(id) + add);
     e.totalGathered = Math.min(999999, (Number(e.totalGathered) || 0) + add);
     return e.basket[id];
@@ -646,9 +743,18 @@ export class Progress {
     return take;
   }
 
-  /** 원정 바구니에 담긴 자원 종류 수(도감용) */
+  hasDiscoveredExpedition(id) {
+    return this.discoveredExpedition.has(id) || this.expeditionCount(id) > 0;
+  }
+
+  /** 원정 자원 발견 종류 수(도감용, 판매 후에도 유지) */
   expeditionKinds() {
-    return Object.keys(this.#expeditionState().basket).filter((id) => isExpeditionResource(id) && this.expeditionCount(id) > 0).length;
+    const e = this.#expeditionState();
+    const ids = new Set([
+      ...this.discoveredExpedition,
+      ...Object.keys(e.basket).filter((id) => this.expeditionCount(id) > 0),
+    ]);
+    return [...ids].filter((id) => isExpeditionResource(id)).length;
   }
 
   get expeditionTotal() {
@@ -656,24 +762,36 @@ export class Progress {
     return Object.keys(e.basket).reduce((a, id) => a + (isExpeditionResource(id) ? this.expeditionCount(id) : 0), 0);
   }
 
-  /* ── 7단계: 어디에 있든 재료 세기 (공방 제작 공용) ──── */
+  /* ── 7단계: 어디에 있든 재료 세기 (가방 + 공방 창고 + 특산 + 원정 통합) ── */
 
-  /** 가방 → 특산 바구니 → 원정 바구니 순서로 재료 보유량을 센다 */
+  /** 원정 바구니 / 특산 바구니 / 가방+공방 창고 통합 보유량을 센다 */
   materialCount(id) {
     if (!id) return 0;
     if (isExpeditionResource(id)) return this.expeditionCount(id);
     if (isForageItem(id)) return this.forageCount(id);
-    return this.inventory.count(id);
+    return this.inventory.count(id) + this.inventory.stored(id);
   }
 
-  /** 재료를 실제로 덜어 낸다 — materialCount 와 같은 순서 */
+  /** 재료를 실제로 덜어 낸다 — 가방에서 먼저 빼고 부족하면 공방 창고에서 차감 */
   takeMaterial(id, n = 1) {
     const want = Math.max(0, Math.floor(Number(n) || 0));
     if (want <= 0) return 0;
     if (isExpeditionResource(id)) return this.takeExpedition(id, want);
     if (isForageItem(id)) return this.takeForage(id, want);
-    return this.inventory.take(id, want);
+    const fromBag = this.inventory.take(id, want);
+    const rem = want - fromBag;
+    if (rem <= 0) return fromBag;
+    const stored = this.inventory.stored(id);
+    const fromStorage = Math.min(stored, rem);
+    if (fromStorage > 0) {
+      const next = stored - fromStorage;
+      if (next > 0) this.inventory.storage[id] = next;
+      else delete this.inventory.storage[id];
+    }
+    return fromBag + fromStorage;
   }
+
+  /* ── 텃밭 (남쪽 4×4) ────────────────────────────────── */
 
   plot(index) {
     return this.tileAt(this.farmPlots, index);
@@ -684,7 +802,7 @@ export class Progress {
     return this.plantIn(this.farmPlots, index, cropId, false);
   }
 
-  /** 물주기 — 남은 시간을 절반으로. @returns {{ok:boolean, remain?:number, reason?:string}} */
+  /** 물주기 — 남은 시간 30% 단축. @returns {{ok:boolean, remain?:number, reason?:string}} */
   waterPlot(index) {
     return this.waterIn(this.farmPlots, index);
   }
@@ -699,7 +817,7 @@ export class Progress {
     return this.harvestIn(this.farmPlots, index);
   }
 
-  /* ── 논 (북쪽 3×2 · 볍씨) ───────────────────────────── */
+  /* ── 논 (북쪽 4×2 · 볍씨) ───────────────────────────── */
 
   paddyPlot(index) {
     return this.tileAt(this.paddyPlots, index);
@@ -730,7 +848,7 @@ export class Progress {
     return this.fertilizeIn(this.paddyPlots, index);
   }
 
-  /* ── 고양이 호감도 ───────────────────────────────────── */
+  /* ── 고양이 호감도 & 일일 쓰다듬기 기력 상한 ─────────── */
 
   cat(id) {
     if (!this.cats[id]) this.cats[id] = { aff: 0, gifts: [], follow: false };
@@ -771,6 +889,75 @@ export class Progress {
     return { before, after, levelUp: after > before, row: this.catRow(id) };
   }
 
+  /** 오늘 해당 고양이 쓰다듬기로 기력을 얻은 횟수 (새 날이면 초기화) */
+  #syncPetStaminaDay(day) {
+    const d = Math.max(0, Math.floor(Number(day) || 0));
+    if (!this.petStaminaToday || typeof this.petStaminaToday !== 'object') {
+      this.petStaminaToday = { day: d, counts: {} };
+    }
+    if (!this.petStaminaToday.counts || typeof this.petStaminaToday.counts !== 'object') {
+      this.petStaminaToday.counts = {};
+    }
+    if (d > 0 && this.petStaminaToday.day !== d) {
+      this.petStaminaToday = { day: d, counts: {} };
+    }
+    return this.petStaminaToday;
+  }
+
+  petStaminaRemaining(catId, day = 0) {
+    const st = this.#syncPetStaminaDay(day);
+    const cap = (CAT_CARE.pet && CAT_CARE.pet.dailyStaminaCap) || 3;
+    const used = Math.max(0, Math.floor(Number(st.counts[catId]) || 0));
+    return Math.max(0, cap - used);
+  }
+
+  /**
+   * 고양이 쓰다듬기 — 호감도·재미는 언제나 가능하되, 기력 회복은 고양이별 하루 3회 상한
+   */
+  petCat(catId, day = 0) {
+    const st = this.#syncPetStaminaDay(day);
+    const cap = (CAT_CARE.pet && CAT_CARE.pet.dailyStaminaCap) || 3;
+    const used = Math.max(0, Math.floor(Number(st.counts[catId]) || 0));
+    const affBase = (CAT_CARE.pet && CAT_CARE.pet.aff) || 4;
+    const affGain = Math.max(1, Math.round(affBase * (1 + this.skillBonus('care'))));
+    const affRes = this.addAffection(catId, affGain);
+    let staminaGained = 0;
+    const staminaCapped = used >= cap;
+    if (!staminaCapped) {
+      staminaGained = (CAT_CARE.pet && CAT_CARE.pet.stamina) || 3;
+      this.restStamina(staminaGained);
+      st.counts[catId] = used + 1;
+    }
+    this.bump('pet', 1);
+    const expRes = this.gainExp('care', EXP_GAIN.pet);
+    return {
+      ok: true,
+      catId,
+      affGain,
+      staminaGained,
+      staminaCapped,
+      remainingStaminaPets: Math.max(0, cap - (st.counts[catId] || 0)),
+      ...affRes,
+      expRes,
+    };
+  }
+
+  /* ── 방어전 일일 보상 상한 ───────────────────────────── */
+
+  /** 오늘 방어전 보상을 받을 수 있는가 (같은 날 추가 수동 실행은 연습전) */
+  canClaimDefenseReward(day) {
+    const d = Math.max(1, Math.floor(Number(day) || 1));
+    const last = Math.max(0, Math.floor(Number(this.defense && this.defense.defenseRewardDay) || 0));
+    return d > last;
+  }
+
+  /** 오늘 방어전 보상 수령 기록 */
+  markDefenseRewardClaimed(day) {
+    const d = Math.max(1, Math.floor(Number(day) || 1));
+    if (!this.defense) return;
+    this.defense.defenseRewardDay = Math.max(Math.floor(Number(this.defense.defenseRewardDay) || 0), d);
+  }
+
   /* ── 요리 기록 ────────────────────────────────────────── */
 
   cookedCount(id) {
@@ -781,13 +968,13 @@ export class Progress {
     this.cooked[id] = Math.min(999, this.cookedCount(id) + 1);
   }
 
-  /** 레시피 재료가 모두 있는가 (가방 + 물고기 바구니 + 수확물 바구니 + 특산 바구니) */
+  /** 레시피 재료가 모두 있는가 (가방+창고 · 물고기 · 수확물 · 특산 · 원정 바구니, 기력 가득 차도 요리 가능) */
   canCook(id) {
     const recipe = COOK[id];
     if (!recipe) return { ok: false, reason: 'recipe' };
     const lack = [];
     for (const [item, need] of Object.entries(recipe.need || {})) {
-      const have = this.inventory.count(item);
+      const have = this.materialCount(item);
       if (have < need) lack.push({ item, need, have });
     }
     for (const [fish, need] of Object.entries(recipe.fish || {})) {
@@ -802,8 +989,11 @@ export class Progress {
       const have = this.forageCount(forage);
       if (have < need) lack.push({ item: forage, need, have });
     }
-    const full = this.stamina >= STAMINA.max - 0.5;
-    return { ok: lack.length === 0 && !full, reason: lack.length ? 'lack' : full ? 'full' : '', lack };
+    for (const [exp, need] of Object.entries(recipe.expedition || {})) {
+      const have = this.expeditionCount(exp);
+      if (have < need) lack.push({ item: exp, need, have });
+    }
+    return { ok: lack.length === 0, reason: lack.length ? 'lack' : '', lack };
   }
 
   /* ── 버프 ─────────────────────────────────────────────── */
@@ -828,11 +1018,11 @@ export class Progress {
 
   /* ── 일일 의뢰 ────────────────────────────────────────── */
 
-  /** Day 가 바뀌었으면 오늘의 의뢰를 새로 만든다. @returns {boolean} 새로 만들었는지 */
+  /** Day 가 바뀌었으면 해금된 진행도에 맞춰 오늘의 의뢰를 새로 만든다. @returns {boolean} */
   rollQuests(day) {
     const d = Math.max(1, Math.floor(Number(day) || 1));
     if (this.quests.day === d && this.quests.list.length) return false;
-    this.quests = { day: d, list: rollDailyQuests(d) };
+    this.quests = { day: d, list: rollDailyQuests(d, this) };
     return true;
   }
 
@@ -876,7 +1066,9 @@ export class Progress {
     if (q.progress < q.need) return { ok: false, reason: 'unfinished' };
     q.claimed = true;
     this.addCoins(q.reward.coin);
-    return { ok: true, quest: q };
+    const skillId = q.skill || (QUESTS[q.kind] && QUESTS[q.kind].skill) || 'gather';
+    const expResult = this.gainExp(skillId, EXP_GAIN.quest);
+    return { ok: true, quest: q, expResult };
   }
 
   /* ── 저장 ─────────────────────────────────────────────── */
@@ -934,12 +1126,19 @@ export class Progress {
       supplies: { ...this.supplies },
       tools: { ...this.tools },
       cats: JSON.parse(JSON.stringify(this.cats)),
+      petStaminaToday: {
+        day: Math.max(0, Math.floor(Number(this.petStaminaToday && this.petStaminaToday.day) || 0)),
+        counts: { ...(this.petStaminaToday && this.petStaminaToday.counts ? this.petStaminaToday.counts : {}) },
+      },
       cooked: { ...this.cooked },
       quests: JSON.parse(JSON.stringify(this.quests)),
       buff: { ...this.buff },
       fishing: { ...this.fishing },
       // ── 3단계
       crops: { ...this.crops },
+      discoveredForage: [...this.discoveredForage],
+      discoveredExpedition: [...this.discoveredExpedition],
+      discoveredCrops: [...this.discoveredCrops],
       farmPlots: this.farmPlots.map((p) =>
         p && p.crop
           ? {
@@ -1052,6 +1251,7 @@ export class Progress {
       losses: Math.max(0, Math.floor(Number(d.losses) || 0)),
       runs: Math.max(0, Math.floor(Number(d.runs) || 0)),
       lastRunDay: Math.max(0, Math.floor(Number(d.lastRunDay) || 0)),
+      defenseRewardDay: Math.max(0, Math.floor(Number(d.defenseRewardDay) || 0)),
       lastResult: typeof d.lastResult === 'string' ? d.lastResult : '',
       lastStolen: Math.max(0, Math.floor(Number(d.lastStolen) || 0)),
       totalDown: Math.max(0, Math.floor(Number(d.totalDown) || 0)),
@@ -1064,7 +1264,6 @@ export class Progress {
   load(json) {
     this.reset();
     if (!json || typeof json !== 'object') return this;
-    this.stamina = clamp(json.stamina, 0, STAMINA.max, STAMINA.max);
     // 리어카 레벨을 먼저 읽어야 가방 칸 수가 맞춰진다
     this.cartLevel = int(json.cartLevel, 0, CART.maxLevel, 0);
     this.inventory.load({ bag: json.bag, storage: json.storage }, this.bagCapacity);
@@ -1147,6 +1346,17 @@ export class Progress {
       }
     }
 
+    const pst = json.petStaminaToday && typeof json.petStaminaToday === 'object' ? json.petStaminaToday : {};
+    const pstCounts = {};
+    if (pst.counts && typeof pst.counts === 'object') {
+      for (const [k, raw] of Object.entries(pst.counts)) {
+        if (typeof k !== 'string') continue;
+        const n = int(raw, 0, 99, 0);
+        if (n > 0) pstCounts[k] = n;
+      }
+    }
+    this.petStaminaToday = { day: int(pst.day, 0, 3650, 0), counts: pstCounts };
+
     this.cooked = {};
     if (json.cooked && typeof json.cooked === 'object') {
       for (const [id, raw] of Object.entries(json.cooked)) {
@@ -1168,6 +1378,7 @@ export class Progress {
           id: typeof q.id === 'string' ? q.id : `${day}-${list.length}-${q.kind}`,
           kind: q.kind,
           event: QUESTS[q.kind].event,
+          skill: typeof q.skill === 'string' ? q.skill : QUESTS[q.kind].skill || 'gather',
           icon: typeof q.icon === 'string' ? q.icon : QUESTS[q.kind].icon,
           label: typeof q.label === 'string' ? q.label : QUESTS[q.kind].label(need),
           need,
@@ -1236,6 +1447,7 @@ export class Progress {
       losses: int(dsrc.losses, 0, 9999, 0),
       runs: int(dsrc.runs, 0, 9999, 0),
       lastRunDay: int(dsrc.lastRunDay, 0, 3650, 0),
+      defenseRewardDay: int(dsrc.defenseRewardDay, 0, 3650, 0),
       lastResult: typeof dsrc.lastResult === 'string' ? dsrc.lastResult : '',
       lastStolen: int(dsrc.lastStolen, 0, 999999, 0),
       totalDown: int(dsrc.totalDown, 0, 99999, 0),
@@ -1279,6 +1491,9 @@ export class Progress {
       if (this.home.placed.length >= ROOM.maxPlaced) break;
     }
 
+    // 하우징 안락도 보너스를 반영한 최대 기력으로 stamina 클램프
+    this.stamina = clamp(json.stamina, 0, this.maxStamina, STAMINA.max);
+
     this.expedition = { basket: {}, lastDay: 0, runs: 0, totalGathered: 0, lastSite: '', lastTotal: 0 };
     const esrc = json.expedition && typeof json.expedition === 'object' ? json.expedition : {};
     const ebasket = esrc.basket && typeof esrc.basket === 'object' ? esrc.basket : {};
@@ -1292,6 +1507,29 @@ export class Progress {
     this.expedition.totalGathered = int(esrc.totalGathered, 0, 999999, 0);
     this.expedition.lastSite = typeof esrc.lastSite === 'string' ? esrc.lastSite : '';
     this.expedition.lastTotal = int(esrc.lastTotal, 0, 9999, 0);
+
+    // 영구 도감 발견 기록 로드 + 기존 보유 수량으로 백필
+    this.discoveredForage = new Set();
+    if (Array.isArray(json.discoveredForage)) {
+      for (const id of json.discoveredForage) if (typeof id === 'string' && isForageItem(id)) this.discoveredForage.add(id);
+    }
+    for (const id of Object.keys(this.forage)) if (this.forageCount(id) > 0) this.discoveredForage.add(id);
+
+    this.discoveredExpedition = new Set();
+    if (Array.isArray(json.discoveredExpedition)) {
+      for (const id of json.discoveredExpedition) {
+        if (typeof id === 'string' && isExpeditionResource(id)) this.discoveredExpedition.add(id);
+      }
+    }
+    for (const id of Object.keys(this.expedition.basket)) {
+      if (this.expeditionCount(id) > 0) this.discoveredExpedition.add(id);
+    }
+
+    this.discoveredCrops = new Set();
+    if (Array.isArray(json.discoveredCrops)) {
+      for (const id of json.discoveredCrops) if (typeof id === 'string' && CROPS[id]) this.discoveredCrops.add(id);
+    }
+    for (const id of Object.keys(this.crops)) if (this.cropCount(id) > 0) this.discoveredCrops.add(id);
 
     const tsrc = json.tutorial && typeof json.tutorial === 'object' ? json.tutorial : {};
     this.tutorial = {

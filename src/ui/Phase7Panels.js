@@ -1,8 +1,5 @@
 /**
  * Phase7Panels.js — 7단계 화면(하우징 가구 · 원정 지도 · 원정 결과 · 도움말)
- *
- * 다른 패널과 같은 규약: Game 이 돌려받은 {title, subtitle, body, actions} 를 Modal 에
- * 그대로 넘기고, 상태를 바꾸는 일은 Game 의 메서드가 맡는다.
  */
 import { h } from './dom.js';
 import { FURNITURE, FURNITURE_ORDER, FLOOR_FURNITURE, ROOM, WALL_FURNITURE, WALL_NAMES } from '../systems/homeData.js';
@@ -38,6 +35,23 @@ export class Phase7Panels {
     const g = this.game;
     const home = g.home;
     const have = (id) => g.progress.materialCount(id);
+
+    const placedList = home.homeState ? home.homeState().placed : (home.placed || []);
+    const hasBed = placedList.some((d) => d && d.id === 'bed');
+    const hasCabinet = placedList.some((d) => d && d.id === 'cabinet');
+
+    const interactBtns = [];
+    if (hasBed) {
+      interactBtns.push(
+        h('button', { class: 'btn soft', type: 'button', onclick: () => g.restAtHomeBed() }, '🛏️ 침대에서 쉬기')
+      );
+    }
+    if (hasCabinet) {
+      interactBtns.push(
+        h('button', { class: 'btn soft', type: 'button', onclick: () => g.openStorage() }, '📦 창고 열기')
+      );
+    }
+
     const ownedRows = h('div', { class: 'furn-list' });
     const ownedIds = FURNITURE_ORDER.filter((id) => home.ownedCount(id) > 0);
     if (!ownedIds.length) {
@@ -89,11 +103,14 @@ export class Phase7Panels {
     }
 
     return {
+      id: 'home_furniture',
       title: '🛋️ 가구 고르기',
       subtitle: `실내 ${ROOM.width}×${ROOM.depth} · 바닥 ${FLOOR_FURNITURE.length}종 · 벽면 ${WALL_FURNITURE.length}종`,
       body: h(
         'div',
         {},
+        interactBtns.length ? h('div', { class: 'section-label' }, '방 안 가구 사용하기') : null,
+        interactBtns.length ? h('div', { class: 'home-interact-bar' }, ...interactBtns) : null,
         h('div', { class: 'section-label' }, `보유 가구 (${ownedIds.reduce((a, id) => a + home.ownedCount(id), 0)}개)`),
         ownedRows,
         h('div', { class: 'section-label' }, '공방 제작'),
@@ -144,6 +161,7 @@ export class Phase7Panels {
     const basketIds = Object.keys(EXPEDITION_RESOURCES).filter((id) => p.expeditionCount(id) > 0);
 
     return {
+      id: 'expedition',
       title: '🧭 원정 의뢰판',
       subtitle: `${EXPEDITION.perDay}일 ${EXPEDITION.duration}초 · 기력 ${EXPEDITION.entryStamina}/${EXPEDITION.harvestStamina} · 본섬에 없는 자원`,
       body: h(
@@ -191,6 +209,7 @@ export class Phase7Panels {
       return h('span', { class: 'lchip ok' }, `${r.icon} ${r.name} ${n}`);
     });
     return {
+      id: 'expedition_result',
       title: `${site ? site.icon : '🧭'} 원정 귀환`,
       subtitle: res && res.reason === 'timeout' ? '제한 시간이 다 되어 자동으로 돌아왔어요' : '챙긴 자원을 바구니에 담았어요',
       body: h(
@@ -240,8 +259,9 @@ export class Phase7Panels {
       rows.append(h('div', { class: 'help-row' }, h('div', { class: 'k' }, r.k), h('div', { class: 'v' }, r.v)));
     }
     return {
+      id: `help_${active.id}`,
       title: '📖 게임 도움말',
-      subtitle: '모든 수치는 지금 게임 코드에서 그대로 읽어 와요',
+      subtitle: '섬 생활에 필요한 안내를 한눈에 모아 두었어요',
       body: h(
         'div',
         {},

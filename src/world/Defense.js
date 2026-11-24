@@ -14,6 +14,7 @@
  */
 import * as THREE from 'three';
 import { DEFENSE } from '../config.js';
+import * as defenseData from '../systems/defenseData.js';
 import {
   CAT_HELP,
   RAIDER_KINDS,
@@ -352,6 +353,7 @@ export class Defense {
       total: plan.length,
       down: 0,
       fled: 0,
+      breaches: 0,
       stolen: 0,
       turretHits: 0,
       somiHits: 0,
@@ -366,6 +368,7 @@ export class Defense {
     this.slingCd = 0;
     this.balloonCd = 0;
     this.helperCd = { somi: 0, ongi: 0 };
+    this.speedMultiplier = this.cats.some((c) => c.id === 'somi') ? 1 + (CAT_HELP.somi?.speedBuff || 0.14) : 1;
     this.boat.visible = true;
     this.boatT = 0;
     this.lastResult = null;
@@ -449,7 +452,7 @@ export class Defense {
       this.catBefore = null;
     }
 
-    const victory = w.stolen === 0;
+    const victory = w.breaches === 0;
     const pf = this.progress.defense;
     pf.runs = (pf.runs || 0) + 1;
     pf.lastRunDay = w.day;
@@ -457,7 +460,7 @@ export class Defense {
     pf.totalDown = (pf.totalDown || 0) + w.down;
     pf.turretHits = (pf.turretHits || 0) + w.turretHits;
     pf.lastStolen = w.stolen;
-    pf.lastWave = { day: w.day, total: w.total, down: w.down, fled: w.fled, stolen: w.stolen, reason: w.reason };
+    pf.lastWave = { day: w.day, total: w.total, down: w.down, fled: w.fled, breaches: w.breaches, stolen: w.stolen, reason: w.reason };
 
     let reward = null;
     if (victory) {
@@ -722,11 +725,16 @@ export class Defense {
     shadow.renderOrder = 2;
     this.root.add(shadow);
 
+    const day = this.wave ? this.wave.day : 1;
+    const hpScale = typeof defenseData.raiderHpScale === 'function'
+      ? defenseData.raiderHpScale(day)
+      : 1 + Math.max(0, day - 9) * 0.045;
+    const hpMax = Math.round(def.hp * hpScale);
     const r = {
       kind,
       def,
-      hp: def.hp,
-      hpMax: def.hp,
+      hp: hpMax,
+      hpMax,
       x,
       z,
       y,
@@ -762,7 +770,7 @@ export class Defense {
     this.fx?.float(`${Math.round(total)}`, r.x, r.y + r.def.height + 0.2, r.z, source === 'turret' ? '#7fb6d6' : '#b2698f');
     this.fx?.burst(r.x, r.y + r.def.height * 0.6, r.z, source === 'balloon' ? '#a9e2f7' : '#e7dfc4', 6, { spread: 0.8, up: 1.2 });
     if (slow > 0) {
-      r.slow = Math.max(r.slow, slow);
+      r.slow = r.slow > 0 ? Math.min(r.slow, slow) : slow;
       r.slowT = Math.max(r.slowT, 1.6);
     }
     if (knockback > 0) {
@@ -818,7 +826,7 @@ export class Defense {
 
   #blockingStructure(r) {
     let best = null;
-    let bestD = 1.05;
+    let bestD = Infinity;
     for (const st of this.structures) {
       if (!st || st.hp <= 0) continue;
       const d = dist2(r.x, r.z, st.x, st.z);
@@ -903,10 +911,23 @@ export class Defense {
       }
     }
 
-    // 진행 방향 — 길을 따라 광장으로
+    if (r.state === 'taunt') {
+      if (!r.target || r.target.hp <= 0) {
+        r.state = 'walk';
+        r.target = null;
+      } else if (dist2(r.x, r.z, r.target.x, r.target.z) <= 1.25) {
+        r.state = 'attack';
+        r.attackT = 0;
+        return;
+      }
+    }
+
+    // 진행 방향 — 길을 따라 광장으로 (도발 상태면 허수아비로)
     let goal;
     if (r.state === 'flee') {
       goal = DEFENSE.boat;
+    } else if (r.state === 'taunt' && r.target) {
+      goal = r.target;
     } else {
       goal = DEFENSE.route[Math.min(r.wp, DEFENSE.route.length - 1)];
     }
@@ -920,7 +941,7 @@ export class Defense {
         this.#removeRaider(r);
         return;
       }
-      if (r.wp < DEFENSE.route.length - 1) {
+      if (r.state === 'walk' && r.wp < DEFENSE.route.length - 1) {
         r.wp += 1;
         return;
       }
@@ -949,7 +970,7 @@ export class Defense {
         if (!st || st.kind !== 'scarecrow' || st.hp <= 0) continue;
         if (dist2(r.x, r.z, st.x, st.z) <= STRUCTURES.scarecrow.taunt) {
           r.tauntRolled = true;
-          r.state = 'attack';
+          r.state = 'taunt';
           r.target = st;
           r.attackT = 0;
           this.fx?.float('저기 메타몽!', st.x, st.y + 1.5, st.z, '#8f7bc0');
@@ -985,12 +1006,17 @@ export class Defense {
 
     // 광장 안전 울타리 침입 — 코인을 챙겨 도망
     if (r.state !== 'flee' && dist2(r.x, r.z, DEFENSE.plaza.x, DEFENSE.plaza.z) <= DEFENSE.plaza.r - 0.4) {
-      const steal = Math.min(this.progress.coins, stealAmount(this.wave ? this.wave.day : 1));
+      const day = this.wave ? this.wave.day : 1;
+      const wantSteal = Math.round((r.def.steal || 10) * (1 + day * 0.08));
+      const steal = Math.min(this.progress.coins, wantSteal);
       if (steal > 0) this.progress.spendCoins(steal);
       r.stolen = true;
       r.state = 'flee';
       r.wp = DEFENSE.route.length - 1;
-      this.wave && (this.wave.stolen += steal);
+      if (this.wave) {
+        this.wave.breaches += 1;
+        this.wave.stolen += steal;
+      }
       this.fx?.float(`-${steal} 🪙`, r.x, r.y + r.def.height + 0.3, r.z, '#c0567a');
       this.hooks.toast?.(`😿 수집단이 코인 ${steal}개를 챙겨 달아나요`, 2200);
       this.safeRing.material.opacity = 0.95;
@@ -1133,7 +1159,7 @@ export class Defense {
         for (const r of this.raiders) {
           if (r.state === 'down') continue;
           if (dist2(r.x, r.z, st.x, st.z) <= STRUCTURES.lamp.range) {
-            r.slow = Math.max(r.slow, STRUCTURES.lamp.slow);
+            r.slow = r.slow > 0 ? Math.min(r.slow, STRUCTURES.lamp.slow) : STRUCTURES.lamp.slow;
             r.slowT = Math.max(r.slowT, 0.4);
           }
         }
@@ -1192,6 +1218,7 @@ export class Defense {
       left: this.raiders.length,
       down: w.down,
       fled: w.fled,
+      breaches: w.breaches,
       stolen: w.stolen,
       turretHits: w.turretHits,
       slingHits: w.slingHits,

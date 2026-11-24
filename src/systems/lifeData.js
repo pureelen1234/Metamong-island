@@ -6,6 +6,7 @@
  */
 import { ITEMS } from './items.js';
 import { CROPS, CROP_ORDER, FARMING, PADDY_SEED_ORDER, SEEDS, SEED_ORDER } from './farmData.js';
+import { EXPEDITION_RESOURCES } from './expeditionData.js';
 
 /* ─────────────────────────────────────────────────────────────────
    🎣 낚시 — 6단계: 바다 10 + 민물 5 + 별조각 = 16가지, 시간대별 출현
@@ -271,7 +272,7 @@ export function fishTimeLabel(fish) {
 
 /**
  * 지금 시간대·물(바다/민물)에 물리는 후보와 가중치.
- * 별빛 미끼를 쓰면 희귀 어종은 ×2.6, 흔한 어종은 ×0.75 로 확률이 기운다.
+ * 별빛 미끼를 쓰면 희귀 어종은 ×4.0, 흔한 어종은 ×0.5 로 확률이 크게 기운다.
  */
 export function fishPool(habitat, phaseId, bait = false) {
   const pool = {};
@@ -280,7 +281,7 @@ export function fishPool(habitat, phaseId, bait = false) {
     if (f.habitat !== 'both' && f.habitat !== habitat) continue;
     if (!f.time.includes(phaseId)) continue;
     let w = f.weight;
-    if (bait) w *= f.rare ? 2.6 : 0.75;
+    if (bait) w *= f.rare ? 4.0 : 0.5;
     pool[id] = Math.max(0.5, Math.round(w * 10) / 10);
   }
   return pool;
@@ -296,7 +297,7 @@ export function fishIn(habitat, phaseId) {
 
 /**
  * 낚시 자리 3곳 — 부두(바다) · 강가(민물) · 다리 위(민물).
- * need 가 있으면 그 건물/다리가 완성되어야 [낚시하기] 가 뜼다.
+ * need 가 있으면 그 건물/다리가 완성되어야 [낚시하기] 가 뜬다.
  */
 export const FISHING_ZONES = {
   sea: {
@@ -349,10 +350,11 @@ export const FISHING = {
 };
 
 /* ─────────────────────────────────────────────────────────────────
-   🍳 요리 — 4종 (기력 회복 + 황금 정식은 버프)
+   🍳 요리 — 기력 회복 + 상위 요리는 버프 제공
    ───────────────────────────────────────────────────────────────── */
 
-export const COOK = {  tea: {
+export const COOK = {
+  tea: {
     id: 'tea',
     name: '꽃잎 허브차',
     icon: '🍵',
@@ -419,8 +421,8 @@ export const COOK = {  tea: {
     crop: { pumpkin: 1 },
     stamina: 95,
     exp: 55,
-    buff: 0,
-    desc: '노란 호박을 뭉근하게 끓인 수프. 한 그릇이면 하루가 든든해요.',
+    buff: 45,
+    desc: '노란 호박을 뭉근하게 끓인 수프. 45초 동안 채집이 가벼워져요.',
   },
   // ── 4단계: 논에서 거둔 쌀로 짓는 주먹밥
   riceball: {
@@ -436,7 +438,7 @@ export const COOK = {  tea: {
     desc: '갓 지은 쌀에 열매 즙을 살짝 섞어 쥔 주먹밥. 한 손에 쏙 들어요.',
   },
 
-  // ══ 6단계: 새 작물·특산물·민물고기 요리 (10종 추가) ══════════
+  // ══ 6단계: 새 작물·특산물·민물고기 요리 ══════════
   tomatosalad: {
     id: 'tomatosalad',
     name: '방울토마토 샐러드',
@@ -471,7 +473,7 @@ export const COOK = {  tea: {
     stamina: 88,
     exp: 42,
     buff: 0,
-    desc: '숯불에 천천히 구운 고구마. 껍질째 쪼개면 꿀이 흐르는요.',
+    desc: '숯불에 천천히 구운 고구마. 껍질째 쪼개면 꿀이 흘러요.',
   },
   melonjuice: {
     id: 'melonjuice',
@@ -482,8 +484,8 @@ export const COOK = {  tea: {
     crop: { melon: 1 },
     stamina: 92,
     exp: 46,
-    buff: 0,
-    desc: '향긋한 멜론을 그대로 갈아 넣은 시원한 한 잔.',
+    buff: 60,
+    desc: '향긋한 멜론을 그대로 갈아 넣은 한 잔. 60초 동안 채집이 가벼워져요.',
   },
   seedcookie: {
     id: 'seedcookie',
@@ -495,8 +497,8 @@ export const COOK = {  tea: {
     forage: { honey: 1 },
     stamina: 76,
     exp: 40,
-    buff: 0,
-    desc: '해바라기씨에 달콤한 꿀을 입힌 고소한 과자.',
+    buff: 45,
+    desc: '해바라기씨에 달콤한 꿀을 입힌 과자. 45초 동안 채집이 가벼워져요.',
   },
   troutgrill: {
     id: 'troutgrill',
@@ -519,8 +521,8 @@ export const COOK = {  tea: {
     forage: { pine_mushroom: 1 },
     stamina: 100,
     exp: 60,
-    buff: 0,
-    desc: '송이버섯을 듬뿍 넣고 끓인 메기탕. 국물까지 시원하게 비워요.',
+    buff: 75,
+    desc: '송이버섯을 듬뿍 넣고 끓인 메기탕. 75초 동안 채집이 가벼워져요.',
   },
   lobstergrill: {
     id: 'lobstergrill',
@@ -531,8 +533,8 @@ export const COOK = {  tea: {
     crop: {},
     stamina: 100,
     exp: 62,
-    buff: 0,
-    desc: '꽃잎 버터를 발라 구운 랍스터. 섬의 잔치상에 오르는 한 그릇.',
+    buff: 90,
+    desc: '꽃잎 버터를 발라 구운 랍스터. 90초 동안 채집이 가벼워져요.',
   },
   matsutake: {
     id: 'matsutake',
@@ -558,6 +560,33 @@ export const COOK = {  tea: {
     buff: 0,
     desc: '꽃잎 향에 숲의 꿀을 한 숟갈. 마시면 몸이 스르르 풀려요.',
   },
+  // ══ 원정 자원 요리 2종 ══════════════════════════════════
+  mist_soup: {
+    id: 'mist_soup',
+    name: '안개 버섯 수프',
+    icon: '🥣',
+    need: { berry: 1 },
+    fish: {},
+    crop: {},
+    expedition: { mist_mushroom: 1 },
+    stamina: 95,
+    exp: 65,
+    buff: 75,
+    desc: '안개 군도의 버섯을 은근히 끓인 수프. 75초 동안 채집이 가벼워져요.',
+  },
+  pearl_tea: {
+    id: 'pearl_tea',
+    name: '심해 진주 차',
+    icon: '🫧',
+    need: { petal: 1 },
+    fish: {},
+    crop: {},
+    expedition: { deep_pearl: 1 },
+    stamina: 100,
+    exp: 70,
+    buff: 90,
+    desc: '심해 진주의 맑은 기운을 우려낸 차. 90초 동안 채집이 가벼워져요.',
+  },
 };
 
 export const COOK_ORDER = [
@@ -578,22 +607,25 @@ export const COOK_ORDER = [
   'lobstergrill',
   'matsutake',
   'honeytea',
+  'mist_soup',
+  'pearl_tea',
 ];
 
 /** 황금 정식 버프 — 지속 초 동안 채집 기력 소모·이동 속도 보정 */
 export const GOLDEN_BUFF = { seconds: 60, stamina: 0.6, speed: 1.18, label: '황금 버프' };
 
 /* ─────────────────────────────────────────────────────────────────
-   🪓 도구 강화 — 도끼 · 곡괭이 Lv.1~3
+   🪓 도구 강화 — 도끼 · 곡괭이 · 물뿌리개 Lv.1~3
    ───────────────────────────────────────────────────────────────── */
 
 export const TOOLS = {
-  axe: {    id: 'axe',
+  axe: {
+    id: 'axe',
     name: '도끼',
     icon: '🪓',
     kind: 'tree',
     max: 3,
-    cost: [{}, { log: 4, stone: 3, coin: 40 }, { log: 8, stone: 6, star: 2, coin: 120 }],
+    cost: [{}, { log: 4, stone: 3, coin: 40 }, { log: 8, stone: 6, star: 2, coin: 320 }],
     /** 레벨별 기력 소모 배율(인덱스 = 레벨-1) */
     stamina: [1, 0.85, 0.7],
     /** 레벨별 추가 타격(인덱스 = 레벨-1) */
@@ -606,7 +638,7 @@ export const TOOLS = {
     icon: '⛏️',
     kind: 'rock',
     max: 3,
-    cost: [{}, { log: 4, stone: 4, coin: 40 }, { log: 6, stone: 8, star: 2, coin: 120 }],
+    cost: [{}, { log: 4, stone: 4, coin: 40 }, { log: 6, stone: 8, star: 2, coin: 320 }],
     stamina: [1, 0.85, 0.7],
     hits: [0, 0, 1],
     desc: '바위를 캐는 도구. 강화하면 돌이 더 빨리 나와요.',
@@ -618,12 +650,12 @@ export const TOOLS = {
     icon: '🚿',
     kind: 'farm',
     max: 3,
-    cost: [{}, { log: 3, stone: 2, coin: 30 }, { log: 6, stone: 4, star: 1, coin: 90 }],
+    cost: [{}, { log: 3, stone: 2, coin: 30 }, { log: 6, stone: 4, star: 1, coin: 240 }],
     stamina: [1, 1, 1],
     hits: [0, 0, 0],
     /** 레벨별 물주기 범위 — 1칸 → 십자 5칸 → 4×4 16칸 (논은 1칸 → 한 줄 → 8칸) */
     area: [1, 5, 16],
-    desc: '한 번에 1칸 → 십자 → 텃밭 전체까지 물을 줘요. 물은 남은 성장 시간을 절반으로 줄여요.',
+    desc: '한 번에 1칸 → 십자 → 텃밭 전체까지 물을 줘요. 물은 남은 성장 시간을 30%씩 줄여요.',
   },
 };
 
@@ -638,8 +670,8 @@ export const SHOP = {
     id: 'churu',
     name: '고양이 츄르',
     icon: '🐾',
-    price: 25,
-    desc: '솜이·옹이가 제일 좋아하는 간식. 호감도 +14',
+    price: 12,
+    desc: '솜이·옹이가 제일 좋아하는 간식. 호감도 +22',
   },
   ade: {
     id: 'ade',
@@ -652,8 +684,8 @@ export const SHOP = {
     id: 'bait',
     name: '별빛 미끼',
     icon: '🪱',
-    price: 45,
-    desc: '한 번 낚시할 때 희귀 어종 확률이 올라가요.',
+    price: 15,
+    desc: '한 번 낚시할 때 희귀 어종 확률이 크게 올라가요.',
   },
   // ── 3단계: 씨앗 (사기 탭 → progress.supplies 에 담긴다)
   seed_strawberry: { kind: 'seed', crop: 'strawberry', ...SEEDS.seed_strawberry },
@@ -667,19 +699,19 @@ export const SHOP = {
   seed_sweetpotato: { kind: 'seed', crop: 'sweetpotato', ...SEEDS.seed_sweetpotato },
   seed_melon: { kind: 'seed', crop: 'melon', ...SEEDS.seed_melon },
   seed_sunflower: { kind: 'seed', crop: 'sunflower', ...SEEDS.seed_sunflower },
-  // ── 6단계: 성장 비료 (밭·논 한 칸의 성장 단계를 하나 올린다)
+  // ── 6단계: 성장 비료 (밭·논 한 칸의 성장 단계를 하나 올리고 수확 +1)
   fertilizer: {
     id: 'fertilizer',
     name: '성장 비료',
     icon: '🧪',
-    price: 40,
-    desc: '밭이나 논 한 칸에 쓰면 성장 단계가 하나 올라가요 (남은 시간 30% → 62% → 다 자람).',
+    price: FARMING.fertilizer.price,
+    desc: FARMING.fertilizer.desc,
   },
 };
 
 export const SHOP_ORDER = ['churu', 'ade', 'bait', 'fertilizer', ...SEED_ORDER, ...PADDY_SEED_ORDER];
 
-/** 팔기 단가 — 재료 + 물고기 + 수확물 + 특산물. 여기에 없는 물건은 팔 수 없다 */
+/** 팔기 단가 — 재료 + 물고기 + 수확물 + 특산물 + 원정 자원. 여기에 없는 물건은 팔 수 없다 */
 export const SELL = {
   log: 6,
   stone: 7,
@@ -723,18 +755,22 @@ export const SELL = {
   honey: 40,
   copper: 34,
   crystal: 85,
+  // ── 7단계: 원정 전용 자원
+  mist_mushroom: 65,
+  deep_pearl: 85,
+  volcano_heart: 75,
+  meteor_shard: 80,
+  ice_crystal: 75,
+  ancient_gear: 70,
 };
 
 /** 에이드 한 개의 기력 회복량 */
 export const ADE_STAMINA = 40;
 
 /* ─────────────────────────────────────────────────────────────────
-   🌱 4대 생활 스킬 · 랭크 · 종합 칭호
+   🌱 5대 생활 스킬 · 랭크 · 종합 칭호
    ───────────────────────────────────────────────────────────────── */
 
-/**
- * 5대 생활 스킬 · 랭크 · 종합 칭호
- */
 export const SKILLS = [
   { id: 'gather', name: '채집', icon: '🪓', desc: '나무·바위·꽃덤불을 두드릴 때마다' },
   { id: 'fish', name: '낚시', icon: '🎣', desc: '물고기를 잡을 때마다' },
@@ -743,30 +779,32 @@ export const SKILLS = [
   { id: 'farm', name: '농사', icon: '🌱', desc: '씨앗을 심고 물을 주고 거둘 때마다' },
 ];
 
-/** 랭크 사다리 — exp 이상이면 해당 랭크 */
+/** 랭크 사다리 — exp 이상이면 해당 랭크 (5개 스킬 기준 SSS 합계 20,000) */
 export const RANKS = [
   { name: '연습', exp: 0 },
-  { name: 'F', exp: 50 },
-  { name: 'E', exp: 200 },
-  { name: 'D', exp: 600 },
-  { name: 'C', exp: 1200 },
-  { name: 'B', exp: 2000 },
-  { name: 'A', exp: 3200 },
-  { name: 'S', exp: 4800 },
-  { name: 'SS', exp: 7000 },
-  { name: 'SSS', exp: 10000 },
+  { name: 'F', exp: 40 },
+  { name: 'E', exp: 120 },
+  { name: 'D', exp: 280 },
+  { name: 'C', exp: 520 },
+  { name: 'B', exp: 880 },
+  { name: 'A', exp: 1360 },
+  { name: 'S', exp: 2000 },
+  { name: 'SS', exp: 2900 },
+  { name: 'SSS', exp: 4000 },
 ];
 
-/** 네 스킬 EXP 합계 → 종합 섬 생활 칭호 */
+/** 다섯 스킬 EXP 합계 → 종합 섬 생활 칭호 */
 export const LIFE_TITLES = [
   { exp: 0, name: '섬의 새내기', icon: '🌱' },
   { exp: 120, name: '섬의 살림꾼', icon: '🧺' },
-  { exp: 400, name: '섬의 일꾼', icon: '🪣' },
-  { exp: 900, name: '섬의 솜씨꾼', icon: '🧵' },
-  { exp: 1700, name: '섬의 장인', icon: '🔨' },
+  { exp: 380, name: '섬의 일꾼', icon: '🪣' },
+  { exp: 850, name: '섬의 솜씨꾼', icon: '🧵' },
+  { exp: 1600, name: '섬의 장인', icon: '🔨' },
   { exp: 2800, name: '섬의 명인', icon: '🏮' },
-  { exp: 4400, name: '섬의 수호자', icon: '🛡️' },
-  { exp: 6800, name: '섬의 별', icon: '🌟' },
+  { exp: 4600, name: '섬의 수호자', icon: '🛡️' },
+  { exp: 7200, name: '섬의 개척자', icon: '🧭' },
+  { exp: 11000, name: '섬의 전설', icon: '👑' },
+  { exp: 15000, name: '섬의 별', icon: '🌟' },
 ];
 
 /** 경험치 획득표 */
@@ -792,13 +830,13 @@ export const EXP_GAIN = {
 export const CAT_LEVELS = [0, 18, 40, 68, 100];
 
 export const CAT_CARE = {
-  /** 쓰다듬기 */
-  pet: { aff: 4, stamina: 3, cooldown: 6 },
+  /** 쓰다듬기 (기력 회복은 고양이별 하루 3회까지) */
+  pet: { aff: 4, stamina: 3, cooldown: 6, dailyStaminaCap: 3 },
   /** 간식 — 열매/은멸치/츄르 */
   snacks: {
     berry: { id: 'berry', name: '열매', icon: '🍓', aff: 6, cooldown: 3 },
     anchovy: { id: 'anchovy', name: '은멸치', icon: '🐟', aff: 8, cooldown: 3 },
-    churu: { id: 'churu', name: '츄르', icon: '🐾', aff: 14, cooldown: 4 },
+    churu: { id: 'churu', name: '츄르', icon: '🐾', aff: 22, cooldown: 4 },
   },
   snackOrder: ['berry', 'anchovy', 'churu'],
   /** 이 레벨을 처음 넘을 때 보답 선물 (Lv = 키) */
@@ -806,7 +844,7 @@ export const CAT_CARE = {
     2: { star: 1 },
     3: { petal: 3 },
     4: { star: 2 },
-    5: { petal: 5, star: 3 },
+    5: { petal: 5, star: 1 },
   },
   /** 이 레벨부터 [따라오기] 토글 */
   followLevel: 3,
@@ -834,22 +872,22 @@ export const CAT_CARE = {
    ───────────────────────────────────────────────────────────────── */
 
 export const QUESTS = {
-  chop: { id: 'chop', icon: '🪓', need: [2, 4], coin: [25, 35], star: 1, label: (n) => `나무 ${n}번 베기`, event: 'chop' },
-  mine: { id: 'mine', icon: '⛏️', need: [2, 3], coin: [30, 40], star: 1, label: (n) => `바위 ${n}번 캐기`, event: 'mine' },
-  fish: { id: 'fish', icon: '🎣', need: [2, 3], coin: [35, 45], star: 1, label: (n) => `물고기 ${n}마리 낚기`, event: 'fish' },
-  treat: { id: 'treat', icon: '🐾', need: [2, 2], coin: [20, 25], star: 0, label: (n) => `고양이 간식 ${n}번 주기`, event: 'treat' },
-  pet: { id: 'pet', icon: '🤲', need: [3, 4], coin: [15, 20], star: 0, label: (n) => `고양이 ${n}번 쓰다듬기`, event: 'pet' },
-  cook: { id: 'cook', icon: '🍳', need: [1, 2], coin: [40, 55], star: 1, label: (n) => `요리 ${n}번 하기`, event: 'cook' },
-  sell: { id: 'sell', icon: '🪙', need: [4, 6], coin: [25, 35], star: 0, label: (n) => `자판기에 ${n}개 팔기`, event: 'sell' },
-  petal: { id: 'petal', icon: '🌸', need: [3, 5], coin: [20, 28], star: 0, label: (n) => `꽃잎 ${n}개 모으기`, event: 'petal' },
+  chop: { id: 'chop', icon: '🪓', skill: 'gather', need: [2, 4], coin: [25, 35], star: 1, label: (n) => `나무 ${n}번 베기`, event: 'chop' },
+  mine: { id: 'mine', icon: '⛏️', skill: 'gather', need: [2, 3], coin: [30, 40], star: 1, label: (n) => `바위 ${n}번 캐기`, event: 'mine' },
+  fish: { id: 'fish', icon: '🎣', skill: 'fish', need: [2, 3], coin: [35, 45], star: 1, label: (n) => `물고기 ${n}마리 낚기`, event: 'fish' },
+  treat: { id: 'treat', icon: '🐾', skill: 'care', need: [2, 2], coin: [20, 25], star: 0, label: (n) => `고양이 간식 ${n}번 주기`, event: 'treat' },
+  pet: { id: 'pet', icon: '🤲', skill: 'care', need: [3, 4], coin: [15, 20], star: 0, label: (n) => `고양이 ${n}번 쓰다듬기`, event: 'pet' },
+  cook: { id: 'cook', icon: '🍳', skill: 'cook', need: [1, 2], coin: [40, 55], star: 1, label: (n) => `요리 ${n}번 하기`, event: 'cook' },
+  sell: { id: 'sell', icon: '🪙', skill: 'gather', need: [4, 6], coin: [25, 35], star: 0, label: (n) => `자판기에 ${n}개 팔기`, event: 'sell' },
+  petal: { id: 'petal', icon: '🌸', skill: 'gather', need: [3, 5], coin: [20, 28], star: 0, label: (n) => `꽃잎 ${n}개 모으기`, event: 'petal' },
   // ── 3단계 농사 의뢰
-  plant: { id: 'plant', icon: '🌱', need: [2, 3], coin: [25, 35], star: 0, label: (n) => `씨앗 ${n}번 심기`, event: 'plant' },
-  crop: { id: 'crop', icon: '🧺', need: [2, 4], coin: [35, 50], star: 1, label: (n) => `작물 ${n}번 수확하기`, event: 'crop' },
+  plant: { id: 'plant', icon: '🌱', skill: 'farm', need: [2, 3], coin: [25, 35], star: 0, label: (n) => `씨앗 ${n}번 심기`, event: 'plant' },
+  crop: { id: 'crop', icon: '🧺', skill: 'farm', need: [2, 4], coin: [35, 50], star: 1, label: (n) => `작물 ${n}번 수확하기`, event: 'crop' },
   // ── 6단계 특산 채집·민물 낚시 의뢰
-  beach: { id: 'beach', icon: '🐚', need: [3, 5], coin: [25, 35], star: 0, label: (n) => `해변 특산품 ${n}개 줍기`, event: 'beach' },
-  forest: { id: 'forest', icon: '🍄', need: [3, 4], coin: [30, 40], star: 0, label: (n) => `숲 특산품 ${n}개 채집하기`, event: 'forest' },
-  ore: { id: 'ore', icon: '💎', need: [2, 4], coin: [35, 45], star: 1, label: (n) => `광물 ${n}개 캐기`, event: 'ore' },
-  riverfish: { id: 'riverfish', icon: '🏞️', need: [2, 3], coin: [40, 50], star: 1, label: (n) => `민물고기 ${n}마리 낚기`, event: 'riverfish' },
+  beach: { id: 'beach', icon: '🐚', skill: 'gather', need: [3, 5], coin: [25, 35], star: 0, label: (n) => `해변 특산품 ${n}개 줍기`, event: 'beach' },
+  forest: { id: 'forest', icon: '🍄', skill: 'gather', need: [3, 4], coin: [30, 40], star: 0, label: (n) => `숲 특산품 ${n}개 채집하기`, event: 'forest' },
+  ore: { id: 'ore', icon: '💎', skill: 'gather', need: [2, 4], coin: [35, 45], star: 1, label: (n) => `광물 ${n}개 캐기`, event: 'ore' },
+  riverfish: { id: 'riverfish', icon: '🏞️', skill: 'fish', need: [2, 3], coin: [40, 50], star: 1, label: (n) => `민물고기 ${n}마리 낚기`, event: 'riverfish' },
 };
 
 export const QUEST_ORDER = ['chop', 'mine', 'fish', 'treat', 'pet', 'cook', 'sell', 'petal', 'plant', 'crop', 'beach', 'forest', 'ore', 'riverfish'];
@@ -858,13 +896,16 @@ export const QUEST_ORDER = ['chop', 'mine', 'fish', 'treat', 'pet', 'cook', 'sel
    도우미
    ───────────────────────────────────────────────────────────────── */
 
-/** id → {name, icon} (재료 + 물고기 + 상점 품목 + 씨앗/수확물을 한 번에) */
+/** id → {name, icon} (재료 + 물고기 + 상점 품목 + 씨앗/수확물 + 원정 자원을 한 번에) */
 export function itemMeta(id) {
   if (ITEMS[id]) return { name: ITEMS[id].name, icon: ITEMS[id].icon, tint: ITEMS[id].tint || '#dcdcea' };
   if (FISH[id]) return { name: FISH[id].name, icon: FISH[id].icon, tint: FISH[id].tint };
   if (SHOP[id]) return { name: SHOP[id].name, icon: SHOP[id].icon, tint: '#ffe1b0' };
   if (CROPS[id]) return { name: CROPS[id].name, icon: CROPS[id].icon, tint: CROPS[id].tint };
   if (SEEDS[id]) return { name: SEEDS[id].name, icon: SEEDS[id].icon, tint: '#cbe8b0' };
+  if (EXPEDITION_RESOURCES[id]) {
+    return { name: EXPEDITION_RESOURCES[id].name, icon: EXPEDITION_RESOURCES[id].icon, tint: EXPEDITION_RESOURCES[id].tint };
+  }
   return { name: id, icon: '❔', tint: '#dcdcea' };
 }
 
@@ -891,10 +932,24 @@ export function seededRandom(seed) {
   };
 }
 
-/** 그날의 의뢰 2건 — Day 숫자만 같으면 언제 열어도 같은 의뢰 */
-export function rollDailyQuests(day) {
+/** 그날의 의뢰 2건 — 해금된 구역·건물에 맞춰 필터링한다 */
+export function rollDailyQuests(day, opts = null) {
   const rand = seededRandom(day * 97 + 13);
-  const pool = [...QUEST_ORDER];
+  const hasBridge = !opts || !!opts.bridgeBuilt;
+  const hasWorkshop =
+    !opts ||
+    (typeof opts.building === 'function' ? !!(opts.building('workshop') && opts.building('workshop').done) : opts.workshopDone !== false);
+  const hasVending =
+    !opts ||
+    (typeof opts.building === 'function' ? !!(opts.building('vending') && opts.building('vending').done) : opts.vendingDone !== false);
+
+  const pool = QUEST_ORDER.filter((kind) => {
+    if (!hasBridge && (kind === 'forest' || kind === 'ore')) return false;
+    if (!hasWorkshop && kind === 'cook') return false;
+    if (!hasVending && kind === 'sell') return false;
+    return true;
+  });
+
   const picks = [];
   while (picks.length < 2 && pool.length) {
     const idx = Math.floor(rand() * pool.length);
@@ -908,6 +963,7 @@ export function rollDailyQuests(day) {
       id: `${day}-${i}-${kind}`,
       kind,
       event: def.event,
+      skill: def.skill || 'gather',
       icon: def.icon,
       label: def.label(need),
       need,

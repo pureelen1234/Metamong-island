@@ -81,7 +81,7 @@ export function inkMaterial(thick) {
         gl_Position = projectionMatrix * mvPosition;`
       );
   };
-  mat.customProgramCacheKey = () => 'metamong-ink';
+  mat.customProgramCacheKey = () => `metamong-ink-${key}`;
   inkCache.set(key, mat);
   return mat;
 }

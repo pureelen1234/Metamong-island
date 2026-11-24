@@ -60,6 +60,7 @@ export class Ditto {
     this.joy = 0;
     this.frameIdx = 0;
     this.frameT = 0;
+    this.twitchT = 0;
     this.sprites = [this.billboard.material];
 
     // ── 5단계: 대피 — 광장 안전 울타리로 달려갔다가 제자리로 돌아온다
@@ -137,6 +138,7 @@ export class Ditto {
     this.t += dt;
     if (this.joy > 0) this.joy = Math.max(0, this.joy - dt);
     if (this.reactT > 0) this.reactT = Math.max(0, this.reactT - dt);
+    if (this.twitchT > 0) this.twitchT = Math.max(0, this.twitchT - dt);
     const walking = this.#walkToTarget(walkDt);
 
     // 프레임 애니메이션
@@ -150,10 +152,10 @@ export class Ditto {
       }
       const name = set[this.frameIdx];
       if (this.billboard.frame !== this.atlas.frames.get(name)) this.billboard.setFrame(name);
-    } else if (this.frameT > 2.4 && Math.random() < 0.5) {
+    } else if (this.frameT > 2.4) {
       // 위장 메타몽: 가끔 몰래 움찔
       this.frameT = 0;
-      this.billboard.setFrame(this.variant);
+      if (Math.random() < 0.5) this.twitchT = 0.28;
     }
 
     // 숨쉬기·폴짝
@@ -161,14 +163,16 @@ export class Ditto {
     if (this.hop > 0) this.hop = Math.max(0, this.hop - dt * 2.2);
     let lift = this.hop > 0 ? Math.sin((1 - this.hop) * Math.PI) * this.height * 0.22 : 0;
     if (walking) lift += Math.abs(Math.sin(this.walkPhase)) * this.height * 0.16;
-    const wobble = this.reactT > 0 ? Math.sin(this.t * 26) * 0.06 * this.reactT : 0;
+    const reactWobble = this.reactT > 0 ? Math.sin(this.t * 26) * 0.06 * this.reactT : 0;
+    const twitchWobble = this.twitchT > 0 ? Math.sin(this.t * 42) * 0.08 * (this.twitchT / 0.28) : 0;
+    const wobble = reactWobble + twitchWobble;
 
     this.group.position.set(this.position.x, this.position.y + lift, this.position.z);
     this.billboard.mesh.scale.set(breathe + wobble * 0.3, breathe - wobble * 0.3, 1);
     if (camera) this.billboard.faceCamera(camera);
 
     this.shadow.position.set(this.position.x, this.position.y + 0.02, this.position.z);
-    const sk = 1 - lift * 0.7;
+    const sk = Math.max(0.25, 1 - lift * 0.7);
     this.shadow.scale.set(sk, 1, sk);
 
     // 반짝 링
